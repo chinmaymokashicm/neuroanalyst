@@ -1,3 +1,6 @@
 outputs/
-PI-*/
+PR-*/
 working_dirs/
+database/
+__pycache__/
+*.pyc

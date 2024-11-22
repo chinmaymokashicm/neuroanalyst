@@ -1,10 +1,11 @@
 from ..utils.generate import generate_id
+from ..utils.exceptions import DBRecordMissing
 
 from datetime import datetime
 from pathlib import Path, PosixPath
 from string import Template
 import subprocess, json
-from typing import Optional
+from typing import Optional, Any
 
 from pydantic import BaseModel, DirectoryPath, FilePath, Field, field_validator
 
@@ -46,14 +47,16 @@ class ContainerVolumes(BaseModel, extra="allow"):
     output_dir: str = Field(title="Output Directory. The directory where the output will be stored.", default="/output_dir/")
 
 class ProcessImage(BaseModel):
+    id: str = Field(title="ID. The unique identifier of the process image.", default_factory=lambda: generate_id("PR", 6, "-"))
     name: str = Field(title="Name. The name of the process.")
     tag: str = Field(title="Tag. The tag of the process.")
+    version: str = Field(title="Version. The version of the process.", default="0.1.0")
     description: str = Field(title="Description. A brief description of the process.", default="")
     created_at: datetime = Field(title="Created At. The date and time when the process was created.", default=datetime.now())
-    version: str = Field(title="Version. The version of the process.", default="0.0.1")
     base_docker_image: str = Field(title="Base Docker Image. The base Docker image to use for the process.")
     working_directory: WorkingDirectory = Field(title="Working Directory. Information about the directory where the process will be executed.")
     stages: list[str] = Field(title="Stages. The stages of the process.")
+    expected_outputs: list[str] = Field(title="Expected Outputs. The expected JSON outputs of the process.")
     container_volumes: Optional[ContainerVolumes | dict] = Field(title="Container Volumes. The volumes to mount in the container.", default_factory=ContainerVolumes)
     environment_variables: list[str] = Field(title="Environment Variables. The environment variables to set in the container.", default=["BIDS_FILTERS"])
     
@@ -69,11 +72,21 @@ class ProcessImage(BaseModel):
             raise ValueError("Tag must contain only alphanumeric characters and hyphens.")
         return value
     
-    @field_validator("base_docker_image")
-    def check_base_docker_image(cls, value):
-        if value == "":
-            raise ValueError("Base image must be non-empty.")
+    @field_validator("container_volumes")
+    def check_container_volumes(cls, value):
+        if value is None or value == {}:
+            return ContainerVolumes()
+        if isinstance(value, dict):
+            return ContainerVolumes(**value)
+        return value
     
+    @classmethod
+    def from_db(cls, id: str):
+        with open(f"database/{id}.json", "r") as f:
+            process_image_config: dict = json.load(f)
+        return cls(**process_image_config)
+    
+    def verify_base_docker_image(self):
         # Check if Docker is installed
         try:
             print("Checking if Docker is installed...")
@@ -83,26 +96,16 @@ class ProcessImage(BaseModel):
 
         # Check if the Docker image is available locally
         try:
-            print(f"Checking if Docker image {value} is available locally...")
-            result = subprocess.run(["docker", "images", "-q", value], check=True, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+            print(f"Checking if Docker image {self.base_docker_image} is available locally...")
+            result = subprocess.run(["docker", "images", "-q", self.base_docker_image], check=True, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
             if not result.stdout:
                 # If the image is not available locally, try to pull it
                 try:
-                    subprocess.run(["docker", "pull", value], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                    subprocess.run(["docker", "pull", self.base_docker_image], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                 except subprocess.CalledProcessError:
-                    raise ValueError(f"Docker image {value} is not available.")
+                    raise ValueError(f"Docker image {self.base_docker_image} is not available.")
         except subprocess.CalledProcessError:
             raise ValueError("An error occurred while checking if the Docker image is available locally.")
-
-        return value
-    
-    @field_validator("container_volumes")
-    def check_container_volumes(cls, value):
-        if value is None or value == {}:
-            return ContainerVolumes()
-        if isinstance(value, dict):
-            return ContainerVolumes(**value)
-        return value
     
     def get_dockerfile(self) -> str:
         with open("lib/process/templates/Dockerfile", "r") as f:
@@ -146,7 +149,7 @@ class ProcessImage(BaseModel):
             stages=", ".join(self.stages),
             container_volumes_bullets=container_volumes_bullets,
             environment_variables=" ".join(self.environment_variables),
-            process_image_id=generate_id("PI", 6, "-"),
+            process_image_id=self.id,
             tag=self.tag,
             iter_mount_volume_command=iter_mount_volume_command,
             iter_env_command=iter_env_command
@@ -154,9 +157,10 @@ class ProcessImage(BaseModel):
 
         return documentation
     
-    def create_image_workdir(self):
-        process_image_id: str = generate_id("PI", 6, "-")
-        dest_dir: PosixPath = Path(f"{process_image_id}/")
+    def create_image_workdir(self) -> tuple[str, PosixPath]:
+        if self.id is None:
+            raise ValueError("Process image ID is not set.")
+        dest_dir: PosixPath = Path(f"{self.id}/")
         
         # Copy the working directory to the destination directory
         self.copy_work_dir(dest_dir)
@@ -177,7 +181,7 @@ class ProcessImage(BaseModel):
     
         # Set config to config.json
         with open(dest_dir / "config.json", "w") as f:
-            json.dump(config, f)
+            json.dump(config, f, indent=4)
         
         readme: str = self.get_documentation()
         with open(dest_dir / "README.md", "w") as f:
@@ -185,79 +189,128 @@ class ProcessImage(BaseModel):
         print(f"README.md created at {dest_dir}")
             
         print(f"Process image {self.name} / {self.tag} directory created at {dest_dir}")
-        return process_image_id, dest_dir
+        return id, dest_dir
         
+    def snapshot_to_db(self):
+        with open(f"database/{self.id}.json", "w") as f:
+            f.write(self.model_dump_json(indent=4))
+    
     def build_image(self, dest_dir: str):
+        # Verify the base Docker image
+        self.verify_base_docker_image()
+        
         # Build the Docker image
         try:
             print("Building Docker image...")
-            command: str = f"cd {dest_dir}; docker build -t '{self.tag}' ."
+            command: str = f"cd {dest_dir}; docker build -t '{self.tag}' --label project=neuroanalyst --label process_id={dest_dir.name} ."
             subprocess.run(command, check=True, shell=True)
         except subprocess.CalledProcessError:
             raise ValueError("An error occurred while building the Docker image.")
 
-def spawn_container(
-    process_image_id: str, 
-    process_image_name: str, 
-    output_volumes: dict[str, str],
-    environment_var_values: dict[str, str] = {}
-    ) -> tuple[str, str]:
+        # Save process image configuration to the database
+        self.snapshot_to_db()
+
+class ProcessExecConfig(BaseModel):
+    output_volumes: dict[str, str] = Field(title="Output Volumes. The volumes to mount in the container.")
+    environment_var_values: dict[str, Any] = Field(title="Environment Variable Values. The values of the environment variables to set in the container.", default_factory=dict)
     
-    process_image_dirpath: PosixPath = Path(process_image_id)
-    if not process_image_dirpath.exists():
-        raise ValueError(f"Process image directory does not exist: {process_image_dirpath}")
-    # Generate random container name
-    container_name: str = generate_id("PC", 6, "-")
+class ProcessExec(BaseModel):
+    id: str = Field(title="ID. The unique identifier of the process execution.")
+    process_exec_config: ProcessExecConfig = Field(title="Process Execution Configuration. The configuration for executing the process.")
+    process_image: ProcessImage = Field(title="Process Image. The process image to execute.")
+    command: Optional[str] = Field(title="Command. The command to execute the process.", default=None)
+    docker_container_id: Optional[str] = Field(title="Docker Container ID. The ID of the Docker container spawned for the process execution.", default=None)
     
-    # Load input volumes
-    with open(process_image_dirpath / "config.json", "r") as f:
-        config: dict = json.load(f)
-        config_container_volumes: dict[str, str] = config["container_volumes"]
-        config_environment_variables: list[str] = config["environment_variables"]
-    
-    volume_tag_pairs: list[tuple[str, str]] = []
-    
-    # Check if all container volumes are matched in the output volumes, if not raise an error
-    for container_volume_name, container_volume_path in config_container_volumes.items():
-        if container_volume_name not in output_volumes:
-            raise ValueError(f"Output volume for {container_volume_name} not specified.")
-        output_volume_path: str = output_volumes[container_volume_name]
-        if container_volume_name == "output_dir":
-            output_volume_path = f"{output_volume_path}/{container_name}"
-        volume_tag_pairs.append((output_volume_path, container_volume_path))
-    
-    # If any output volume is not matched in the container volumes, raise a warning
-    for container_volume_name in output_volumes:
-        if container_volume_name not in config_container_volumes:
-            print(f"Warning: Output volume for {container_volume_name} not used.")    
-    
-    env_values: dict[str, str] = {}
+    @staticmethod
+    def generate_docker_run_command(process_image: ProcessImage, process_exec_config: ProcessExecConfig, id: str) -> str:
+        # Load input volumes
+        config_container_volumes: dict[str, str] = process_image.container_volumes.model_dump()
+        config_environment_variables: list[str] = process_image.environment_variables
         
-    # Match provided environment variables with the ones in the config
-    for env_var_name in config_environment_variables:
-        if env_var_name in environment_var_values:
-            env_values[env_var_name] = environment_var_values[env_var_name]
-        else:
-            env_values[env_var_name] = ""
-            print(f"Warning: Environment variable {env_var_name} not set.")
+        volume_tag_pairs: list[tuple[str, str]] = []
+        
+        # Check if all container volumes are matched in the output volumes, if not raise an error
+        for container_volume_name, container_volume_path in config_container_volumes.items():
+            if container_volume_name not in process_exec_config.output_volumes:
+                raise ValueError(f"Output volume for {container_volume_name} not specified.")
+            output_volume_path: str = process_exec_config.output_volumes[container_volume_name]
+            if container_volume_name == "output_dir":
+                output_volume_path = f"{output_volume_path}/{id}"
+            volume_tag_pairs.append((output_volume_path, container_volume_path))
+            
+        # If any output volume is not matched in the container volumes, raise a warning
+        for container_volume_name in process_exec_config.output_volumes:
+            if container_volume_name not in config_container_volumes:
+                print(f"Warning: Output volume for {container_volume_name} not used.")
+                
+        env_values: dict[str, str] = {}
+        
+        # Match provided environment variables with the ones in the config
+        for env_var_name in config_environment_variables:
+            if env_var_name in process_exec_config.environment_var_values:
+                env_values[env_var_name] = process_exec_config.environment_var_values[env_var_name]
+            else:
+                env_values[env_var_name] = ""
+                print(f"Warning: Environment variable {env_var_name} not set.")
+                
+        # Create the Docker command using the container name, volume tag pairs, and environment variables
+        command: str = f"docker run --name {id} -d"
+        for volume_tag_pair in volume_tag_pairs:
+            command += f" -v {volume_tag_pair[0]}:{volume_tag_pair[1]}"
+        for env_var_name, env_var_value in env_values.items():
+            if isinstance(env_var_value, dict):
+                env_var_value = json.dumps(env_var_value)
+                command += f" -e {env_var_name}='{env_var_value}'"
+            else:
+                command += f" -e {env_var_name}={env_var_value}"
+        command += f" {process_image.tag}"
+        
+        return command
     
-    # Create the Docker command and use the volumes
-    command: str = f"docker run --name {container_name} -d"
-    for volume_tag_pair in volume_tag_pairs:
-        command += f" -v {volume_tag_pair[0]}:{volume_tag_pair[1]}"
-    for env_var_name, env_var_value in env_values.items():
-        if isinstance(env_var_value, dict):
-            env_var_value = json.dumps(env_var_value)
-            command += f" -e {env_var_name}='{env_var_value}'"
-        else:
-            command += f" -e {env_var_name}={env_var_value}"
-    command += f" {process_image_name}"
+    @classmethod
+    def from_db(cls, id: str):
+        if not Path(f"database/{id}.json").exists():
+            raise DBRecordMissing(f"Process execution with ID {id} does not exist in the database.")
+        with open(f"database/{id}.json", "r") as f:
+            process_exec_config: dict = json.load(f)
+        return cls(**process_exec_config)
     
-    # Run the Docker command
-    try:
-        print("Spawning Docker container...")
-        subprocess.run(command, check=True, shell=True)
-    except subprocess.CalledProcessError as e:
-        raise ValueError(f"An error occurred while spawning the Docker container: {e}")
+    @classmethod
+    def from_user(cls, process_exec_config: ProcessExecConfig, process_image_id: str):
+        # Load process image configuration from the database
+        with open(f"database/{process_image_id}.json", "r") as f:
+            process_image_config: dict = json.load(f)
+        process_image: ProcessImage = ProcessImage(**process_image_config)
+        
+        id: str = generate_id(process_image.id, 6, "-")
+        
+        command: str = cls.generate_docker_run_command(
+            process_image=process_image,
+            process_exec_config=process_exec_config,
+            id=id
+        )
+        
+        return cls(id=id, process_exec_config=process_exec_config, process_image=process_image, command=command)
     
-    return container_name, command
+    def snapshot_to_db(self):
+        with open(f"database/{self.id}.json", "w") as f:
+            f.write(self.model_dump_json(indent=4))
+        
+    def execute(self):
+        if self.command is None:
+            self.command = self.generate_docker_run_command(
+                process_image=self.process_image,
+                process_exec_config=self.process_exec_config,
+                id=self.id
+            )
+        # Run the Docker command and capture the output
+        try:
+            print("Spawning Docker container...")
+            output = subprocess.check_output(self.command, shell=True, universal_newlines=True)
+            self.docker_container_id = output.strip()  # Extract the container ID from the output
+            print(f"Docker container spawned with ID: {self.docker_container_id}")
+        except subprocess.CalledProcessError as e:
+            raise ValueError(f"An error occurred while spawning the Docker container: {e}")
+
+        # Save process execution configuration to the database
+        self.snapshot_to_db()

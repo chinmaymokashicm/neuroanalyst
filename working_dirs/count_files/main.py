@@ -18,7 +18,7 @@ subprocess.run("./update_progress.sh", check=True)
 
 # Save the number of files to a file
 with open("/output_dir/n_files.json", "w") as f:
-    json.dump({"n_files": n_files}, f)
+    json.dump({"n_files": n_files}, f, indent=4)
 
 # Stage 3: Saved the number of files to a file
 subprocess.run("./update_progress.sh", check=True)

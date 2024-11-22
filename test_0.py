@@ -1,19 +1,21 @@
-from lib.process.create import spawn_container
+from lib.process.create import ProcessExecConfig, ProcessExec
 
-process_image_id: str = "PI-850811"
-process_image_name: str = "count-files"
-
-container_name, docker_run_command = spawn_container(
-    process_image_id, 
-    process_image_name, 
-    {
+process_exec_config: ProcessExecConfig = ProcessExecConfig(
+    output_volumes={
         "data_dir": "/Users/cmokashi/Documents/GitHub/ukb2bids/bids",
-        "output_dir": f"$PWD/outputs/{process_image_name}"
+        "output_dir": "$PWD/outputs/"
     },
-    {
-        "BIDS_FILTERS": {"datatype": "anat"}
+    environment_var_values={
+        "BIDS_FILTERS": {"suffix": "T1w", "extension": "nii.gz"}
     }
 )
 
-print(f"Container name: {container_name}")
-print(f"Docker run command: {docker_run_command}")
+process_exec: ProcessExec = ProcessExec.from_user(
+    process_exec_config=process_exec_config,
+    process_image_id="PR-050881"
+)
+
+# print(process_exec.model_dump_json(indent=4))
+# print(process_exec.model_dump())
+
+process_exec.execute()

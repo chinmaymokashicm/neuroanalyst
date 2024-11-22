@@ -8,6 +8,6 @@ pip install pydantic rich
 
 pip install ipython ipykernel ipywidgets
 
-pip install pybids
+pip install pybids nibabel nilearn matplotlib pandas
 
 pip freeze > requirements.txt
