@@ -6,8 +6,8 @@ pyenv shell $venv_name
 
 pip install pydantic rich
 
-pip install ipython ipykernel ipywidgets
+pip install ipython ipykernel ipywidgets pymongo
 
-pip install pybids nibabel nilearn matplotlib pandas pymongo
+# pip install pybids nibabel nilearn matplotlib pandas
 
 pip freeze > requirements.txt
