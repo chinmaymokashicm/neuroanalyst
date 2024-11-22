@@ -1,5 +1,7 @@
 from ..utils.generate import generate_id
 from ..utils.exceptions import DBRecordMissing
+from ..utils.db import Connection, insert_to_db, find_one_from_db
+from ..utils.constants import COLLECTION_PROCESS_IMAGES, COLLECTION_PROCESS_EXECS, COLLECTION_SUMMARIES
 
 from datetime import datetime
 from pathlib import Path, PosixPath
@@ -81,9 +83,15 @@ class ProcessImage(BaseModel):
         return value
     
     @classmethod
-    def from_db(cls, id: str):
-        with open(f"database/{id}.json", "r") as f:
-            process_image_config: dict = json.load(f)
+    def from_db(cls, id: str, connection: Optional[Connection] = None):
+        connection: Connection = Connection.from_defaults() if connection is None else connection
+        collection = connection.db[COLLECTION_PROCESS_IMAGES]
+        
+        if collection is None or collection.count_documents({"id": id}) == 0:
+            raise DBRecordMissing(f"Process image with ID {id} does not exist in the database.")
+        
+        process_image_config: dict = find_one_from_db(COLLECTION_PROCESS_IMAGES, {"id": id})
+        
         return cls(**process_image_config)
     
     def verify_base_docker_image(self):
@@ -191,9 +199,8 @@ class ProcessImage(BaseModel):
         print(f"Process image {self.name} / {self.tag} directory created at {dest_dir}")
         return id, dest_dir
         
-    def snapshot_to_db(self):
-        with open(f"database/{self.id}.json", "w") as f:
-            f.write(self.model_dump_json(indent=4))
+    def to_db(self, connection: Optional[Connection] = None):
+        insert_to_db(COLLECTION_PROCESS_IMAGES, self.model_dump(mode="json"), connection)
     
     def build_image(self, dest_dir: str):
         # Verify the base Docker image
@@ -208,7 +215,7 @@ class ProcessImage(BaseModel):
             raise ValueError("An error occurred while building the Docker image.")
 
         # Save process image configuration to the database
-        self.snapshot_to_db()
+        self.to_db()
 
 class ProcessExecConfig(BaseModel):
     output_volumes: dict[str, str] = Field(title="Output Volumes. The volumes to mount in the container.")
@@ -268,18 +275,21 @@ class ProcessExec(BaseModel):
         return command
     
     @classmethod
-    def from_db(cls, id: str):
-        if not Path(f"database/{id}.json").exists():
+    def from_db(cls, id: str, connection: Optional[Connection] = None):
+        connection: Connection = Connection.from_defaults() if connection is None else connection
+        collection = connection.db[COLLECTION_PROCESS_EXECS]
+        
+        if collection is None or collection.count_documents({"id": id}) == 0:
             raise DBRecordMissing(f"Process execution with ID {id} does not exist in the database.")
-        with open(f"database/{id}.json", "r") as f:
-            process_exec_config: dict = json.load(f)
+        
+        process_exec_config: dict = find_one_from_db(COLLECTION_PROCESS_EXECS, {"id": id})
+        
         return cls(**process_exec_config)
     
     @classmethod
     def from_user(cls, process_exec_config: ProcessExecConfig, process_image_id: str):
         # Load process image configuration from the database
-        with open(f"database/{process_image_id}.json", "r") as f:
-            process_image_config: dict = json.load(f)
+        process_image_config: dict = find_one_from_db(COLLECTION_PROCESS_IMAGES, {"id": process_image_id})
         process_image: ProcessImage = ProcessImage(**process_image_config)
         
         id: str = generate_id(process_image.id, 6, "-")
@@ -292,9 +302,20 @@ class ProcessExec(BaseModel):
         
         return cls(id=id, process_exec_config=process_exec_config, process_image=process_image, command=command)
     
-    def snapshot_to_db(self):
-        with open(f"database/{self.id}.json", "w") as f:
-            f.write(self.model_dump_json(indent=4))
+    def to_db(self, connection: Optional[Connection] = None):
+        insert_to_db(COLLECTION_PROCESS_EXECS, self.model_dump(mode="json"), connection)
+        
+    def copy_summaries_to_db(self, connection: Optional[Connection] = None):
+        output_dirpath: PosixPath = Path("outputs") / self.id
+        if not output_dirpath.exists():
+            raise DBRecordMissing(f"Output directory {output_dirpath} does not exist.")
+        summaries: dict[str, dict] = {"process_exec_id": self.id, "process_name": self.process_image.name, "results": {}}
+        for output_file in output_dirpath.iterdir():
+            if output_file.is_file() and output_file.suffix == ".json":
+                with open(output_file, "r") as f:
+                    feature: dict = json.load(f)
+                summaries["results"][output_file.stem] = feature
+        insert_to_db(COLLECTION_SUMMARIES, summaries, connection)
         
     def execute(self):
         if self.command is None:
@@ -313,4 +334,4 @@ class ProcessExec(BaseModel):
             raise ValueError(f"An error occurred while spawning the Docker container: {e}")
 
         # Save process execution configuration to the database
-        self.snapshot_to_db()
+        self.to_db()
