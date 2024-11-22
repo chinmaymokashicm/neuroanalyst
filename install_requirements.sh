@@ -6,7 +6,7 @@ pyenv shell $venv_name
 
 pip install pydantic rich
 
-pip install ipython ipykernel ipywidgets pymongo
+pip install ipython ipykernel ipywidgets pymongo "fastapi[standard]"
 
 # pip install pybids nibabel nilearn matplotlib pandas
 
