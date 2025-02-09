@@ -1,22 +1,31 @@
+from ..utils import get_static_json_response
+from ...utils.constants import COLLECTION_PROCESS_EXECS
+from ...utils.db import find_one_from_db, find_many_from_db, insert_to_db, update_db_record, search_by_keyword
+from ..to_table import convert_all_process_execs_to_table
+
 from fastapi import APIRouter
+from fastapi.responses import JSONResponse
 
 router = APIRouter()
 
 @router.get("/all/", tags=["process", "exec"])
 async def get_all_execs():
-    return {"message": "Get all execs"}
+    # return get_static_json_response(find_many_from_db, (COLLECTION_PROCESS_EXECS, {}))
+    return get_static_json_response(convert_all_process_execs_to_table, ())
 
-@router.get("/{exec_id}/", tags=["process", "exec"])
+@router.get("/id/{exec_id}/", tags=["process", "exec"])
 async def get_exec_by_id(exec_id: str):
-    return {"message": f"Get exec by id {exec_id}"}
+    return get_static_json_response(find_one_from_db, (COLLECTION_PROCESS_EXECS, {"id": exec_id}))
 
-@router.get("/search/filter/", tags=["process", "exec"])
+@router.get("/filter/", tags=["process", "exec"])
 async def search_execs_by_filter(filters: dict = {}):
-    return {"message": f"Search execs with filters {filters}"}
+    return get_static_json_response(find_many_from_db, (COLLECTION_PROCESS_EXECS, filters))
 
-@router.get("/search/keyword/", tags=["process", "exec"])
-async def search_execs_by_keyword(keyword: str = ""):
-    return {"message": f"Search execs with keyword {keyword}"}
+@router.get("/search/{keyword}/", tags=["process", "exec"])
+async def search_execs_by_keyword(keyword: str):
+    if keyword == "":
+        return JSONResponse(status_code=400, content={"message": "Keyword cannot be empty"})
+    return get_static_json_response(search_by_keyword, (COLLECTION_PROCESS_EXECS, keyword))
 
 # ==================================================================================================
 

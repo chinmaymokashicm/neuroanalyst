@@ -54,14 +54,14 @@ if ! command -v npx &> /dev/null; then
     return
 fi
 
-# Install React dependencies
-mkdir -p lib/frontend
-cd lib/frontend
+# # Install React dependencies
+# mkdir -p lib/frontend
+# cd lib/frontend
 
-# Run the following only if package.json does not exist
-if [ ! -f "package.json" ]; then
-    npx create-react-app .
-fi
-npm install axios react-router-dom react-table @mui/material @emotion/react @emotion/styled react-json-view react-flow-renderer
+# # Run the following only if package.json does not exist
+# if [ ! -f "package.json" ]; then
+#     npx create-react-app .
+# fi
+# npm install axios react-router-dom react-table @mui/material @mui/material @emotion/react @mui/x-data-grid @emotion/styled react-json-view react-flow-renderer react-table
 
-cd ../../
+# cd ../../

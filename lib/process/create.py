@@ -1,13 +1,14 @@
 from ..utils.generate import generate_id
 from ..utils.exceptions import DBRecordMissing
 from ..utils.db import Connection, insert_to_db, find_one_from_db
+from ..utils.form import FormField, FormSchema
 from ..utils.constants import COLLECTION_PROCESS_IMAGES, COLLECTION_PROCESS_EXECS, COLLECTION_SUMMARIES
 
 from datetime import datetime
 from pathlib import Path, PosixPath
 from string import Template
-import subprocess, json
-from typing import Optional, Any
+import subprocess, json, inspect
+from typing import Optional, Any, get_type_hints
 
 from pydantic import BaseModel, DirectoryPath, FilePath, Field, field_validator
 
@@ -81,6 +82,79 @@ class ProcessImage(BaseModel):
         if isinstance(value, dict):
             return ContainerVolumes(**value)
         return value
+    
+    @classmethod
+    def from_user(cls, name: str, tag: str, description: str, base_docker_image: str, working_directory: dict, stages: list[str], expected_outputs: list[str], container_volumes: Optional[dict] = None, environment_variables: list[str] = ["BIDS_FILTERS"]) -> "ProcessImage":
+        try:
+            working_directory: WorkingDirectory = WorkingDirectory.from_user(**working_directory)
+        except ValueError as e:
+            raise ValueError(f"Error while creating working directory: {e}")
+        container_volumes: ContainerVolumes = ContainerVolumes(**container_volumes) if container_volumes is not None else ContainerVolumes()
+        
+        return cls(
+            name=name,
+            tag=tag,
+            description=description,
+            base_docker_image=base_docker_image,
+            working_directory=working_directory,
+            stages=stages,
+            expected_outputs=expected_outputs,
+            container_volumes=container_volumes,
+            environment_variables=environment_variables
+        )
+        
+    @staticmethod
+    def get_ui_form_fields() -> list[dict]:
+        return [
+            {"name": "name", "description": "Name of the process", "type": "str", "required": True},
+            {"name": "tag", "description": "Tag of the process", "type": "str", "required": True},
+            {"name": "description", "description": "Description", "type": "str", "required": True},
+            {"name": "base_docker_image", "description": "Base Docker image", "type": "str", "required": True},
+            # {"name": "root_dir", "description": "Working directory", "type": "directory", "required": True},
+            {"name": "root_dir", "description": "Working directory", "type": "str", "required": True},
+            {"name": "main_file", "description": "Main script to execute to logic", "type": "str", "required": True},
+            {"name": "requirements_file", "description": "Dependency installation script", "type": "str", "required": True},
+            {"name": "main_exec_prefix", "description": "Prefix to execute the main file", "type": "str", "required": True},
+            {"name": "requirements_exec_prefix", "description": "Prefix to install the requirements", "type": "str", "required": True},
+            {"name": "stages", "description": "Stages of the process", "type": "list", "required": True},
+            {"name": "expected_outputs", "description": "The expected JSON outputs of the process", "type": "list", "required": True},
+            {"name": "container_volumes", "description": "The volumes to mount in the container", "type": "dict", "required": False, "default": {"data_dir": "/bids_dir/", "output_dir": "/output_dir/"}},
+            {"name": "environment_variables", "description": "The environment variables to set in the container", "type": "list", "required": False, "default": ["BIDS_FILTERS"]},
+        ]
+    
+    @staticmethod
+    def get_ui_form_schema():
+        """
+        Return the form schema for creating a process image from the UI.
+        """
+        # Load from get_form_fields
+        return FormSchema(
+            fields=[FormField(**field) for field in ProcessImage.get_ui_form_fields()]
+        )
+        
+    @staticmethod
+    def get_ui_submission_preview(form_dict: dict) -> dict:
+        working_directory: dict = {
+            "root_dir": form_dict["root_dir"],
+            "main_file": form_dict["main_file"],
+            "requirements_file": form_dict["requirements_file"],
+            "main_exec_prefix": form_dict["main_exec_prefix"],
+            "requirements_exec_prefix": form_dict["requirements_exec_prefix"]
+        }
+        # stages: list[str] = [item.strip() for item in form_dict["stages"].split(",")]
+        # expected_outputs: list[str] = [item.strip() for item in form_dict["expected_outputs"].split(",")]
+        return {
+            "name": form_dict["name"],
+            "tag": form_dict["tag"],
+            "description": form_dict["description"],
+            "base_docker_image": form_dict["base_docker_image"],
+            "working_directory": working_directory,
+            "stages": form_dict["stages"],
+            "expected_outputs": form_dict["expected_outputs"],
+            "container_volumes": form_dict["container_volumes"],
+            "environment_variables": form_dict["environment_variables"]
+        }
+        
     
     @classmethod
     def from_db(cls, id: str, connection: Optional[Connection] = None):
@@ -197,12 +271,12 @@ class ProcessImage(BaseModel):
         print(f"README.md created at {dest_dir}")
             
         print(f"Process image {self.name} / {self.tag} directory created at {dest_dir}")
-        return id, dest_dir
+        return self.id, dest_dir
         
     def to_db(self, connection: Optional[Connection] = None):
         insert_to_db(COLLECTION_PROCESS_IMAGES, self.model_dump(mode="json"), connection)
     
-    def build_image(self, dest_dir: str):
+    def build_image(self, dest_dir: PosixPath):
         # Verify the base Docker image
         self.verify_base_docker_image()
         
@@ -222,6 +296,9 @@ class ProcessExecConfig(BaseModel):
     environment_var_values: dict[str, Any] = Field(title="Environment Variable Values. The values of the environment variables to set in the container.", default_factory=dict)
     
 class ProcessExec(BaseModel):
+    """
+    Process Execution. This class represents the execution of a Process Image.
+    """
     id: str = Field(title="ID. The unique identifier of the process execution.")
     process_exec_config: ProcessExecConfig = Field(title="Process Execution Configuration. The configuration for executing the process.")
     process_image: ProcessImage = Field(title="Process Image. The process image to execute.")
@@ -317,6 +394,15 @@ class ProcessExec(BaseModel):
                 summaries["results"][output_file.stem] = feature
         insert_to_db(COLLECTION_SUMMARIES, summaries, connection)
         
+    def stop_container(self):
+        if self.docker_container_id is None:
+            raise ValueError("Docker container ID is not set.")
+        try:
+            print(f"Stopping Docker container {self.docker_container_id}...")
+            subprocess.run(f"docker stop {self.docker_container_id}", check=True, shell=True)
+        except subprocess.CalledProcessError:
+            raise ValueError(f"An error occurred while stopping the Docker container {self.docker_container_id}.")
+        
     def execute(self):
         if self.command is None:
             self.command = self.generate_docker_run_command(
@@ -329,7 +415,7 @@ class ProcessExec(BaseModel):
             print("Spawning Docker container...")
             output = subprocess.check_output(self.command, shell=True, universal_newlines=True)
             self.docker_container_id = output.strip()  # Extract the container ID from the output
-            print(f"Docker container spawned with ID: {self.docker_container_id}")
+            print(f"\n\n\n\nDocker container spawned with ID: {self.docker_container_id}\n\n\n\n")
         except subprocess.CalledProcessError as e:
             raise ValueError(f"An error occurred while spawning the Docker container: {e}")
 

@@ -1,5 +1,6 @@
 import React from 'react';
 import { Button, Typography, Box } from '@mui/material';
+import LogViewer from '../components/LogViewer';
 
 const PipelinePage = () => {
   return (
@@ -11,6 +12,7 @@ const PipelinePage = () => {
         Create Pipeline
       </Button>
       {/* Add your process list or cards here */}
+      <LogViewer wsUrl="ws://localhost:8000/ws/log" />
     </Box>
   );
 };

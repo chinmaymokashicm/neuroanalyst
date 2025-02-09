@@ -1,38 +1,29 @@
 import React from 'react';
-import { useTable } from 'react-table';
+import { DataGrid } from '@mui/x-data-grid';
 
-const DataTable = ({ columns, data }) => {
-  const { getTableProps, getTableBodyProps, headerGroups, rows, prepareRow } =
-    useTable({ columns, data });
+const DataTable = ({ rows }) => {
+  if (!rows || rows.length === 0) {
+    return <div>No data available</div>;
+  }
+
+  // Dynamically generate columns based on keys from the first row
+  const columns = Object.keys(rows[0]).map((key) => ({
+    field: key,
+    headerName: key.replace(/_/g, ' ').toUpperCase(), // Format field names (optional)
+    width: 150, // Default column width
+    flex: 1, // Allow flexible resizing
+  }));
 
   return (
-    <table {...getTableProps()} style={{ border: 'solid 1px black' }}>
-      <thead>
-        {headerGroups.map(headerGroup => (
-          <tr {...headerGroup.getHeaderGroupProps()}>
-            {headerGroup.headers.map(column => (
-              <th {...column.getHeaderProps()} style={{ padding: '10px', border: 'solid 1px gray' }}>
-                {column.render('Header')}
-              </th>
-            ))}
-          </tr>
-        ))}
-      </thead>
-      <tbody {...getTableBodyProps()}>
-        {rows.map(row => {
-          prepareRow(row);
-          return (
-            <tr {...row.getRowProps()}>
-              {row.cells.map(cell => (
-                <td {...cell.getCellProps()} style={{ padding: '10px', border: 'solid 1px gray' }}>
-                  {cell.render('Cell')}
-                </td>
-              ))}
-            </tr>
-          );
-        })}
-      </tbody>
-    </table>
+    <div style={{ height: 400, width: '100%' }}>
+      <DataGrid 
+        rows={rows} 
+        columns={columns} 
+        pageSize={5} 
+        getRowId={(row) => row.id || row[Object.keys(row)[0]]} // Use `id` or the first key as fallback
+        disableSelectionOnClick 
+      />
+    </div>
   );
 };
 
