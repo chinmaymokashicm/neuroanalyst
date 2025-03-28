@@ -3,65 +3,36 @@
 # ==============================================================================
 # Set up the Python environment
 python_version=3.12
-venv_name=neuroanalyst
+venv_name=venv_neuroanalyst
 
-# Check if pyenv is installed
-if ! command -v pyenv &> /dev/null; then
-    echo "pyenv is not installed, please install it first. Also, install pyenv-virtualenv after installing pyenv."
-    return
-fi
-
-# Check if pyenv-virtualenv is installed
-if ! command -v pyenv-virtualenv &> /dev/null; then
-    echo "pyenv-virtualenv is not installed, please install it first."
-    return
-fi
-
-# Set the Python version for the current shell session
-pyenv install $python_version -s
-
-# Create and activate virtual environment
-pyenv virtualenv $python_version $venv_name
-pyenv shell $venv_name
-pyenv local $venv_name
-echo "Virtual environment name: $venv_name created"
-
-# source $venv_name/bin/activate
-echo "Virtual environment $venv_name activated"
-
-# Install requirements
-# pip install -r requirements.txt
-source install_requirements.sh $venv_name
-
-# ==============================================================================
-# Set up the React environment
-
-# Check if Node.js is installed
-if ! command -v node &> /dev/null; then
-    echo "Node.js is not installed, please install it first."
-    return
-fi
-
-# Check if npm is installed
-if ! command -v npm &> /dev/null; then
-    echo "npm is not installed, please install it first."
-    return
-fi
-
-# Check if npx is installed
-if ! command -v npx &> /dev/null; then
-    echo "npx is not installed, please install it first."
-    return
-fi
-
-# # Install React dependencies
-# mkdir -p lib/frontend
-# cd lib/frontend
-
-# # Run the following only if package.json does not exist
-# if [ ! -f "package.json" ]; then
-#     npx create-react-app .
+# # Check if pyenv is installed
+# if ! command -v pyenv &> /dev/null; then
+#     echo "pyenv is not installed. Please install it first."
+#     exit 1
 # fi
-# npm install axios react-router-dom react-table @mui/material @mui/material @emotion/react @mui/x-data-grid @emotion/styled react-json-view react-flow-renderer react-table
 
-# cd ../../
+# # Set the Python version for the current shell session
+# if ! pyenv versions | grep -q "$python_version"; then
+#     echo "Python $python_version is not installed. Installing now..."
+#     pyenv install "$python_version" -s
+# fi
+# pyenv shell "$python_version"
+# echo "Using Python version: $(python --version)"
+
+# Create the virtual environment using venv
+if [ -d "$venv_name" ]; then
+    echo "Virtual environment $venv_name already exists. Skipping creation."
+else
+    echo "Creating virtual environment: $venv_name..."
+    python -m venv "$venv_name"
+    echo "Virtual environment $venv_name created."
+fi
+
+# Activate the virtual environment
+source "$venv_name/bin/activate"
+echo "Virtual environment $venv_name activated."
+
+# Install required packages
+echo "Installing required packages..."
+bash install_requirements.sh "$venv_name"
+echo "Required packages installed."

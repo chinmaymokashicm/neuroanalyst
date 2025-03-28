@@ -10,6 +10,7 @@ pip install ipython ipykernel ipywidgets pymongo "fastapi[standard]"
 
 # pip install pybids nibabel nilearn matplotlib pandas
 
-pip install langchain langchain-openai langgraph urllib3 langsmith
+pip install "celery[redis]" textual-dev textual[syntax] "pydantic-ai[logfire,examples]"
+pip install --upgrade httpx==0.27.1
 
 pip freeze > requirements.txt
