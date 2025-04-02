@@ -1,0 +1,23 @@
+Bootstrap: docker
+From: $base_image
+Stage: build
+
+%files
+    . /
+
+%post
+    echo "Checking current directory"
+    cd /
+    chmod +x $requirements_file && $requirements_exec_prefix $requirements_file
+
+%runscript
+    cd /
+    $main_exec_prefix $main_file
+
+%test #Runs at the end of the build process
+    echo "Testing build..."
+
+%labels
+    Author $author
+    Version $version
+    Tag $tag

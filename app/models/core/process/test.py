@@ -1,4 +1,4 @@
-from .execute import ProcessExec
+from .execute import ProcessExecDocker
 from ....utils.exceptions import DBRecordMissing
 
 from pathlib import Path, PosixPath
@@ -11,7 +11,7 @@ def check_process_exec_status(process_exec_id: str) -> dict[str, bool]:
     Args:
         process_exec_id (str): The ID of the process execution.
     """
-    process_exec: ProcessExec = ProcessExec.from_db(process_exec_id)
+    process_exec: ProcessExecDocker = ProcessExecDocker.from_db(process_exec_id)
     docker_container_id: str = process_exec.docker_container_id
     
     container_status_command: str = f"docker inspect --format='{{{{.State.Status}}}}' {docker_container_id}"

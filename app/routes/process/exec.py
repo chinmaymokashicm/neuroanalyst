@@ -1,9 +1,13 @@
+from ...models.core.process import ProcessExecApptainer
 from ..utils import get_static_json_response
 from ...utils.constants import COLLECTION_PROCESS_EXECS
 from ...utils.db import find_one_from_db, find_many_from_db, insert_to_db, update_db_record, search_by_keyword
 from ..to_table import convert_all_process_execs_to_table
+from ...celery.tasks.process import execute_process
 
-from fastapi import APIRouter
+import json
+
+from fastapi import APIRouter, Request, Form, HTTPException
 from fastapi.responses import JSONResponse
 
 router = APIRouter()
@@ -29,9 +33,25 @@ async def search_execs_by_keyword(keyword: str):
 
 # ==================================================================================================
 
-@router.post("/create/", tags=["process", "exec"])
-async def create_exec():
-    return {"message": "Create exec"}
+@router.post("/execute/", tags=["process", "exec"])
+async def execute_process(form_data: str = Form(...)) -> JSONResponse:
+    try:
+        form_dict: dict = json.loads(form_data)
+        print("Form data:", form_dict)
+    except json.JSONDecodeError as e:
+        print(f"Error decoding JSON: {e}")
+        raise HTTPException(status_code=400, detail="Invalid form data")
+
+    # Execute process and return process exec id.
+    try:
+        process_exec: ProcessExecApptainer = ProcessExecApptainer.from_user(**form_dict)
+        process_id: str = process_exec.process_image.id
+        process_exec_id: str = process_exec.id
+        execute_process.apply_async(args=[process_exec]) # Push to Celery task
+        return JSONResponse(status_code=201, content={"message": f"Process {process_id} executed with PID - {process_exec_id}"})
+    except Exception as e:
+        print(f"Error executing process: {e}")
+        raise HTTPException(status_code=400, detail=f"Failed to create process exec. Error: {e}")
 
 @router.put("/{exec_id}/update/", tags=["process", "exec"])
 async def update_exec(exec_id: str):

@@ -1,14 +1,14 @@
-from ...models.core.process import ProcessExec, ProcessImage
-from ...models.core.pipeline import PipelineStep, Pipeline
-from ...utils.db import find_many_from_db, find_one_from_db
-from ...utils.constants import COLLECTION_PROCESS_IMAGES, COLLECTION_PROCESS_EXECS, COLLECTION_PIPELINES
+from ..models.core.process import ProcessImageApptainer, ProcessExecApptainer
+from ..models.core.pipeline import PipelineStep, Pipeline
+from ..utils.db import find_many_from_db, find_one_from_db
+from ..utils.constants import COLLECTION_PROCESS_IMAGES, COLLECTION_PROCESS_EXECS, COLLECTION_PIPELINES
 
 def convert_all_process_images_to_table() -> list[dict]:
     """
     Convert all process images to a table format.
     """
     process_images_dict: list[dict] = find_many_from_db(COLLECTION_PROCESS_IMAGES, {})
-    process_images: list[ProcessImage] = [ProcessImage(**process_image_dict) for process_image_dict in process_images_dict]
+    process_images: list[ProcessImageApptainer] = [ProcessImageApptainer(**process_image_dict) for process_image_dict in process_images_dict]
     
     return [
         {
@@ -27,7 +27,7 @@ def convert_all_process_execs_to_table() -> list[dict]:
     Convert all process executions to a table format.
     """
     process_execs_dict: list[dict] = find_many_from_db(COLLECTION_PROCESS_EXECS, {})
-    process_execs: list[ProcessExec] = [ProcessExec(**process_exec_dict) for process_exec_dict in process_execs_dict]
+    process_execs: list[ProcessExecApptainer] = [ProcessExecApptainer(**process_exec_dict) for process_exec_dict in process_execs_dict]
     
     return [
         {

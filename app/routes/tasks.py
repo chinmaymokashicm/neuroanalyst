@@ -1,6 +1,5 @@
 from fastapi import APIRouter
 from app.celery.tasks.example import long_running_task
-from app.celery.tasks.process import build_process_image
 from uuid import uuid4
 
 router = APIRouter()

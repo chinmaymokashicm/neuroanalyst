@@ -3,7 +3,7 @@ from ...utils.constants import COLLECTION_PROCESS_IMAGES
 from ...utils.db import find_one_from_db, find_many_from_db, insert_to_db, update_db_record, search_by_keyword
 from ...utils.form import FormSchema
 from ..to_table import convert_all_process_images_to_table
-from ...models.core.process import ProcessImage
+from ...models.core.process import ProcessImageApptainer
 from ...celery.tasks.process import build_process_image
 
 import json
@@ -33,7 +33,7 @@ async def search_processes_by_keyword(keyword: str) -> JSONResponse:
 
 @router.get("/schema/", tags=["process", "image"])
 async def load_process_image_schema() -> FormSchema:
-    schema = ProcessImage.get_ui_form_schema()
+    schema = ProcessImageApptainer.get_ui_form_schema()
     return schema
 
 # ==================================================================================================
@@ -45,7 +45,7 @@ async def preview_process(form_data: str = Form(...)) -> JSONResponse:
     except json.JSONDecodeError:
         raise HTTPException(status_code=400, detail="Invalid form data")
     
-    return ProcessImage.get_ui_submission_preview(form_dict)
+    return ProcessImageApptainer.get_ui_submission_preview(form_dict)
 
 @router.post("/create/", tags=["process", "image"])
 async def create_process(form_data: str = Form(...)) -> JSONResponse:
@@ -58,10 +58,10 @@ async def create_process(form_data: str = Form(...)) -> JSONResponse:
 
     # Run process and return process id.
     try:
-        process_image: ProcessImage = ProcessImage.from_user(**form_dict)
+        process_image: ProcessImageApptainer = ProcessImageApptainer.from_user(**form_dict)
         process_image_id, dest_dir = process_image.create_image_workdir()
         # process_image.build_image(dest_dir=dest_dir)
-        build_process_image.apply_async(args=[process_image, dest_dir]) # Push to Celery task    
+        build_process_image.apply_async(args=[process_image]) # Push to Celery task    
         return JSONResponse(status_code=201, content={"message": f"Process created with PID - {process_image_id}"})
     except Exception as e:
         print(f"Error creating process: {e}")

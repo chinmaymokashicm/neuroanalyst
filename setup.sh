@@ -3,21 +3,7 @@
 # ==============================================================================
 # Set up the Python environment
 python_version=3.12
-venv_name=venv_neuroanalyst
-
-# # Check if pyenv is installed
-# if ! command -v pyenv &> /dev/null; then
-#     echo "pyenv is not installed. Please install it first."
-#     exit 1
-# fi
-
-# # Set the Python version for the current shell session
-# if ! pyenv versions | grep -q "$python_version"; then
-#     echo "Python $python_version is not installed. Installing now..."
-#     pyenv install "$python_version" -s
-# fi
-# pyenv shell "$python_version"
-# echo "Using Python version: $(python --version)"
+venv_name=venv
 
 # Create the virtual environment using venv
 if [ -d "$venv_name" ]; then
@@ -36,3 +22,6 @@ echo "Virtual environment $venv_name activated."
 echo "Installing required packages..."
 bash install_requirements.sh "$venv_name"
 echo "Required packages installed."
+
+# Set environment variables
+source set_envs.sh

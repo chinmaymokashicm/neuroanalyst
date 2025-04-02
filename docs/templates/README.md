@@ -6,14 +6,14 @@ ${description}
 ## Version
 ${version}
 
+## Author
+${author}
+
 ## Created At
 ${created_at}
 
 ## Base Docker Image
 ${base_docker_image}
-
-## Stages
-N.A.
 
 ## Volumes
 ${container_volumes_bullets}
@@ -26,32 +26,25 @@ ${environment_variables}
 ### Building the Docker Image
 To build the Docker image, run the following command:
 ```bash
-cd ${process_image_id}/
-docker build -t '${tag}' .
+cd $$NEUROANALYST_IMAGES/
+apptainer build ${process_image_id}.sif ${process_image_id}.def 
 ```
 
 # Running the Docker Container
 To run the Docker container, use the following command:
 
 ```bash
-docker run --name ${name} -d \
+apptainer run \
   ${iter_mount_volume_command} \
   ${iter_env_command} \
   ${tag}
 ```
 
-# Checking Docker Installation
-Ensure Docker is installed and properly set up by running:
+# Checking Apptainer Installation
+Ensure Apptainer is installed and properly set up by running:
 
 ```bash
-docker --version
-```
-
-# Pulling the Docker Image
-If the Docker image is not available locally, it will be pulled automatically. You can also pull it manually using:
-
-```bash
-docker pull ${base_docker_image}
+apptainer --version
 ```
 
 # Updating progress
