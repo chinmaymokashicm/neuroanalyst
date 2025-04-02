@@ -1,2 +1,2 @@
-from .create import ProcessImage, WorkingDirectory
-from .execute import ProcessExec
+from .create import WorkingDirectory, ProcessImageApptainer
+from .execute import ProcessExecApptainer, ProcessExecConfig

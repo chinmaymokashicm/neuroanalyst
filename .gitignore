@@ -1,5 +1,4 @@
-.env
-venv*/
+venv/
 outputs/
 processes/
 PR-*/

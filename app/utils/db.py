@@ -7,6 +7,8 @@ from .exceptions import DBRecordMissing
 from typing import Optional
 import re
 
+from bids import BIDSLayout
+from bids.layout.models import BIDSJSONFile
 from pydantic import BaseModel, Field
 from pymongo import MongoClient
 from pymongo.database import Database
@@ -26,7 +28,11 @@ class Connection(BaseModel, arbitrary_types_allowed=True):
         client: MongoClient = MongoClient(mongo_uri)
         db: Database = client[db_name]
         return cls(client=client, db=db)
-    
+
+def check_connection(connection: Optional[Connection] = None) -> dict:
+    connection = Connection.from_defaults() if connection is None else connection
+    return connection.client.server_info()
+
 def find_one_from_db(collection_name: str, filter: dict, field_name: Optional[str] = None, connection: Optional[Connection] = None) -> dict:
     try:
         connection: Connection = Connection.from_defaults() if connection is None else connection
@@ -80,7 +86,7 @@ def update_db_record(collection_name: str, filter: dict, update: dict, connectio
     try:
         connection: Connection = Connection.from_defaults() if connection is None else connection
         collection = connection.db[collection_name]
-        collection.update_one(filter, {"$set": update})
+        collection.update_one(filter, {"$set": update}, upsert=True)
         print(f"Record updated in collection {collection_name}")
     except Exception as e:
         raise Exception(f"Failed to update record in collection {collection_name}. Error: {e}")
