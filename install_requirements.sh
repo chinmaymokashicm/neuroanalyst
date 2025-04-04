@@ -4,7 +4,7 @@ venv_name=$1
 
 source $venv_name/bin/activate
 
-pip install pydantic rich pyperclip
+pip install pydantic rich pyperclip python-dotenv
 
 pip install ipython ipykernel ipywidgets pymongo "fastapi[standard]"
 
