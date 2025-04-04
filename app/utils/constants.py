@@ -7,6 +7,10 @@ load_dotenv()
 MONGO_URI: str = "mongodb://localhost:27017/"
 DB_NAME: str = "neuroanalyst"
 
+# Fast API
+HOSTNAME: str = "localhost"
+PORT: str = 3000
+
 # DB Collections
 COLLECTION_PROCESS_IMAGES: str = "process_images"
 COLLECTION_PROCESS_EXECS: str = "process_execs"
@@ -32,7 +36,6 @@ OPENAI_CLIENT_BASE_URL: str = "https://apimd.mdanderson.edu/dig/llm/llama31-70b/
 OPENAI_CLIENT_DEFAULT_HEADERS: dict = {"Ocp-Apim-Subscription-Key": OPENAI_API_KEY, "Content-Type": "application/json"}
 OPENAI_DEFAULT_MODEL: str = "meta-llama/Llama-3.1-70B-Instruct"
 SYSTEM_PROMPTS_PATH: str = "app/models/insight/prompts"
-
 
 # Textual CSS
 TEXTUAL_LAYOUT_MAIN_CSS_PATH: str = "app/frontend/textual/css/layouts/main.tcss"

@@ -15,6 +15,8 @@ apptainer run \
     -B $HOME/logs/mongodb:/var/log/mongodb \
     mongo_latest.sif
 
+rm $HOME/data/mongodb/WiredTiger.lock
+
 cd $HOME/apptainer_images/mongodb
 apptainer instance start \
     -B $HOME/data/mongodb:/data/db \

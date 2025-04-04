@@ -1,7 +1,7 @@
 """
 Edit pretty JSON to submit to the API.
 """
-import json
+import json, requests, traceback
 from typing import Optional
 
 from textual import on, log
@@ -72,7 +72,28 @@ class JSONViewerWidget(Widget):
         except json.JSONDecodeError as e:
             self.notify(f"Invalid JSON data: {e}", severity="error")
             return
-        pass
+        
+        # Submit POST request to the API
+        try:
+            response = requests.post(self.submit_url, json=json.loads(text))
+            if response.status_code == 200:
+                self.notify("JSON data submitted successfully.", severity="information")
+            else:
+                self.notify(f"Error submitting JSON data: {response.status_code}", severity="error")
+                try:
+                    pyperclip.copy(response.json())
+                    # self.notify("Error response copied to clipboard!")
+                except:
+                    self.notify("Tried copying error response. FAILED.")
+        except requests.RequestException as e:
+            # self.notify(f"POST Request Error: {e}: {traceback.format_exc()}", severity="error")
+            self.notify(f"POST Request Error: {e}", severity="error")
+            # self.notify(traceback.extract_stack().__str__)
+            try:
+                pyperclip.copy(response.json())
+                # self.notify("Error response copied to clipboard!")
+            except:
+                self.notify("Tried copying error response. FAILED.")
     
     @on(Button.Pressed, "#reset-button")
     def reset_button(self, event: Button.Pressed):
@@ -106,7 +127,7 @@ class JSONViewerWidget(Widget):
         try:
             json.loads(text)
             self.default_json_data = text
-            self.notify("JSON data has been saved as a checkpoint.", severity="information")
+            # self.notify("JSON data has been saved as a checkpoint.", severity="information")
         except json.JSONDecodeError as e:
             self.notify(f"Invalid JSON data: {e}", severity="error")
     
