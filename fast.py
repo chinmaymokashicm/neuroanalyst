@@ -1,7 +1,7 @@
 # from lib.api.process import image, exec
 # from lib.api import pipeline
 # from lib.api.utils import log_reader
-from app.routes.process import image, exec
+from app.routes.process import image, exec, workdir
 from app.routes import pipeline
 from app.routes.utils import log_reader
 
@@ -19,6 +19,7 @@ app = FastAPI()
 app.include_router(pipeline.router, prefix="/pipeline", tags=["pipeline"])
 app.include_router(image.router, prefix="/process/image", tags=["process", "image"])
 app.include_router(exec.router, prefix="/process/exec", tags=["process", "exec"])
+app.include_router(workdir.router, prefix="/process/workdir", tags=["workdir"])
 
 # app.mount("/static", StaticFiles(directory="logs/templates/", html=True), name="static")
 
