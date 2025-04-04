@@ -4,12 +4,13 @@ venv_name=$1
 
 source $venv_name/bin/activate
 
-pip install pydantic rich
+pip install pydantic rich pyperclip
 
 pip install ipython ipykernel ipywidgets pymongo "fastapi[standard]"
 
 pip install pybids nibabel nilearn matplotlib pandas
 
+# pip install "celery[redis]" textual-dev textual[syntax] tree-sitter-languages "pydantic-ai[logfire,examples]"
 pip install "celery[redis]" textual-dev textual[syntax] "pydantic-ai[logfire,examples]"
 
 # pip uninstall tzdata protobuf

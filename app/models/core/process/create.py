@@ -25,9 +25,22 @@ class WorkingDirectory(BaseModel):
         return value.resolve()
     
     @classmethod
-    def from_user(cls, root_dir: str, main_file: str, requirements_file: str, main_exec_prefix: str, requirements_exec_prefix: str) -> "WorkingDirectory":
+    def from_user(cls, process_workdir_name: str, main_file: str, requirements_file: str, main_exec_prefix: str, requirements_exec_prefix: str) -> "WorkingDirectory":
+        """
+        Create a WorkingDirectory object from user input.
+        Args:
+            process_workdir_name (str): The name of the working directory. Should be in $NEUROANALYST_WORKDIR.
+            main_file (str): The main file to execute.
+            requirements_file (str): The requirements file to execute.
+            main_exec_prefix (str): The prefix to execute the main file.
+            requirements_exec_prefix (str): The prefix to execute the requirements file.
+        Returns:
+            WorkingDirectory: The WorkingDirectory object.
+        """
+        set_neuroanalyst_root_dirs()
+        workdir: str = get_neuroanalyst_root_dirs("workdir")
+        root_dir: PosixPath = Path(workdir) / process_workdir_name
         # Check if the root directory exists
-        root_dir: PosixPath = Path(root_dir)
         if not root_dir.exists():
             raise ValueError(f"Root directory does not exist: {root_dir}")
         # Remove dirpaths from main_file and requirements_file
@@ -38,10 +51,8 @@ class WorkingDirectory(BaseModel):
             raise ValueError(f"Main file does not exist: {main_file}")
         if not requirements_file.exists():
             raise ValueError(f"Requirements file does not exist: {requirements_file}")
-        
         # Strip whitespaces from main_exec_prefix and requirements_exec_prefix
         main_exec_prefix, requirements_exec_prefix = main_exec_prefix.strip(), requirements_exec_prefix.strip()
-        
         return cls(
             root_dir=root_dir,
             main_file=main_file,
@@ -49,6 +60,34 @@ class WorkingDirectory(BaseModel):
             main_exec_prefix=main_exec_prefix,
             requirements_exec_prefix=requirements_exec_prefix
         )
+    
+    
+    # ! OLD - Now using method that only takes name of the working directory and assumes that it is already located in $NEUROANALYST_WORKDIR
+    # @classmethod
+    # def from_user(cls, root_dir: str, main_file: str, requirements_file: str, main_exec_prefix: str, requirements_exec_prefix: str) -> "WorkingDirectory":
+    #     # Check if the root directory exists
+    #     root_dir: PosixPath = Path(root_dir)
+    #     if not root_dir.exists():
+    #         raise ValueError(f"Root directory does not exist: {root_dir}")
+    #     # Remove dirpaths from main_file and requirements_file
+    #     main_file, requirements_file = Path(main_file).name, Path(requirements_file).name
+    #     # Append root_dir to main_file and requirements_file and check if they exist
+    #     main_file, requirements_file = root_dir / main_file, root_dir / requirements_file
+    #     if not main_file.exists():
+    #         raise ValueError(f"Main file does not exist: {main_file}")
+    #     if not requirements_file.exists():
+    #         raise ValueError(f"Requirements file does not exist: {requirements_file}")
+        
+    #     # Strip whitespaces from main_exec_prefix and requirements_exec_prefix
+    #     main_exec_prefix, requirements_exec_prefix = main_exec_prefix.strip(), requirements_exec_prefix.strip()
+        
+    #     return cls(
+    #         root_dir=root_dir,
+    #         main_file=main_file,
+    #         requirements_file=requirements_file,
+    #         main_exec_prefix=main_exec_prefix,
+    #         requirements_exec_prefix=requirements_exec_prefix
+        # )
 
 class ContainerVolumes(BaseModel, extra="allow"):
     data_dir: str = Field(title="Data Directory. The directory where the BIDS dataset is stored.", default="/bids_dir/")
@@ -131,6 +170,22 @@ class ProcessImageApptainer(BaseModel):
             {"name": "requirements_file", "description": "Dependency installation script", "type": "str", "required": True},
             {"name": "main_exec_prefix", "description": "Prefix to execute the main file", "type": "str", "required": True},
             {"name": "requirements_exec_prefix", "description": "Prefix to install the requirements", "type": "str", "required": True},
+            {"name": "container_volumes", "description": "The volumes to mount in the container", "type": "dict", "required": False, "default": {"data_dir": "/bids_dir/"}},
+            {"name": "environment_variables", "description": "The environment variables to set in the container", "type": "list", "required": False, "default": ["BIDS_FILTERS"]},
+        ]
+        
+    @staticmethod
+    def get_textual_ui_form_fields() -> list[dict]:
+        return [
+            {"name": "name", "description": "Name of the process", "type": "input", "required": True},
+            {"name": "tag", "description": "Tag of the process", "type": "input", "required": True},
+            {"name": "description", "description": "Description", "type": "input", "required": True},
+            {"name": "base_docker_image", "description": "Base Docker image", "type": "input", "required": True},
+            {"name": "root_dir", "description": "Working directory", "type": "select", "required": True},
+            {"name": "main_file", "description": "Main script to execute to logic", "type": "select", "required": True},
+            {"name": "requirements_file", "description": "Dependency installation script", "type": "select", "required": True},
+            {"name": "main_exec_prefix", "description": "Prefix to execute the main file", "type": "select", "required": True},
+            {"name": "requirements_exec_prefix", "description": "Prefix to install the requirements", "type": "select", "required": True},
             {"name": "container_volumes", "description": "The volumes to mount in the container", "type": "dict", "required": False, "default": {"data_dir": "/bids_dir/"}},
             {"name": "environment_variables", "description": "The environment variables to set in the container", "type": "list", "required": False, "default": ["BIDS_FILTERS"]},
         ]

@@ -37,6 +37,17 @@ class PipelineStep(BaseModel):
             name=name,
             process_execs=process_execs
         )
+        
+    def get_all_bids_roots(self) -> list[DirectoryPath]:
+        """
+        Get all BIDS roots from the process execution plans.
+        """
+        bids_roots: list[DirectoryPath] = []
+        for process_exec in self.process_execs:
+            bids_root: DirectoryPath = process_exec.process_image.working_directory.root_dir
+            if bids_root not in bids_roots:
+                bids_roots.append(bids_root)
+        return bids_roots
     
     def execute(self, pipeline_id: str, save_to_db: bool = True):
         # ! Run this in Celery
@@ -87,22 +98,36 @@ class Pipeline(BaseModel):
     author: str = Field(title="Author.")
     description: str = Field(title="The description of the pipeline.")
     # version: str
-    bids_roots: list[DirectoryPath] = Field(title="Paths to all datasets that the pipeline will run on. Sole purpose is to fetch results/metrics after execution.", default=[])
+    # bids_roots: list[DirectoryPath] = Field(title="Paths to all datasets that the pipeline will run on. Sole purpose is to fetch results/metrics after execution.", default=[])
     steps: list[PipelineStep] = Field(title="List of pipeline steps.")
     checkpoint_steps: list[int] = Field(title="List of steps after which to pause the pipeline", default=[])
     
     @classmethod
-    def from_user(cls, name: str, description: str, process_exec_ids: list[str], bids_roots: list[DirectoryPath] = [], checkpoint_steps: Optional[list[int]] = None) -> "Pipeline":
+    def from_user(cls, name: str, description: str, process_exec_ids: list[str], 
+                #   bids_roots: list[DirectoryPath] = [], 
+                  checkpoint_steps: Optional[list[int]] = None) -> "Pipeline":
         if not checkpoint_steps:
             checkpoint_steps = []
         pipeline_steps: list[PipelineStep] = [PipelineStep.from_user(process_exec_id) for process_exec_id in process_exec_ids]
         return cls(
             name=name,
             description=description,
-            bids_roots=bids_roots,
+            # bids_roots=bids_roots,
             steps=pipeline_steps,
             checkpoint_steps=checkpoint_steps
         )
+    
+    def get_all_bids_roots(self) -> list[DirectoryPath]:
+        """
+        Get all BIDS roots from the pipeline steps.
+        """
+        bids_roots: list[DirectoryPath] = []
+        for step in self.steps:
+            step_bids_roots: list[DirectoryPath] = step.get_all_bids_roots()
+            for bids_root in step_bids_roots:
+                if bids_root not in bids_roots:
+                    bids_roots.append(bids_root)
+        return bids_roots
     
     # def stop_all_processes(self):
     #     for step in self.steps:
@@ -165,7 +190,7 @@ class Pipeline(BaseModel):
         
         print(f"Executing pipeline {self.id}: {self.name}")
         bids_layouts: list[BIDSLayout] = []
-        for bids_root in self.bids_roots:
+        for bids_root in self.get_all_bids_roots():
             try:
                 bids_layouts.append(BIDSLayout(bids_root, derivatives=True))
             except Exception as e:

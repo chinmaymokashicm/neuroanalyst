@@ -6,6 +6,7 @@ working_dirs/
 database/
 __pycache__/
 *.pyc
+*.log
 
 *.png
 *.svg

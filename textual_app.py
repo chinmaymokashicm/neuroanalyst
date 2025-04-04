@@ -1,91 +1,85 @@
-from textual.app import App, ComposeResult
-from textual.containers import HorizontalGroup, VerticalScroll, VerticalGroup, HorizontalGroup
-from textual.screen import Screen
-from textual.widgets import Button, Digits, Footer, Header, Input
-from textual.demo.page import PageScreen
+from app.utils.constants import *
+from app.frontend.textual.widgets import Welcome, Submit, Visualize
+
+from textual.app import App, ComposeResult, RenderResult
+from textual.widget import Widget
+from textual.widgets import Static, Button, TextArea
+from textual.containers import Horizontal, Vertical, Container
 from textual.binding import Binding
-from textual import containers, events, lazy, on
 
-class TimeDisplay(Digits):
-    """A widget to display elapsed time."""
-
-
-class Stopwatch(HorizontalGroup):
-    """A stopwatch widget."""
-
-    def compose(self) -> ComposeResult:
-        """Create child widgets of a stopwatch."""
-        yield Button("Start", id="start", variant="success")
-        yield Button("Stop", id="stop", variant="error")
-        yield Button("Reset", id="reset")
-        yield TimeDisplay("00:00:00.00")
-
-
-class StopwatchApp(App):
-    """A Textual app to manage stopwatches."""
-
-    BINDINGS = [("d", "toggle_dark", "Toggle dark mode")]
-
-    def compose(self) -> ComposeResult:
-        """Create child widgets for the app."""
-        yield Header()
-        yield Footer()
-        yield VerticalScroll(Stopwatch(), Stopwatch(), Stopwatch())
-
-    def action_toggle_dark(self) -> None:
-        """An action to toggle dark mode."""
-        self.theme = (
-            "textual-dark" if self.theme == "textual-light" else "textual-light"
-        )
-        
-class FormOptions(HorizontalGroup):
-    
-    def compose(self) -> ComposeResult:
-        yield Button("Submit", id="submit")
-        yield Button("Cancel", id="cancel")
-        yield Button("Reset", id="reset")
-
-class Form(VerticalGroup):
-    
-    def compose(self) -> ComposeResult:
-        yield TimeDisplay("00:00:00.00")
-        yield Input(placeholder="Enter your name", id="name")
-        yield FormOptions()
-        
-class HomeScreen(PageScreen):
-    CSS = """
-    WidgetsScreen {
-        align-horizontal: center;
-        Markdown {
-            background: transparent;
-        } & > VerticalScroll {
-            scrollbar-gutter: stable;
-            & > * {
-                &:even { background: $boost; }
-                padding-bottom: 1;
-            }
-        }
-    }
+class DefaultDisplayWidget(Widget):
     """
+    Default display widget to display a message.
+    """
+    text: str = "Select a resource."
     
-    BINDINGS = [
-        Binding("q", "quit", "Quit"),
-        Binding("d", "toggle_dark", "Toggle dark mode"),
-    ]
+    def render(self) -> RenderResult:
+        """
+        Render the default message.
+        """
+        return self.text
+
+class AnotherDisplayWidget(Widget):
+    """
+    Another display widget to display a message.
+    """
+    text: str = "Another display widget."
     
-    def compose(self) -> ComposeResult:
-        with lazy.Reveal(VerticalScroll(can_focus=False)):
-            yield Stopwatch()
-            yield Form()
-        yield Footer()
+    def render(self) -> RenderResult:
+        """
+        Render the default message.
+        """
+        return self.text
+
+class OneOtherDisplayWidget(Widget):
+    """
+    Another display widget to display a message.
+    """
+    text: str = "One other display widget."
+    
+    def render(self) -> RenderResult:
+        """
+        Render the default message.
+        """
+        return self.text
+
+
+
 
 class MainApp(App):
-    def get_default_screen(self) -> Screen:
-        return HomeScreen()
-
+    CSS_PATH = [
+        TEXTUAL_LAYOUT_MAIN_CSS_PATH,
+        TEXTUAL_LAYOUT_SUBMIT_CSS_PATH,
+        ]
+    
+    # BINDINGS = [
+    #     Binding("d", "toggle_dark_mode", "Toggle Dark Mode"),
+    #     Binding("r", "refresh", "Refresh"),
+    #     Binding("q", "quit", "Quit"),
+    # ]
+    
+    def compose(self) -> ComposeResult:
+        """
+        Compose the layout of the app.
+        
+        Layout-
+        - Welcome Static Widget at the top (full width)
+        - Left container for submit widgets
+        - Right container for output widgets
+        """
+        with Vertical(classes="screen-container"):
+            yield Welcome(classes="welcome-container")
+            with Horizontal(classes="main-container"):
+                yield Submit(classes="left-container")
+                yield Visualize(classes="right-container")
+            yield Container(Button("OK", id="close", variant="success"), classes="exit-container")
+        
+        
+class TestApp(App):
+    def compose(self) -> ComposeResult:
+        yield TextArea("Hello World!", id="text_area")
 
 if __name__ == "__main__":
-    # app = StopwatchApp()
-    # app.run()
     app = MainApp()
+    # app = TestApp()
     app.run()

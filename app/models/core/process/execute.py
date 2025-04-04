@@ -2,7 +2,7 @@
 Execute Process Image by spawning Docker containers.
 """
 from .create import ProcessImageDocker, ProcessImageApptainer
-from ....utils.constants import COLLECTION_PROCESS_IMAGES, COLLECTION_PROCESS_EXECS, COLLECTION_SUMMARIES
+from ....utils.constants import COLLECTION_PROCESS_IMAGES, COLLECTION_PROCESS_EXECS, COLLECTION_SUMMARIES, DEFAULT_CONTAINER_ENVS
 from ....utils.db import Connection, find_one_from_db, insert_to_db, check_connection
 from ....utils.exceptions import DBRecordMissing
 from ....utils.generate import generate_id
@@ -18,11 +18,11 @@ from pydantic import BaseModel, Field
 from bids import BIDSLayout
 
 class ProcessExecConfig(BaseModel):
-    output_volumes: dict[str, str] = Field(title="Output Volumes. The volumes to mount to the container.")
-    environment_var_values: dict[str, Any] = Field(title="Environment Variable Values. The values of the environment variables to set in the container.", default_factory=dict)
+    output_volumes: dict[str, str] = Field(title="Output Volumes. The volumes to mount to the container.", default={"data_dir": None})
+    environment_var_values: dict[str, Any] = Field(title="Environment Variable Values. The values of the environment variables to set in the container.", default={env_name: None for env_name in DEFAULT_CONTAINER_ENVS})
 
 class ProcessExecApptainer(BaseModel):
-    id: str = Field(title="ID. The unique identifier of the process execution.", default_factory=lambda: generate_id("PR", 6, "-"))
+    id: str = Field(title="ID. The unique identifier of the process execution.", default_factory=lambda: generate_id("PE", 6, "-"))
     process_exec_config: ProcessExecConfig = Field(title="Process Execution Configuration. The configuration for executing the process.")
     process_image: ProcessImageApptainer = Field(title="Process Image. The process image to execute.")
     command: Optional[str] = Field(title="Command. The command to execute the process.", default=None)

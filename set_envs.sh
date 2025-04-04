@@ -1,7 +1,10 @@
 #!/bin/bash
 
 # Create directories
-mkdir -p $HOME/neuroanalyst/apptainer/images $HOME/neuroanalyst/apptainer/docs
+mkdir -p $HOME/neuroanalyst/apptainer/images 
+mkdir -p $HOME/neuroanalyst/apptainer/docs
+mkdir -p $HOME/neuroanalyst/working_dirs
+mkdir -p $HOME/neuroanalyst/reports
 
 # Define the environment variables
 ENV_VARS="

@@ -1,0 +1,64 @@
+Screen {
+    # border: dashed white;
+}
+
+Header {
+    dock: top;
+    width: 100%;
+    background: magenta;
+}
+
+Footer {
+    dock: bottom;
+    width: 100%;
+    background: #f1f1f1;
+}
+
+Markdown {
+    # width: 100%;
+    background: gray;
+}
+
+.screen-container {
+    layout: grid;
+    grid-size: 16 16;
+    # border: dashed green;
+}
+
+.welcome-container {
+    column-span: 16;
+    row-span: 1;
+    background: green;
+}
+
+.main-container {
+    column-span: 16;
+    row-span: 14;
+    background: #f1f1f1;
+    layout: grid;
+    grid-size: 2 2;
+}
+
+.left-container {
+    column-span: 1;
+    row-span: 2;
+    background: red;
+    layout: grid;
+    grid-size: 2 16;
+}
+
+.right-container {
+    column-span: 1;
+    row-span: 2;
+    background: blue;
+}
+
+.exit-container {
+    column-span: 16;
+    row-span: 1;
+    background: pink;
+}
+
+#close {
+    width: 100%;
+}

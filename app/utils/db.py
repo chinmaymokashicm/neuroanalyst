@@ -33,25 +33,27 @@ def check_connection(connection: Optional[Connection] = None) -> dict:
     connection = Connection.from_defaults() if connection is None else connection
     return connection.client.server_info()
 
-def find_one_from_db(collection_name: str, filter: dict, field_name: Optional[str] = None, connection: Optional[Connection] = None) -> dict:
+def find_one_from_db(collection_name: str, filter: dict, field_names: list[str] = [], connection: Optional[Connection] = None) -> dict:
     try:
         connection: Connection = Connection.from_defaults() if connection is None else connection
         collection = connection.db[collection_name]
         record = collection.find_one(filter, {"_id": 0})
         if record is None:
             raise DBRecordMissing(f"Record not found in collection {collection_name} with filter {filter}")
-        return record if field_name is None else record[field_name]
+        # return record if field_names is None else record[field_names]
+        return record if field_names == [] else {field: record[field] for field in field_names}
     except Exception as e:
         raise Exception(f"Failed to find record in collection {collection_name}. Error: {e}")
 
-def find_many_from_db(collection_name: str, filter: dict, field_name: Optional[str] = None, connection: Optional[Connection] = None) -> list[dict]:
+def find_many_from_db(collection_name: str, filter: dict, field_names: list[str] = [], connection: Optional[Connection] = None) -> list[dict]:
     try:
         connection: Connection = Connection.from_defaults() if connection is None else connection
         collection = connection.db[collection_name]
         records = collection.find(filter, {"_id": 0})
         if records is None:
             raise DBRecordMissing(f"No records found in collection {collection_name} with filter {filter}")
-        return [record if field_name is None else record[field_name] for record in records]
+        # return [record if field_names is None else record[field_names] for record in records]
+        return [record for record in records] if field_names == [] else [{field: record[field] for field in field_names} for record in records]
     except Exception as e:
         raise Exception(f"Failed to find records in collection {collection_name}. Error: {e}")
     
@@ -90,3 +92,12 @@ def update_db_record(collection_name: str, filter: dict, update: dict, connectio
         print(f"Record updated in collection {collection_name}")
     except Exception as e:
         raise Exception(f"Failed to update record in collection {collection_name}. Error: {e}")
+    
+def delete_db_record(collection_name: str, filter: dict, connection: Optional[Connection] = None):
+    try:
+        connection: Connection = Connection.from_defaults() if connection is None else connection
+        collection = connection.db[collection_name]
+        collection.delete_one(filter)
+        print(f"Record deleted from collection {collection_name}")
+    except Exception as e:
+        raise Exception(f"Failed to delete record from collection {collection_name}. Error: {e}")
