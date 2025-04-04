@@ -1,55 +1,17 @@
 from app.utils.constants import *
 from app.frontend.textual.widgets import Welcome, Submit, Visualize
 
+from textual import on, log
 from textual.app import App, ComposeResult, RenderResult
 from textual.widget import Widget
 from textual.widgets import Static, Button, TextArea
 from textual.containers import Horizontal, Vertical, Container
 from textual.binding import Binding
 
-class DefaultDisplayWidget(Widget):
-    """
-    Default display widget to display a message.
-    """
-    text: str = "Select a resource."
-    
-    def render(self) -> RenderResult:
-        """
-        Render the default message.
-        """
-        return self.text
-
-class AnotherDisplayWidget(Widget):
-    """
-    Another display widget to display a message.
-    """
-    text: str = "Another display widget."
-    
-    def render(self) -> RenderResult:
-        """
-        Render the default message.
-        """
-        return self.text
-
-class OneOtherDisplayWidget(Widget):
-    """
-    Another display widget to display a message.
-    """
-    text: str = "One other display widget."
-    
-    def render(self) -> RenderResult:
-        """
-        Render the default message.
-        """
-        return self.text
-
-
-
-
 class MainApp(App):
     CSS_PATH = [
         TEXTUAL_LAYOUT_MAIN_CSS_PATH,
-        TEXTUAL_LAYOUT_SUBMIT_CSS_PATH,
+        TEXTUAL_LAYOUT_RESOURCE_CSS_PATH,
         ]
     
     # BINDINGS = [
@@ -72,8 +34,15 @@ class MainApp(App):
             with Horizontal(classes="main-container"):
                 yield Submit(classes="left-container")
                 yield Visualize(classes="right-container")
-            yield Container(Button("OK", id="close", variant="success"), classes="exit-container")
-        
+            yield Container(Button("EXIT", id="close", variant="success"), classes="exit-container")
+            
+    
+    @on(Button.Pressed, "#close")
+    def close(self) -> None:
+        """
+        Close the app.
+        """
+        self.exit()
         
 class TestApp(App):
     def compose(self) -> ComposeResult:

@@ -16,7 +16,16 @@ Footer {
 
 Markdown {
     # width: 100%;
-    background: gray;
+    # background: gray;
+}
+
+Button {
+    background: #294741;
+}
+
+Select {
+    # background: #558077;
+    # color: white;
 }
 
 .screen-container {
@@ -28,13 +37,13 @@ Markdown {
 .welcome-container {
     column-span: 16;
     row-span: 1;
-    background: green;
+    background: #549487;
 }
 
 .main-container {
     column-span: 16;
     row-span: 14;
-    background: #f1f1f1;
+    background: gray 30%;
     layout: grid;
     grid-size: 2 2;
 }
@@ -42,21 +51,32 @@ Markdown {
 .left-container {
     column-span: 1;
     row-span: 2;
-    background: red;
+    # background: red;
     layout: grid;
     grid-size: 2 16;
+    border-right: dashed white 50%;
 }
 
 .right-container {
     column-span: 1;
     row-span: 2;
-    background: blue;
+    # background: blue;
+    layout: grid;
+    grid-size: 2 16;
 }
 
 .exit-container {
     column-span: 16;
     row-span: 1;
-    background: pink;
+    # background: pink;
+}
+
+#welcome-message {
+    text-align: center;
+}
+
+#default-message {
+    text-align: center;
 }
 
 #close {

@@ -21,7 +21,7 @@ class SubmitPipeline(Widget):
     - Widget dependent on the selected action
     """
     tabs: Tabs
-    display_widget_class: str = "submit-display-tab-widget"
+    display_widget_class: str = "resource-display-tab-widget"
     display_widget: Widget = DefaultDisplayWidget()
     
     def compose(self) -> ComposeResult:

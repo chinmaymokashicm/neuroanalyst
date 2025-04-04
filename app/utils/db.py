@@ -33,7 +33,7 @@ def check_connection(connection: Optional[Connection] = None) -> dict:
     connection = Connection.from_defaults() if connection is None else connection
     return connection.client.server_info()
 
-def find_one_from_db(collection_name: str, filter: dict, field_names: list[str] = [], connection: Optional[Connection] = None) -> dict:
+def find_one_from_db(collection_name: str, filter: dict = {}, field_names: list[str] = [], connection: Optional[Connection] = None) -> dict:
     try:
         connection: Connection = Connection.from_defaults() if connection is None else connection
         collection = connection.db[collection_name]
@@ -45,7 +45,7 @@ def find_one_from_db(collection_name: str, filter: dict, field_names: list[str] 
     except Exception as e:
         raise Exception(f"Failed to find record in collection {collection_name}. Error: {e}")
 
-def find_many_from_db(collection_name: str, filter: dict, field_names: list[str] = [], connection: Optional[Connection] = None) -> list[dict]:
+def find_many_from_db(collection_name: str, filter: dict = {}, field_names: list[str] = [], connection: Optional[Connection] = None) -> list[dict]:
     try:
         connection: Connection = Connection.from_defaults() if connection is None else connection
         collection = connection.db[collection_name]

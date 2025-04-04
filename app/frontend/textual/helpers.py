@@ -4,6 +4,7 @@ import inspect
 from enum import Enum
 
 from textual.widget import Widget
+from textual.widgets import Static
 from textual.app import ComposeResult, RenderResult
 
 class DefaultDisplayWidget(Widget):
@@ -15,36 +16,19 @@ class DefaultDisplayWidget(Widget):
     def __init__(self, text: Optional[str] = None, **kwargs):
         super().__init__(**kwargs)
         self.text = text if text is not None else self.text
+        self.text
     
     def render(self) -> RenderResult:
         """
         Render the default message.
         """
         return self.text
-
-class AnotherDisplayWidget(Widget):
-    """
-    Another display widget to display a message.
-    """
-    text: str = "Another display widget."
     
-    def render(self) -> RenderResult:
+    def compose(self) -> ComposeResult:
         """
-        Render the default message.
+        Compose the default display widget.
         """
-        return self.text
-
-class OneOtherDisplayWidget(Widget):
-    """
-    Another display widget to display a message.
-    """
-    text: str = "One other display widget."
-    
-    def render(self) -> RenderResult:
-        """
-        Render the default message.
-        """
-        return self.text
+        yield Static(self.render(), id="default-message")
 
 class ActionEnum(Enum):
     """

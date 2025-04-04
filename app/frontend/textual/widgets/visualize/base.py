@@ -1,6 +1,6 @@
 from ...helpers import refresh_widget, DefaultDisplayWidget
-from .process import SubmitProcess
-from .pipeline import SubmitPipeline
+from .process import VisualizeProcess
+from .pipeline import VisualizePipeline
 
 from textual import on, log
 from textual.app import App, ComposeResult, RenderResult
@@ -8,9 +8,9 @@ from textual.widget import Widget
 from textual.containers import Container, Horizontal
 from textual.widgets import Select, Markdown
 
-class Submit(Widget):
+class Visualize(Widget):
     """
-    Widget that handles all submit actions.
+    Widget that handles all visualize actions.
     Layout:
     - 2 horizontal select widgets (select API, select resource (dependent on API selection))
     - Widget dependent on previous selection
@@ -59,8 +59,8 @@ class Submit(Widget):
         selected_resource: str | Select.BLANK = event.value
         if not selected_resource == Select.BLANK:
             if selected_resource == "process":
-                refresh_widget(self, "display_widget", SubmitProcess, self.display_widget_class)
+                refresh_widget(self, "display_widget", VisualizeProcess, self.display_widget_class)
             elif selected_resource == "pipeline":
-                refresh_widget(self, "display_widget", SubmitPipeline, self.display_widget_class)
+                refresh_widget(self, "display_widget", VisualizePipeline, self.display_widget_class)
         else:
-            refresh_widget(self, "display_widget", DefaultDisplayWidget, self.display_widget_class)
+            refresh_widget(self, "display_widget", DefaultDisplayWidget, self.display_widget_class, text="Select a resource.")

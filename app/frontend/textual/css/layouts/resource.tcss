@@ -7,27 +7,27 @@
 #     grid-size: 2 16;
 # }
 
-.submit-select-container {
+.resource-select-container {
     column-span: 2;
     row-span: 2;
 }
 
-.submit-display-widget-container {
+.resource-display-widget-container {
     column-span: 2;
     row-span: 16;
     height: 100%;
-    background: pink;
-    border: solid blue;
+    # background: pink;
+    # border: solid blue;
     layout: grid;
     grid-size: 1 8;
 }
 
-.submit-display-tab-widget {
+.resource-display-tab-widget {
     column-span: 1;
     row-span: 8;
     # height: 100%;
-    background: lightblue;
-    border: dashed green;
+    # background: lightblue;
+    # border: dashed green;
     layout: grid;
     grid-size: 8 8;
     overflow: auto;
@@ -36,8 +36,8 @@
 .json-input {
     column-span: 6;
     row-span: 8;
-    background: lightgreen;
-    border: dashed red;
+    # background: lightgreen;
+    # border: dashed red;
     height: 100%;
     width: 100%;
     # display: block;
@@ -49,11 +49,11 @@
 .json-submit-buttons {
     column-span: 2;
     row-span: 8;
-    background: lightyellow;
-    border: dashed purple;
+    # background: lightyellow;
+    # border: dashed purple;
     # layout: grid;
     # grid-size: 1 8;
-    overflow-y: scroll;
+    overflow-y: auto;
 }
 
 .json-submit-button {
@@ -70,16 +70,17 @@
 .action-item-choose {
     column-span: 8;
     row-span: 2;
-    background: lightgray;
-    border: dashed orange;
+    # background: lightgray;
+    # border: dashed orange;
     layout: grid;
     grid-size: 8 1;
+    grid-gutter: 0 1;
 }
 
 .action-select {
     column-span: 4;
     row-span: 1;
-    background: lightgray;
+    # background: lightgray;
     # border: dashed orange;
 }
 
@@ -92,7 +93,15 @@
 }
 
 .action-button-copy-id {
-    column-span: 2;
+    column-span: 1;
+    row-span: 1;
+    width: 100%;
+    # background: lightgray;
+    # border: dashed orange;
+}
+
+.action-button-copy-json {
+    column-span: 1;
     row-span: 1;
     width: 100%;
     # background: lightgray;
@@ -102,9 +111,22 @@
 .action-textarea {
     column-span: 8;
     row-span: 6;
-    background: lightpink;
-    border: dashed brown;
+    # background: lightpink;
+    # border: dashed brown;
     # height: 100%;
+    # width: 100%;
+    # display: block;
+    overflow: auto;
+    # layout: vertical;
+    # align: center middle;
+}
+
+.tabular-data-table {
+    column-span: 8;
+    row-span: 6;
+    # background: lightpink;
+    # border: dashed brown;
+    height: 100%;
     # width: 100%;
     # display: block;
     overflow: auto;

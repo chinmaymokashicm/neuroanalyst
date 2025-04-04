@@ -36,4 +36,4 @@ SYSTEM_PROMPTS_PATH: str = "app/models/insight/prompts"
 
 # Textual CSS
 TEXTUAL_LAYOUT_MAIN_CSS_PATH: str = "app/frontend/textual/css/layouts/main.tcss"
-TEXTUAL_LAYOUT_SUBMIT_CSS_PATH: str = "app/frontend/textual/css/layouts/submit.tcss"
+TEXTUAL_LAYOUT_RESOURCE_CSS_PATH: str = "app/frontend/textual/css/layouts/resource.tcss"

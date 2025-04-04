@@ -39,9 +39,10 @@ class ActionOnWidget(Widget):
                 options: list[tuple[str, str]] = [(f"{record['id']}", record['id']) for record in records]
             else:
                 options: list[tuple[str, str]] = [(f"{record['id']} : {record['name']}", record['id']) for record in records]
-            yield Select(id="action_select", options=options, classes="action-select")
+            yield Select(id="action_select", options=options, classes="action-select", type_to_search=True)
             yield Button(self.action.value.title(), id="action_button", classes="action-button-action")
             yield Button("Copy ID", id="copy_id_button", classes="action-button-copy-id")
+            yield Button("Copy JSON", id="copy_json_button", classes="action-button-copy-json")
         yield TextArea(classes="action-textarea", id="action_textarea", read_only=True, language="json")
         
     @on(Select.Changed, "#action_select")
