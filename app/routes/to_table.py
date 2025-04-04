@@ -2,6 +2,10 @@ from ..models.core.process import ProcessImageApptainer, ProcessExecApptainer
 from ..models.core.pipeline import PipelineStep, Pipeline
 from ..utils.db import find_many_from_db, find_one_from_db
 from ..utils.constants import COLLECTION_PROCESS_IMAGES, COLLECTION_PROCESS_EXECS, COLLECTION_PIPELINES
+from ..utils.envs import set_neuroanalyst_root_dirs, get_neuroanalyst_root_dirs
+
+from pathlib import Path, PosixPath
+import re
 
 def convert_all_process_images_to_table() -> list[dict]:
     """
@@ -72,3 +76,23 @@ def convert_all_pipelines_to_table() -> list[dict]:
         }
         for pipeline in pipelines
     ]
+    
+def convert_all_workdirs_to_table() -> list[dict]:
+    """
+    Convert all workdirs to a table format.
+    """
+    skip_subdirs = ["venv*"]
+    set_neuroanalyst_root_dirs()
+    root_dir: PosixPath = Path(get_neuroanalyst_root_dirs("workdir"))
+    if root_dir is None:
+        return []
+    subdirs: list[dict] = []
+    for subdir in root_dir.iterdir():
+        if subdir.is_dir() and not any(re.match(pattern, subdir.name) for pattern in skip_subdirs):
+            subdirs.append(
+                {
+                    "name": subdir.name, 
+                    "path": str(subdir)
+                }
+            )
+    return subdirs
