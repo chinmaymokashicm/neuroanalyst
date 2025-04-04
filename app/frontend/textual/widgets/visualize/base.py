@@ -1,6 +1,5 @@
 from ...helpers import refresh_widget, DefaultDisplayWidget
-from .process import VisualizeProcess
-from .pipeline import VisualizePipeline
+from . import VisualizeProcess, VisualizePipeline, VisualizeWorkDirectory
 
 from textual import on, log
 from textual.app import App, ComposeResult, RenderResult
@@ -22,7 +21,7 @@ class Visualize(Widget):
     display_widget: Widget = DefaultDisplayWidget()
     
     options: dict[str, list[str]] = {
-        "core": ["process", "pipeline"],
+        "core": ["process", "pipeline", "working_directory"],
         "insight": ["submit_user_query", "generate_report"]
     }
     
@@ -62,5 +61,7 @@ class Visualize(Widget):
                 refresh_widget(self, "display_widget", VisualizeProcess, self.display_widget_class)
             elif selected_resource == "pipeline":
                 refresh_widget(self, "display_widget", VisualizePipeline, self.display_widget_class)
+            elif selected_resource == "working_directory":
+                refresh_widget(self, "display_widget", VisualizeWorkDirectory, self.display_widget_class)
         else:
             refresh_widget(self, "display_widget", DefaultDisplayWidget, self.display_widget_class, text="Select a resource.")
