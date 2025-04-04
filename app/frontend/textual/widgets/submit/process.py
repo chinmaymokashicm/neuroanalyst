@@ -61,7 +61,8 @@ class SubmitProcess(Widget):
                 "environment_variables": DEFAULT_CONTAINER_ENVS
             }
             default_json: str = json.dumps(process_image_dict, indent=4)
-            refresh_widget(self, "display_widget", JSONViewerWidget, self.display_widget_class, submit_url="https://example.com/api/submit", default_json_data=default_json)
+            submit_url: str = f"http://{HOSTNAME}:{PORT}/process/image/create/"
+            refresh_widget(self, "display_widget", JSONViewerWidget, self.display_widget_class, submit_url=submit_url, default_json_data=default_json)
         elif event.tab.id == "execute_process":
             default_dict: dict = {
                 "process_exec_config": ProcessExecConfig().model_dump(),
