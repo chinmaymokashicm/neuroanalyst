@@ -13,47 +13,33 @@ def set_neuroanalyst_root_dirs() -> None:
     if not home_dir:
         raise ValueError("'$HOME' environment variable is not set.")
     
-    os.environ[ENV_NEUROANALYST_HOME] = str(Path(home_dir) / "neuroanalyst")
-    os.environ[ENV_NEUROANALYST_IMAGES] = str(Path(home_dir) / "neuroanalyst" / "apptainer"/ "images")
-    os.environ[ENV_NEUROANALYST_DOCS] = str(Path(home_dir) / "neuroanalyst" / "apptainer"/ "docs")
-    os.environ[ENV_NEUROANALYST_WORKDIR] = str(Path(home_dir) / "neuroanalyst" / "working_dirs")
-    os.environ[ENV_NEUROANALYST_REPORTS] = str(Path(home_dir) / "neuroanalyst" / "reports")
+    root_dirs = {
+        ENV_NEUROANALYST_HOME: str(Path(home_dir) / "neuroanalyst"),
+        ENV_NEUROANALYST_IMAGES: str(Path(home_dir) / "neuroanalyst" / "apptainer"/ "images"),
+        ENV_NEUROANALYST_DOCS: str(Path(home_dir) / "neuroanalyst" / "apptainer"/ "docs"),
+        ENV_NEUROANALYST_WORKDIR: str(Path(home_dir) / "neuroanalyst" / "working_dirs"),
+        ENV_NEUROANALYST_REPORTS: str(Path(home_dir) / "neuroanalyst" / "reports"),
+        ENV_NEUROANALYST_LOGS: str(Path(home_dir) / "neuroanalyst" / "logs")
+    }
+    
+    for env_var, dir_path in root_dirs.items():
+        os.environ[env_var] = dir_path
+        os.makedirs(dir_path, exist_ok=True)
+        print(f"{env_var}: {dir_path}")
 
 def get_neuroanalyst_root_dirs(dir_type: str = "all") -> str | dict[str, str]:
-    neuroanalyst_home_dir: str = os.environ.get(ENV_NEUROANALYST_HOME, None)
-    if not neuroanalyst_home_dir:
-        raise ValueError(f"'Variable {ENV_NEUROANALYST_HOME} is not set.'")
+    root_dirs = {
+        "home": ENV_NEUROANALYST_HOME,
+        "images": ENV_NEUROANALYST_IMAGES,
+        "docs": ENV_NEUROANALYST_DOCS,
+        "workdir": ENV_NEUROANALYST_WORKDIR,
+        "reports": ENV_NEUROANALYST_REPORTS,
+        "logs": ENV_NEUROANALYST_LOGS
+    }
     
-    neuroanalyst_images_dir: str = os.environ.get(ENV_NEUROANALYST_IMAGES, None)
-    if not neuroanalyst_images_dir:
-        raise ValueError(f"'Variable {ENV_NEUROANALYST_IMAGES} is not set.'")
-    
-    neuroanalyst_docs_dir: str = os.environ.get(ENV_NEUROANALYST_DOCS, None)
-    if not neuroanalyst_docs_dir:
-        raise ValueError(f"'Variable {ENV_NEUROANALYST_DOCS} is not set.'")
-    
-    neuroanalyst_working_dir: str = os.environ.get(ENV_NEUROANALYST_WORKDIR, None)
-    if not neuroanalyst_working_dir:
-        raise ValueError(f"'Variable {ENV_NEUROANALYST_WORKDIR} is not set.'")
-    
-    neuroanalyst_reports: str = os.environ.get(ENV_NEUROANALYST_REPORTS, None)
-    if not neuroanalyst_reports:
-        raise ValueError(f"'Variable {ENV_NEUROANALYST_REPORTS} is not set.'")
-    
-    if dir_type == "home":
-        return neuroanalyst_home_dir
-    elif dir_type == "images":
-        return neuroanalyst_images_dir
-    elif dir_type == "docs":
-        return neuroanalyst_docs_dir
-    elif dir_type == "workdir":
-        return neuroanalyst_working_dir
-    elif dir_type == "all":
-        return {
-            "root": neuroanalyst_home_dir,
-            "images": neuroanalyst_images_dir,
-            "docs": neuroanalyst_docs_dir,
-            "workdir": neuroanalyst_working_dir
-        }
+    if dir_type == "all":
+        return {dir_type: os.environ.get(env_var, None) for dir_type, env_var in root_dirs.items()}
+    elif dir_type in root_dirs:
+        return os.environ.get(root_dirs[dir_type], None)
     else:
         raise ValueError(f"Incorrect argument '{dir_type=}")

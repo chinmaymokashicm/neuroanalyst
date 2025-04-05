@@ -38,6 +38,15 @@ class ActionEnum(Enum):
     UPDATE = "update"
     CREATE = "create"
     EXECUTE = "execute"
+    
+class APIRouteEnum(Enum):
+    """
+    Enum for API routes.
+    """
+    PROCESS_IMAGE = "/process/image"
+    PROCESS_EXEC = "/process/exec"
+    PIPELINE = "/pipeline"
+    WORKDIR = "/workdir"
 
 def refresh_widget(root_widget: Widget, widget_to_refresh_name: str, updated_widget: Widget, new_widget_class: Optional[str] = None, **properties) -> None:
     """

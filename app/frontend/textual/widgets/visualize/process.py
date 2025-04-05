@@ -1,8 +1,6 @@
 from .....utils.constants import *
 from .....models.core.process.execute import ProcessExecConfig
-from ...helpers import refresh_widget, DefaultDisplayWidget, ActionEnum
-from ..components.json_viewer import JSONViewerWidget
-from ..components.action import ActionOnWidget
+from ...helpers import refresh_widget, DefaultDisplayWidget, ActionEnum, APIRouteEnum
 from ..components.table_viewer import TabularData
 
 import json
@@ -39,8 +37,8 @@ class VisualizeProcess(Widget):
         Handle the tab activated event.
         """
         if event.tab.id == "view_process":
-            refresh_widget(self, "display_widget", TabularData, self.display_widget_class, collection_name=COLLECTION_PROCESS_IMAGES)
+            refresh_widget(self, "display_widget", TabularData, self.display_widget_class, api_route=APIRouteEnum.PROCESS_IMAGE)
         elif event.tab.id == "view_process_exec":
-            refresh_widget(self, "display_widget", TabularData, self.display_widget_class, collection_name=COLLECTION_PROCESS_EXECS)
+            refresh_widget(self, "display_widget", TabularData, self.display_widget_class, api_route=APIRouteEnum.PROCESS_EXEC)
         else:
             refresh_widget(self, "display_widget", DefaultDisplayWidget, self.display_widget_class, text="Select a resource.")

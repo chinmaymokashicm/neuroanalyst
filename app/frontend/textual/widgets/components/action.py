@@ -2,10 +2,11 @@
 Action on an item from the database.
 """
 from .....utils.db import find_many_from_db, find_one_from_db, check_connection
+from .....utils.constants import *
 from .....utils.exceptions import DBRecordMissing, MongoDBConnectionError
-from ...helpers import ActionEnum
+from ...helpers import ActionEnum, APIRouteEnum
 
-import json
+import json, requests
 
 from textual import on, log
 from textual.app import ComposeResult, RenderResult
@@ -14,23 +15,35 @@ from textual.widget import Widget
 from textual.widgets import Button, TextArea, Select
 
 class ActionOnWidget(Widget):
-    collection_name: str
+    """
+    Widget that submits an action on a selected item.
+    """
+    api_route: APIRouteEnum
     action: ActionEnum
     
-    def __init__(self, collection_name: str, action: ActionEnum, **kwargs):
+    def __init__(self, api_route: APIRouteEnum, action: ActionEnum, **kwargs):
         super().__init__(**kwargs)
-        self.collection_name = collection_name
+        self.api_route = api_route
         self.action = action
         
     def get_select_options(self) -> list:
+        endpoint: str = f"http://{HOSTNAME}:{PORT}/{self.api_route.value}/all/"
+        records: list[dict] = []
         try:
-            records: list[dict] = find_many_from_db(self.collection_name, filter={})
-        except DBRecordMissing:
-            log(f"Collection {self.collection_name} not found.")
-            return
+            response: requests.Response = requests.get(endpoint, timeout=5)
+            if response.status_code not in [200, 201]:
+                log(f"Failed to fetch data: {response.text}")
+                self.notify(f"Failed to fetch data: {response.text}", severity="error", title="Error")
+                return []
+            records: list[dict] = response.json()
+        except requests.RequestException as e:
+            log(f"Request failed: {str(e)}")
+            self.notify(f"Request failed: {str(e)}", severity="error", title="Error")
+            return []
         if not records:
-            log(f"Collection {self.collection_name} is empty.")
-            return
+            log(f"Collection {self.api_route.name} is empty.")
+            self.notify(f"Collection {self.api_route.name} is empty.", severity="warning", title="Warning")
+            return []
         options = []
         if len(records) > 0:
             if "name" not in records[0]:

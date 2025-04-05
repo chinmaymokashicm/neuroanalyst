@@ -28,6 +28,24 @@ Select {
     # color: white;
 }
 
+ToastRack {
+    # background: #294741;
+    # color: white;
+    align: right top;
+}
+
+Toast.-information .toast--title {
+    text-style: bold;
+}
+
+Toast.-warning .toast--title {
+    text-style: italic;
+}
+
+Toast.-error .toast--title {
+    text-style: underline;
+}
+
 .screen-container {
     layout: grid;
     grid-size: 16 16;
