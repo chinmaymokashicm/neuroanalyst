@@ -9,16 +9,18 @@
 
 # ! Do not run this script - this is only for reading
 
+
+screen -S mongo_apptainer
+# rm $HOME/data/mongodb/WiredTiger.lock
+rm $HOME/data/mongodb/WiredTiger*
 cd $HOME/apptainer_images/mongodb
 apptainer run \
     -B $HOME/data/mongodb:/data/db \
     -B $HOME/logs/mongodb:/var/log/mongodb \
     mongo_latest.sif
-
-rm $HOME/data/mongodb/WiredTiger.lock
-
-cd $HOME/apptainer_images/mongodb
-apptainer instance start \
-    -B $HOME/data/mongodb:/data/db \
-    -B $HOME/logs/mongodb:/var/log/mongodb \
-    mongo_latest.sif mongo_latest
+    
+# cd $HOME/apptainer_images/mongodb
+# apptainer instance start \
+#     -B $HOME/data/mongodb:/data/db \
+#     -B $HOME/logs/mongodb:/var/log/mongodb \
+#     mongo_latest.sif mongo_latest
