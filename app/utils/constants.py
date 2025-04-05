@@ -9,7 +9,7 @@ DB_NAME: str = "neuroanalyst"
 
 # Fast API
 HOSTNAME: str = "localhost"
-PORT: str = 3000
+PORT: str = 3001
 
 # DB Collections
 COLLECTION_PROCESS_IMAGES: str = "process_images"
@@ -29,6 +29,9 @@ ENV_NEUROANALYST_IMAGES: str = "NEUROANALYST_IMAGES"
 ENV_NEUROANALYST_DOCS: str = "NEUROANALYST_DOCS"
 ENV_NEUROANALYST_WORKDIR: str = "NEUROANALYST_WORKDIR"
 ENV_NEUROANALYST_REPORTS: str = "NEUROANALYST_REPORTS"
+
+# Redis broker (locally-running, on a HPC)
+REDIS_BROKER_URL = "redis://localhost:6379/0"
 
 # Insight API
 OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY")

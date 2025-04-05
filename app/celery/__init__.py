@@ -1,12 +1,17 @@
+from ..utils.constants import *
+
 import importlib, pkgutil
 
 from celery import Celery
 
 # Configure Celery with Redis as the broker
+
 celery_app = Celery(
     "neuroimaging_tasks",
-    broker="redis://localhost:6379/0",  # Using Redis running in Docker
-    backend="redis://localhost:6379/0",
+    # broker="redis://localhost:6379/0",  # Using Redis running in Docker
+    # backend="redis://localhost:6379/0",
+    broker=REDIS_BROKER_URL, # Using Redis running locally
+    backend=REDIS_BROKER_URL
     # include=["app.celery.tasks"],
 )
 
