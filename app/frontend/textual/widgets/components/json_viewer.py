@@ -75,14 +75,17 @@ class JSONViewerWidget(Widget):
         
         # Submit POST request to the API
         try:
-            response = requests.post(self.submit_url, json=json.loads(text))
-            if response.status_code == 200:
+            # response = requests.post(self.submit_url, json=json.loads(text))
+            response = requests.post(self.submit_url, data={"form_data": json.dumps(json.loads(text))})
+            if response.status_code in [200, 201]:
                 self.notify("JSON data submitted successfully.", severity="information")
             else:
                 self.notify(f"Error submitting JSON data: {response.status_code}", severity="error")
                 try:
                     pyperclip.copy(response.json())
-                    # self.notify("Error response copied to clipboard!")
+                    response_dict: dict = json.loads(response.text)
+                    self.notify(f"{response_dict["detail"]}", severity="error")
+                    self.notify("Error response copied to clipboard!")
                 except:
                     self.notify("Tried copying error response. FAILED.")
         except requests.RequestException as e:
