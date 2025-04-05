@@ -1,7 +1,7 @@
 from .....utils.constants import *
 from .....models.core.process.execute import ProcessExecConfig
-from ...helpers import refresh_widget, DefaultDisplayWidget, ActionEnum
-from ..components.json_viewer import JSONViewerWidget
+from ...helpers import refresh_widget, DefaultDisplayWidget, ActionEnum, APIRouteEnum
+from ..components.data_viewer import DataSubmitterWidget
 from ..components.action import ActionOnWidget
 
 import json
@@ -62,15 +62,15 @@ class SubmitProcess(Widget):
             }
             default_json: str = json.dumps(process_image_dict, indent=4)
             submit_url: str = f"http://{HOSTNAME}:{PORT}/process/image/create/"
-            refresh_widget(self, "display_widget", JSONViewerWidget, self.display_widget_class, submit_url=submit_url, default_json_data=default_json)
+            refresh_widget(self, "display_widget", DataSubmitterWidget, self.display_widget_class, submit_url=submit_url, default_data=default_json, language="json")
         elif event.tab.id == "execute_process":
             default_dict: dict = {
                 "process_exec_config": ProcessExecConfig().model_dump(),
                 "process_image_id": "PR-00000"
             }
             default_json: str = json.dumps(default_dict, indent=4)
-            refresh_widget(self, "display_widget", JSONViewerWidget, self.display_widget_class, submit_url="https://example.com/api/submit", default_json_data=default_json)
+            refresh_widget(self, "display_widget", DataSubmitterWidget, self.display_widget_class, submit_url="https://example.com/api/submit", default_data=default_json, language="json")
         elif event.tab.id == "delete_process":
-            refresh_widget(self, "display_widget", ActionOnWidget, self.display_widget_class, collection_name=COLLECTION_PROCESS_IMAGES, action=ActionEnum.DELETE)
+            refresh_widget(self, "display_widget", ActionOnWidget, self.display_widget_class, api_route=APIRouteEnum.PROCESS_IMAGE, action=ActionEnum.DELETE)
         elif event.tab.id == "delete_process_exec":
-            refresh_widget(self, "display_widget", ActionOnWidget, self.display_widget_class, collection_name=COLLECTION_PROCESS_EXECS, action=ActionEnum.DELETE)
+            refresh_widget(self, "display_widget", ActionOnWidget, self.display_widget_class, api_route=APIRouteEnum.PROCESS_EXEC, action=ActionEnum.DELETE)

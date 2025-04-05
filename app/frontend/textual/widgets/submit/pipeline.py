@@ -1,6 +1,6 @@
 from .....utils.constants import *
-from ...helpers import refresh_widget, DefaultDisplayWidget, ActionEnum
-from ..components.json_viewer import JSONViewerWidget
+from ...helpers import refresh_widget, DefaultDisplayWidget, ActionEnum, APIRouteEnum
+from ..components.data_viewer import DataSubmitterWidget
 from ..components.action import ActionOnWidget
 
 import json
@@ -50,14 +50,15 @@ class SubmitPipeline(Widget):
             refresh_widget(
                 self, 
                 "display_widget", 
-                JSONViewerWidget, 
+                DataSubmitterWidget, 
                 self.display_widget_class, 
                 submit_url="https://example.com/api/submit", 
-                default_json_data=default_json
+                default_data=default_json,
+                language="json",
                 )
         elif event.tab.id == "execute_pipeline":
             # Execute pipeline 
-            refresh_widget(self, "display_widget", ActionOnWidget, self.display_widget_class, collection_name=COLLECTION_PIPELINES, action=ActionEnum.EXECUTE)
+            refresh_widget(self, "display_widget", ActionOnWidget, self.display_widget_class, api_route=APIRouteEnum.PIPELINE, action=ActionEnum.EXECUTE)
         elif event.tab.id == "delete_pipeline":
             # Delete pipeline
-            refresh_widget(self, "display_widget", ActionOnWidget, self.display_widget_class, collection_name=COLLECTION_PIPELINES, action=ActionEnum.DELETE)
+            refresh_widget(self, "display_widget", ActionOnWidget, self.display_widget_class, api_route=APIRouteEnum.PIPELINE, action=ActionEnum.DELETE)

@@ -1,8 +1,6 @@
 from .....utils.constants import *
 from .....models.core.process.execute import ProcessExecConfig
-from ...helpers import refresh_widget, DefaultDisplayWidget, ActionEnum
-from ..components.json_viewer import JSONViewerWidget
-from ..components.action import ActionOnWidget
+from ...helpers import refresh_widget, DefaultDisplayWidget, ActionEnum, APIRouteEnum
 from ..components.table_viewer import TabularData
 
 import json
@@ -38,6 +36,6 @@ class VisualizeWorkDirectory(Widget):
         Handle the tab activated event.
         """
         if event.tab.id == "view_pipeline":
-            refresh_widget(self, "display_widget", TabularData, self.display_widget_class)
+            refresh_widget(self, "display_widget", TabularData, self.display_widget_class, api_route=APIRouteEnum.WORKDIR)
         else:
             refresh_widget(self, "display_widget", DefaultDisplayWidget, self.display_widget_class, text="Select a resource.")

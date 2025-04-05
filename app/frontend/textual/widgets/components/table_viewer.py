@@ -5,7 +5,7 @@ from .....utils.db import find_many_from_db, find_one_from_db
 from .....utils.constants import *
 from .....utils.exceptions import DBRecordMissing
 from .....utils.envs import get_neuroanalyst_root_dirs, set_neuroanalyst_root_dirs
-from ...helpers import ActionEnum
+from ...helpers import ActionEnum, APIRouteEnum
 
 import json, re, requests
 from typing import Optional
@@ -19,36 +19,32 @@ from textual.widgets import Button, TextArea, Select, DataTable
 import pyperclip
 
 class TabularData(Widget):
-    collection_name: Optional[str] = None
+    """
+    Widget that loads list of rows from the given API endpoint and displays them in a table.
+    """
     
-    def __init__(self, collection_name: Optional[str] = None, root_dir: Optional[str] = None, **kwargs):
+    api_route: APIRouteEnum
+    
+    def __init__(self, api_route: APIRouteEnum, **kwargs):
         super().__init__(**kwargs)
-        self.collection_name = collection_name
-        self.root_dir = root_dir
+        self.api_route = api_route
     
     def get_rows_from_db(self) -> list[dict]:
-        if self.collection_name is None:
+        endpoint: str = f"http://{HOSTNAME}:{PORT}/{self.api_route.value}/all/"
+        rows: list[dict] = []
+        try:
+            response: requests.Response = requests.get(endpoint, timeout=5)
+            if response.status_code != 200:
+                self.notify(f"Failed to fetch data: {response.text}", severity="error", title="Error")
+                return []
+            rows: list[dict] = response.json()
+        except requests.RequestException as e:
+            self.notify(f"Request failed: {str(e)}", severity="error", title="Error")
             return []
-        rows: list[dict] = find_many_from_db(self.collection_name, filter={})
-        # Identify columns that have iterable values in any row
-        iterable_columns = set()
-        for row in rows:
-            for key, value in row.items():
-                if isinstance(value, (list, dict)):
-                    iterable_columns.add(key)
-        # Keep only non-iterable columns
-        non_iterable_columns = set(rows[0].keys()) - iterable_columns
-        rows = [{k: v for k, v in row.items() if k in non_iterable_columns} for row in rows]
-        return rows
-    
-    def get_subdirs_from_root(self, skip_subdirs: Optional[list[str]] = None) -> list[dict]:
-        # Fetch working directories from the API
-        workdir_fetch_url: str = f"http://{HOSTNAME}:{PORT}/process/workdir/all/"
-        response: requests.Response = requests.get(workdir_fetch_url)
-        if response.status_code != 200:
-            self.notify(f"Failed to fetch working directories: {response.text}")
+        
+        if(len(rows) == 0):
+            self.notify(f"Collection {self.api_route.name} is empty.", severity="warning", title="Warning")
             return []
-        rows: list[dict] = response.json()
         return rows
     
     def compose(self) -> ComposeResult:
@@ -60,10 +56,8 @@ class TabularData(Widget):
             show_header=True,
             classes="tabular-data-table",
         )
-        if self.collection_name is not None:
-            rows = self.get_rows_from_db()
-        else:
-            rows = self.get_subdirs_from_root()
+        data_table.header_height = 3
+        rows = self.get_rows_from_db()
         if len(rows) != 0:
             # Convert the dictionary to a list of tuples with the first row as the header and the rest as data
             header = list(rows[0].keys())
@@ -73,5 +67,6 @@ class TabularData(Widget):
             data_table.add_columns(*data[0])
             data_table.add_rows(data[1:])
         else:
-            log(f"Collection {self.collection_name} is empty.")
+            data_table.add_columns("NO DATA")
+            data_table.add_row("No data available")
         yield data_table
