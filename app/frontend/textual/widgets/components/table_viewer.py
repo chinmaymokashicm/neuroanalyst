@@ -2,11 +2,12 @@
 View tabular data
 """
 from .....utils.db import find_many_from_db, find_one_from_db
+from .....utils.constants import *
 from .....utils.exceptions import DBRecordMissing
 from .....utils.envs import get_neuroanalyst_root_dirs, set_neuroanalyst_root_dirs
 from ...helpers import ActionEnum
 
-import json, re
+import json, re, requests
 from typing import Optional
 from pathlib import Path, PosixPath
 
@@ -19,7 +20,6 @@ import pyperclip
 
 class TabularData(Widget):
     collection_name: Optional[str] = None
-    root_dir: Optional[str] = None
     
     def __init__(self, collection_name: Optional[str] = None, root_dir: Optional[str] = None, **kwargs):
         super().__init__(**kwargs)
@@ -42,19 +42,14 @@ class TabularData(Widget):
         return rows
     
     def get_subdirs_from_root(self, skip_subdirs: Optional[list[str]] = None) -> list[dict]:
-        if skip_subdirs is None:
-            skip_subdirs = ["venv*"]
-        if self.root_dir is None:
-            set_neuroanalyst_root_dirs()
-            self.root_dir = get_neuroanalyst_root_dirs("workdir")
-        root_dir: PosixPath = Path(self.root_dir)
-        if not root_dir.exists():
+        # Fetch working directories from the API
+        workdir_fetch_url: str = f"http://{HOSTNAME}:{PORT}/process/workdir/all/"
+        response: requests.Response = requests.get(workdir_fetch_url)
+        if response.status_code != 200:
+            self.notify(f"Failed to fetch working directories: {response.text}")
             return []
-        subdirs = []
-        for subdir in root_dir.iterdir():
-            if subdir.is_dir() and not any(re.match(pattern, subdir.name) for pattern in skip_subdirs):
-                subdirs.append({"name": subdir.name, "path": str(subdir)})
-        return subdirs
+        rows: list[dict] = response.json()
+        return rows
     
     def compose(self) -> ComposeResult:
         """
