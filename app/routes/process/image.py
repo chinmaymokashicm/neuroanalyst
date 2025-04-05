@@ -6,7 +6,7 @@ from ..to_table import convert_all_process_images_to_table
 from ...models.core.process import ProcessImageApptainer
 from ...celery.tasks.process import build_process_image
 
-import json
+import json, traceback
 
 from fastapi import APIRouter, Request, Form, HTTPException
 from fastapi.responses import JSONResponse
@@ -48,9 +48,11 @@ async def preview_process(form_data: str = Form(...)) -> JSONResponse:
     return ProcessImageApptainer.get_ui_submission_preview(form_dict)
 
 @router.post("/create/", tags=["process", "image"])
-async def create_process(form_data: str = Form(...)) -> JSONResponse:
+async def create_process(form_data: str | dict = Form(...)) -> JSONResponse:
     try:
-        form_dict: dict = json.loads(form_data)
+        form_dict: dict = form_data
+        if isinstance(form_data, str):
+            form_dict: dict = json.loads(form_data)
         print("Form data:", form_dict)
     except json.JSONDecodeError as e:
         print(f"Error decoding JSON: {e}")
@@ -59,10 +61,8 @@ async def create_process(form_data: str = Form(...)) -> JSONResponse:
     # Run process and return process id.
     try:
         process_image: ProcessImageApptainer = ProcessImageApptainer.from_user(**form_dict)
-        process_image_id, dest_dir = process_image.create_image_workdir()
-        # process_image.build_image(dest_dir=dest_dir)
-        build_process_image.apply_async(args=[process_image]) # Push to Celery task    
-        return JSONResponse(status_code=201, content={"message": f"Process created with PID - {process_image_id}"})
+        build_process_image.apply_async(args=[process_image.model_dump_json()]) # Push to Celery task
+        return JSONResponse(status_code=201, content={"message": f"Process created with PID - {process_image.id}"})
     except Exception as e:
         print(f"Error creating process: {e}")
         raise HTTPException(status_code=400, detail=f"Failed to create process. Error: {e}")

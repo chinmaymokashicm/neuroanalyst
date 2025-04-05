@@ -47,7 +47,7 @@ async def execute_process(form_data: str = Form(...)) -> JSONResponse:
         process_exec: ProcessExecApptainer = ProcessExecApptainer.from_user(**form_dict)
         process_id: str = process_exec.process_image.id
         process_exec_id: str = process_exec.id
-        execute_process.apply_async(args=[process_exec]) # Push to Celery task
+        execute_process.apply_async(args=[process_exec.model_dump_json()]) # Push to Celery task
         return JSONResponse(status_code=201, content={"message": f"Process {process_id} executed with PID - {process_exec_id}"})
     except Exception as e:
         print(f"Error executing process: {e}")

@@ -45,7 +45,7 @@ async def execute_pipeline(form_data: str = Form(...)) -> JSONResponse:
     try:
         pipeline: Pipeline = Pipeline.from_user(**form_dict)
         pipeline_id: str = pipeline.id
-        run_pipeline.apply_async(args=[pipeline]) # Push to Celery task
+        run_pipeline.apply_async(args=[pipeline.model_dump_json()]) # Push to Celery task
         return JSONResponse(status_code=201, content={"message": f"Pipeline executed with PID - {pipeline_id}"})
     except Exception as e:
         print(f"Error executing process: {e}")
