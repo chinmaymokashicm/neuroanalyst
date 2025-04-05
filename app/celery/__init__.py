@@ -1,11 +1,14 @@
 from ..utils.constants import *
+from ..utils.envs import set_neuroanalyst_root_dirs
 
-import importlib, pkgutil
+import importlib, pkgutil, logging
 
 from celery import Celery
+from celery.signals import after_setup_logger
+
+set_neuroanalyst_root_dirs()
 
 # Configure Celery with Redis as the broker
-
 celery_app = Celery(
     "neuroimaging_tasks",
     # broker="redis://localhost:6379/0",  # Using Redis running in Docker
@@ -23,6 +26,16 @@ def autodiscover_tasks(package_name):
 
 # Call autodiscovery for celery.tasks
 autodiscover_tasks("app.celery.tasks")
+
+@after_setup_logger.connect
+def setup_loggers(logger, *args, **kwargs):
+    formatter = logging.Formatter(
+        "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    )
+    # Example: File logging
+    fh = logging.FileHandler(CELERY_LOG_FILEPATH)
+    fh.setFormatter(formatter)
+    logger.addHandler(fh)
 
 celery_app.conf.update(
     task_serializer="json",

@@ -14,7 +14,7 @@ router = APIRouter()
 
 @router.get("/all/", tags=["pipeline"])
 async def get_all_pipelines():
-    return get_static_json_response(convert_all_pipelines_to_table(), ())
+    return get_static_json_response(convert_all_pipelines_to_table, ())
 
 @router.get("/id/{id}/", tags=["pipeline"])
 async def get_pipeline(pipeline_id: str):
