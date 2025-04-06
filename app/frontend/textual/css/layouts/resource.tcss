@@ -121,15 +121,35 @@
     # align: center middle;
 }
 
+.table-view-container {
+    layout: grid;
+    column-span: 8;
+    row-span: 8;
+    grid-size: 8 8;
+    # grid-gutter: 0 1;
+    width: 100%;
+    height: 100%;
+    # background: red;
+    # border: solid blue;
+}
+
 .tabular-data-table {
     column-span: 8;
-    row-span: 6;
+    row-span: 7;
     # background: lightpink;
-    # border: dashed brown;
+    # border: dashed white;
     height: 100%;
     # width: 100%;
     # display: block;
     overflow: auto;
     # layout: vertical;
     # align: center middle;
+}
+
+.table-refresh-button {
+    column-span: 8;
+    row-span: 1;
+    width: 100%;
+    # background: lightgray;
+    # border: dashed green;
 }

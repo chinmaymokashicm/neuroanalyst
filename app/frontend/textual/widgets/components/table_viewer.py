@@ -13,7 +13,7 @@ from pathlib import Path, PosixPath
 
 from textual import on, log
 from textual.app import ComposeResult, RenderResult
-from textual.containers import Horizontal
+from textual.containers import Vertical
 from textual.widget import Widget
 from textual.widgets import Button, TextArea, Select, DataTable
 import pyperclip
@@ -28,12 +28,12 @@ class TabularData(Widget):
     def __init__(self, api_route: APIRouteEnum, **kwargs):
         super().__init__(**kwargs)
         self.api_route = api_route
+        self.endpoint: str = f"http://{HOSTNAME}:{PORT}/{self.api_route.value}/all/"
     
     def get_rows_from_db(self) -> list[dict]:
-        endpoint: str = f"http://{HOSTNAME}:{PORT}/{self.api_route.value}/all/"
         rows: list[dict] = []
         try:
-            response: requests.Response = requests.get(endpoint, timeout=5)
+            response: requests.Response = requests.get(self.endpoint, timeout=5)
             if response.status_code != 200:
                 self.notify(f"Failed to fetch data: {response.text}", severity="error", title="Error")
                 return []
@@ -47,26 +47,60 @@ class TabularData(Widget):
             return []
         return rows
     
+    def convert_rows_to_data(self, rows: list[dict]) -> tuple[list[str], list[list[str]], bool]:
+        """
+        Convert rows from the database to a list of lists for the DataTable.
+        """
+        data = []
+        if len(rows) != 0:
+            # Convert the dictionary to a list of tuples with the first row as the header and the rest as data
+            headers = list(rows[0].keys())
+            data = [headers]
+            for row in rows:
+                data.append(list(row.values()))
+            return headers, data, True
+        else:
+            return ["NO DATA"], [["No data available"]], False
+    
+    @on(Button.Pressed, "#table_refresh_button")
+    def refresh_button(self, event: Button.Pressed):
+        """
+        Handle the refresh button click event.
+        """
+        # Refresh the table data
+        rows = self.get_rows_from_db()
+        headers, data, has_data = self.convert_rows_to_data(rows)
+        data_table: DataTable = self.query_one("#data_table")
+        data_table.clear()
+        data_table.add_columns(*headers)
+        data_table.add_rows(data[1:])
+        if has_data:
+            self.notify("Table data refreshed successfully.", severity="information", title="Success")
+        else:
+            self.notify("No data available to display.", severity="warning", title="Warning")
+    
     def compose(self) -> ComposeResult:
         """
         Compose the widget.
         """
-        data_table = DataTable(
-            id="data_table",
-            show_header=True,
-            classes="tabular-data-table",
-        )
-        data_table.header_height = 3
-        rows = self.get_rows_from_db()
-        if len(rows) != 0:
-            # Convert the dictionary to a list of tuples with the first row as the header and the rest as data
-            header = list(rows[0].keys())
-            data = [header]
-            for row in rows:
-                data.append(list(row.values()))
-            data_table.add_columns(*data[0])
+        # Add a refresh button to the top of the table
+        vertical_container: Vertical = Vertical(id="table_viewer_container", classes="table-view-container")
+        # yield vertical_container
+        with vertical_container:
+            yield Button("Refresh", id="table_refresh_button", classes="table-refresh-button")
+            data_table = DataTable(
+                id="data_table",
+                show_header=True,
+                classes="tabular-data-table",
+            )
+            data_table.header_height = 3
+            rows = self.get_rows_from_db()
+            headers, data, has_data = self.convert_rows_to_data(rows)
+            data_table.clear()
+            data_table.add_columns(*headers)
             data_table.add_rows(data[1:])
-        else:
-            data_table.add_columns("NO DATA")
-            data_table.add_row("No data available")
-        yield data_table
+            if has_data:
+                self.notify("Table data loaded successfully.", severity="information", title="Success")
+            else:
+                self.notify("No data available to display.", severity="warning", title="Warning")
+            yield data_table

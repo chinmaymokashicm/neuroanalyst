@@ -20,7 +20,13 @@ echo "Virtual environment $venv_name activated."
 
 # Install required packages
 echo "Installing required packages..."
-bash install_requirements.sh "$venv_name"
+# Run the install_requirements.sh script if it exists
+if [ -f "install_requirements.sh" ]; then
+    echo "Running install_requirements.sh..."
+    bash install_requirements.sh "$venv_name"
+else
+    echo "install_requirements.sh not found. Skipping."
+fi
 echo "Required packages installed."
 
 # Set environment variables

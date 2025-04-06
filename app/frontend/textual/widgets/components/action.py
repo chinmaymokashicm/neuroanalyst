@@ -13,6 +13,7 @@ from textual.app import ComposeResult, RenderResult
 from textual.containers import Horizontal
 from textual.widget import Widget
 from textual.widgets import Button, TextArea, Select
+import pyperclip
 
 class ActionOnWidget(Widget):
     """
@@ -27,6 +28,7 @@ class ActionOnWidget(Widget):
         self.action = action
         
     def get_select_options(self) -> list:
+        # Get all records from the database
         endpoint: str = f"http://{HOSTNAME}:{PORT}/{self.api_route.value}/all/"
         records: list[dict] = []
         try:
@@ -63,12 +65,56 @@ class ActionOnWidget(Widget):
             yield Button("Copy JSON", id="copy_json_button", classes="action-button-copy-json")
         yield TextArea(classes="action-textarea", id="action_textarea", read_only=True, language="json")
         
+    @on(Button.Pressed, "#copy_id_button")
+    def copy_id(self, event: Button.Pressed) -> None:
+        """
+        Copy the selected ID to the clipboard.
+        """
+        try:
+            selected_id = self.query_one("#action_select", Select).value
+            pyperclip.copy(selected_id)
+            self.notify(f"ID {selected_id} copied to clipboard.", severity="information", title="Copy ID")
+        except Exception as e:
+            log(f"Error copying ID: {str(e)}")
+            self.notify(f"Error copying ID: {str(e)}", severity="error", title="Error")
+            return
+        
+    @on(Button.Pressed, "#copy_json_button")
+    def copy_json(self, event: Button.Pressed) -> None:
+        """
+        Copy the selected JSON to the clipboard.
+        """
+        try:
+            # Get text from the textarea
+            json_text = self.query_one("#action_textarea", TextArea).text
+            pyperclip.copy(json_text)
+            self.notify("JSON copied to clipboard.", severity="information", title="Copy JSON")
+        except Exception as e:
+            log(f"Error copying JSON: {str(e)}")
+            self.notify(f"Error copying JSON: {str(e)}", severity="error", title="Error")
+            return
+    
     @on(Select.Changed, "#action_select")
     def update_textarea(self, event: Select.Changed) -> None:
         """
         Update the textarea with the selected item.
         """
         selected_id = event.value
-        record: dict = find_one_from_db(self.collection_name, filter={"id": selected_id})
-        record_json: str = json.dumps(record, indent=4)
-        self.query_one("#action_textarea", TextArea).text = record_json
+        # Get one record from the database by ID
+        endpoint: str = f"http://{HOSTNAME}:{PORT}/{self.api_route.value}/id/{selected_id}/"
+        try:
+            response: requests.Response = requests.get(endpoint)
+            record: dict = response.json()
+            self.query_one("#action_textarea", TextArea).text = json.dumps(record, indent=4)
+        except requests.RequestException as e:
+            log(f"Request failed: {str(e)}")
+            self.notify(f"Request failed: {str(e)}", severity="error", title="Error")
+            return
+        except json.JSONDecodeError as e:
+            log(f"Error decoding JSON: {str(e)}")
+            self.notify(f"Error decoding JSON: {str(e)}", severity="error", title="Error")
+            return
+        except Exception as e:
+            log(f"Error: {str(e)}")
+            self.notify(f"Error: {str(e)}", severity="error", title="Error")
+            return
