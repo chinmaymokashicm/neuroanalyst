@@ -16,6 +16,7 @@ def convert_all_process_images_to_table() -> list[dict]:
     
     return [
         {
+            "id": process_image.id,
             "name": process_image.name,
             "description": process_image.description,
             "created_at": process_image.created_at.isoformat(),
@@ -49,6 +50,7 @@ def convert_all_pipeline_steps_to_table(pipeline_id: str) -> list[dict]:
     
     return [
         {
+            "id": step.id,
             "name": step.name,
             "process_execs": [process_exec.id for process_exec in step.process_execs],
             "status": step.status
@@ -65,8 +67,8 @@ def convert_all_pipelines_to_table() -> list[dict]:
 
     return [
         {
-            "name": pipeline.name,
             "id": pipeline.id,
+            "name": pipeline.name,
             "description": pipeline.description,
             "n_steps": len(pipeline.steps),
             "checkpoint_steps": pipeline.checkpoint_steps

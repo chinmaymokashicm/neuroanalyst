@@ -30,7 +30,7 @@ class TabularData(Widget):
         self.api_route = api_route
     
     def get_rows_from_db(self) -> list[dict]:
-        endpoint: str = f"http://{HOSTNAME}:{PORT}/{self.api_route.value}/all/"
+        endpoint: str = f"http://{FASTAPI_HOSTNAME}:{FASTAPI_PORT}/{self.api_route.value}/all/"
         rows: list[dict] = []
         try:
             response: requests.Response = requests.get(endpoint, timeout=5)

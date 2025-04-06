@@ -6,10 +6,12 @@ from ..to_table import convert_all_process_images_to_table
 from ...models.core.process import ProcessImageApptainer
 from ...celery.tasks.process import build_process_image
 
-import json, traceback
+import json, traceback, logging
 
 from fastapi import APIRouter, Request, Form, HTTPException
 from fastapi.responses import JSONResponse
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -42,7 +44,9 @@ async def load_process_image_schema() -> FormSchema:
 async def preview_process(form_data: str = Form(...)) -> JSONResponse:
     try:
         form_dict: dict = json.loads(form_data)
+        logging.info(f"Returning process preview")
     except json.JSONDecodeError:
+        logging.error(f"Error getting process preview. Invalid form data!")
         raise HTTPException(status_code=400, detail="Invalid form data")
     
     return ProcessImageApptainer.get_ui_submission_preview(form_dict)
@@ -53,18 +57,19 @@ async def create_process(form_data: str | dict = Form(...)) -> JSONResponse:
         form_dict: dict = form_data
         if isinstance(form_data, str):
             form_dict: dict = json.loads(form_data)
-        print("Form data:", form_dict)
     except json.JSONDecodeError as e:
-        print(f"Error decoding JSON: {e}")
+        logging.info(f"Error decoding JSON: {e}")
         raise HTTPException(status_code=400, detail="Invalid form data")
 
     # Run process and return process id.
     try:
         process_image: ProcessImageApptainer = ProcessImageApptainer.from_user(**form_dict)
         build_process_image.apply_async(args=[process_image.model_dump_json()]) # Push to Celery task
-        return JSONResponse(status_code=201, content={"message": f"Process created with PID - {process_image.id}"})
+        success_content: dict = {"message": f"Process created with PID - {process_image.id}"}
+        logging.info(success_content["message"])
+        return JSONResponse(status_code=201, content=success_content)
     except Exception as e:
-        print(f"Error creating process: {e}")
+        logging.error(f"Error creating process: {e}")
         raise HTTPException(status_code=400, detail=f"Failed to create process. Error: {e}")
 
 @router.put("/{image_id}/update/", tags=["process", "image"])

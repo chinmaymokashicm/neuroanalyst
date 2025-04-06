@@ -61,7 +61,7 @@ class SubmitProcess(Widget):
                 "environment_variables": DEFAULT_CONTAINER_ENVS
             }
             default_json: str = json.dumps(process_image_dict, indent=4)
-            submit_url: str = f"http://{HOSTNAME}:{PORT}/process/image/create/"
+            submit_url: str = f"http://{FASTAPI_HOSTNAME}:{FASTAPI_PORT}/process/image/create/"
             refresh_widget(self, "display_widget", DataSubmitterWidget, self.display_widget_class, submit_url=submit_url, default_data=default_json, language="json")
         elif event.tab.id == "execute_process":
             default_dict: dict = {

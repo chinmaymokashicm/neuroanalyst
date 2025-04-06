@@ -27,7 +27,7 @@ class ActionOnWidget(Widget):
         self.action = action
         
     def get_select_options(self) -> list:
-        endpoint: str = f"http://{HOSTNAME}:{PORT}/{self.api_route.value}/all/"
+        endpoint: str = f"http://{FASTAPI_HOSTNAME}:{FASTAPI_PORT}/{self.api_route.value}/all/"
         records: list[dict] = []
         try:
             response: requests.Response = requests.get(endpoint, timeout=5)
