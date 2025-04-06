@@ -1,6 +1,8 @@
 """
-Edit pretty JSON to submit to the API.
+Edit data to submit to the API.
 """
+from .pop_screen import PopupScreen
+
 import json, requests, traceback
 from typing import Optional
 
@@ -120,7 +122,9 @@ class DataSubmitterWidget(Widget):
         """
         Show the about text.
         """
-        self.notify(self.about_text, severity="information", title="About")
+        # self.notify(self.about_text, severity="information", title="About")
+        # Open a new screen with the about text
+        self.app.push_screen(PopupScreen(title="About", content=self.about_text, footer="Close"))
         
     @on(Button.Pressed, "#save-button")
     def save_button(self, event: Button.Pressed):

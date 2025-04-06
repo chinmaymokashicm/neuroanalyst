@@ -7,6 +7,7 @@ from .....utils.exceptions import DBRecordMissing, MongoDBConnectionError
 from ...helpers import ActionEnum, APIRouteEnum
 
 import json, requests
+from typing import Optional
 
 from textual import on, log
 from textual.app import ComposeResult, RenderResult
@@ -20,12 +21,14 @@ class ActionOnWidget(Widget):
     Widget that submits an action on a selected item.
     """
     api_route: APIRouteEnum
-    action: ActionEnum
+    action: Optional[ActionEnum] = None
+    view_only: bool = False
     
-    def __init__(self, api_route: APIRouteEnum, action: ActionEnum, **kwargs):
+    def __init__(self, api_route: APIRouteEnum, action: Optional[ActionEnum] = None, view_only: bool = False, **kwargs):
         super().__init__(**kwargs)
         self.api_route = api_route
         self.action = action
+        self.view_only = view_only
         
     def get_select_options(self) -> list:
         endpoint: str = f"http://{FASTAPI_HOSTNAME}:{FASTAPI_PORT}/{self.api_route.value}/all/"
@@ -59,7 +62,8 @@ class ActionOnWidget(Widget):
         """
         with Horizontal(classes="action-item-choose"):
             yield Select(id="action_select", options=self.get_select_options(), classes="action-select", type_to_search=True)
-            yield Button(self.action.value.title(), id="action_button", classes="action-button-action")
+            if not self.view_only:
+                yield Button(self.action.value.title(), id="action_button", classes="action-button-action")
             yield Button("Copy ID", id="copy_id_button", classes="action-button-copy-id")
             yield Button("Copy JSON", id="copy_json_button", classes="action-button-copy-json")
         yield TextArea(classes="action-textarea", id="action_textarea", read_only=True, language="json")
@@ -100,7 +104,7 @@ class ActionOnWidget(Widget):
         """
         selected_id = event.value
         # Get one record from the database by ID
-        endpoint: str = f"http://{HOSTNAME}:{PORT}/{self.api_route.value}/id/{selected_id}/"
+        endpoint: str = f"http://{FASTAPI_HOSTNAME}:{FASTAPI_PORT}/{self.api_route.value}/id/{selected_id}/"
         try:
             response: requests.Response = requests.get(endpoint)
             record: dict = response.json()

@@ -1,5 +1,9 @@
-Screen {
-    # border: dashed white;
+# Screen {
+#     # border: dashed white;
+# }
+
+PopupScreen {
+    align: center middle;
 }
 
 Header {

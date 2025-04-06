@@ -45,8 +45,8 @@ class APIRouteEnum(Enum):
     """
     PROCESS_IMAGE = "/process/image"
     PROCESS_EXEC = "/process/exec"
+    WORKDIR = "/process/workdir"
     PIPELINE = "/pipeline"
-    WORKDIR = "/workdir"
 
 def refresh_widget(root_widget: Widget, widget_to_refresh_name: str, updated_widget: Widget, new_widget_class: Optional[str] = None, **properties) -> None:
     """

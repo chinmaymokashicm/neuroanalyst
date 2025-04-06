@@ -28,13 +28,12 @@ class TabularData(Widget):
     def __init__(self, api_route: APIRouteEnum, **kwargs):
         super().__init__(**kwargs)
         self.api_route = api_route
-        self.endpoint: str = f"http://{HOSTNAME}:{PORT}/{self.api_route.value}/all/"
     
     def get_rows_from_db(self) -> list[dict]:
         endpoint: str = f"http://{FASTAPI_HOSTNAME}:{FASTAPI_PORT}/{self.api_route.value}/all/"
         rows: list[dict] = []
         try:
-            response: requests.Response = requests.get(self.endpoint, timeout=5)
+            response: requests.Response = requests.get(endpoint, timeout=5)
             if response.status_code != 200:
                 self.notify(f"Failed to fetch data: {response.text}", severity="error", title="Error")
                 return []

@@ -28,7 +28,7 @@ class SubmitProcess(Widget):
     def compose(self) -> ComposeResult:
         yield Tabs(
             Tab("Create Process Image", id="create_process"),
-            Tab("Execute Process Image", id="execute_process"),
+            Tab("Create Process Exec", id="create_process_exec"),
             Tab("Delete Process Image", id="delete_process"),
             Tab("Delete Process Exec", id="delete_process_exec"),
         )
@@ -63,7 +63,7 @@ class SubmitProcess(Widget):
             default_json: str = json.dumps(process_image_dict, indent=4)
             submit_url: str = f"http://{FASTAPI_HOSTNAME}:{FASTAPI_PORT}/process/image/create/"
             refresh_widget(self, "display_widget", DataSubmitterWidget, self.display_widget_class, submit_url=submit_url, default_data=default_json, language="json")
-        elif event.tab.id == "execute_process":
+        elif event.tab.id == "create_process_exec":
             default_dict: dict = {
                 "process_exec_config": ProcessExecConfig().model_dump(),
                 "process_image_id": "PR-00000"

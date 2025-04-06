@@ -26,7 +26,7 @@ class VisualizeWorkDirectory(Widget):
     
     def compose(self) -> ComposeResult:
         yield Tabs(
-            Tab("View Working Directories", id="view_pipeline"),
+            Tab("View Working Directories", id="view_workdir"),
         )
         yield self.display_widget
         
@@ -35,7 +35,7 @@ class VisualizeWorkDirectory(Widget):
         """
         Handle the tab activated event.
         """
-        if event.tab.id == "view_pipeline":
+        if event.tab.id == "view_workdir":
             refresh_widget(self, "display_widget", TabularData, self.display_widget_class, api_route=APIRouteEnum.WORKDIR)
         else:
             refresh_widget(self, "display_widget", DefaultDisplayWidget, self.display_widget_class, text="Select a resource.")

@@ -20,7 +20,6 @@ class VisualizePipeline(Widget):
     - Tabs for different actions (create, execute, delete)
     - Widget dependent on the selected action
     """
-    tabs: Tabs
     display_widget_class: str = "resource-display-tab-widget"
     display_widget: Widget = DefaultDisplayWidget()
     
@@ -28,7 +27,7 @@ class VisualizePipeline(Widget):
         yield Tabs(
             Tab("View Pipelines", id="view_pipeline"),
         )
-        yield self.display_widget
+        yield DefaultDisplayWidget()
         
     @on(Tabs.TabActivated)
     def on_tab_activated(self, event: Tabs.TabActivated) -> None:
