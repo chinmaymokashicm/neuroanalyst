@@ -3,5 +3,5 @@
 screen -S fastapi
 cd $HOME/github/neuroanalyst
 source venv/bin/activate
-uvicorn fast:app --port 3001 --reload --log-level trace
+uvicorn fast:app --port 3001 --reload --log-level info
 # python fast.py

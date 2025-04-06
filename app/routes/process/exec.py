@@ -35,26 +35,38 @@ async def search_execs_by_keyword(keyword: str):
 
 # ==================================================================================================
 
-@router.post("/execute/", tags=["process", "exec"])
-async def execute_process(form_data: str = Form(...)) -> JSONResponse:
+@router.post("/create/", tags=["process", "exec"])
+async def create_process_exec(form_data: str = Form(...)) -> JSONResponse:
     try:
         form_dict: dict = json.loads(form_data)
     except json.JSONDecodeError as e:
         logging.error(f"Error decoding JSON: {e}")
         raise HTTPException(status_code=400, detail="Invalid form data")
-
-    # Execute process and return process exec id.
+    
+    # Create process exec and save to DB
     try:
         process_exec: ProcessExecApptainer = ProcessExecApptainer.from_user(**form_dict)
         process_id: str = process_exec.process_image.id
         process_exec_id: str = process_exec.id
-        execute_process.apply_async(args=[process_exec.model_dump_json()]) # Push to Celery task
-        success_content: dict = {"message": f"Process {process_id} executed with PID - {process_exec_id}"}
+        process_exec.to_db()
+        success_content: dict = {"message": f"Process exec {process_exec_id} for process {process_id} saved to DB."}
         logging.info(success_content["message"])
         return JSONResponse(status_code=201, content=success_content)
     except Exception as e:
         logging.error(f"Error executing process: {e}")
-        raise HTTPException(status_code=400, detail=f"Failed to create process exec. Error: {e}")
+        raise HTTPException(status_code=400, detail=f"Failed to save process exec. Error: {e}")
+
+@router.post("/{exec_id}/execute/", tags=["process", "exec"])
+async def execute_process_exec(exec_id: str):
+    try:
+        process_exec: ProcessExecApptainer = ProcessExecApptainer.from_db(exec_id)
+        execute_process.apply_async(args=[process_exec.model_dump_json()]) # Push to Celery task
+        success_content: dict = {"message": f"Process executed with PID - {exec_id}"}
+        logging.info(success_content["message"])
+        return JSONResponse(status_code=201, content=success_content)
+    except Exception as e:
+        logging.error(f"Error executing process: {e}")
+        raise HTTPException(status_code=400, detail=f"Failed to execute process. Error: {e}")
 
 @router.put("/{exec_id}/update/", tags=["process", "exec"])
 async def update_exec(exec_id: str):
