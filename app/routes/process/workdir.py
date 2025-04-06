@@ -6,10 +6,12 @@ from ..to_table import convert_all_workdirs_to_table
 from ...models.core.process import ProcessImageApptainer
 from ...celery.tasks.process import build_process_image
 
-import json
+import json, logging
 
 from fastapi import APIRouter, Request, Form, HTTPException
 from fastapi.responses import JSONResponse
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 

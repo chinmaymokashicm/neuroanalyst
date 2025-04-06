@@ -58,7 +58,6 @@ def find_many_from_db(collection_name: str, filter: dict = {}, field_names: list
         records = collection.find(filter, {"_id": 0})
         if records is None:
             raise DBRecordMissing(f"No records found in collection {collection_name} with filter {filter}")
-        # return [record if field_names is None else record[field_names] for record in records]
         return [record for record in records] if field_names == [] else [{field: record[field] for field in field_names} for record in records]
     except ServerSelectionTimeoutError as e:
         print(f"MongoDB connection error: {e}")
