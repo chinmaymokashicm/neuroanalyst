@@ -6,11 +6,12 @@ aiosignal==1.3.2
 amqp==5.3.1
 annotated-types==0.7.0
 anthropic==0.49.0
+antspyx==0.5.4
 anyio==4.9.0
 appnope==0.1.4
 argcomplete==3.6.2
 asgiref==3.8.1
-asttokens==2.4.1
+asttokens==3.0.0
 asyncpg==0.30.0
 attrs==25.3.0
 bids-validator==1.14.7.post0
@@ -46,7 +47,7 @@ fastapi-cli==0.0.7
 fastavro==1.10.0
 ffmpy==0.5.0
 filelock==3.18.0
-fonttools==4.57.0
+fonttools==4.56.0
 formulaic==1.1.1
 frozendict==2.4.6
 frozenlist==1.5.0
@@ -65,6 +66,7 @@ httpx==0.27.1
 httpx-sse==0.4.0
 huggingface-hub==0.30.1
 idna==3.10
+imagelib @ git+https://github.com/chinmaymokashicm/neurolib.git@0a9d83150fc9aba18e5d8cfc9cdaaed49a46ff8d
 importlib_metadata==8.6.1
 interface-meta==1.3.0
 ipykernel==6.29.5
@@ -86,7 +88,7 @@ kombu==5.5.2
 linkify-it-py==2.0.3
 logfire==3.12.0
 logfire-api==3.12.0
-lxml==5.3.2
+lxml==5.3.1
 markdown-it-py==3.0.0
 MarkupSafe==3.0.2
 matplotlib==3.10.1
@@ -101,7 +103,7 @@ nest-asyncio==1.6.0
 nibabel==5.3.2
 nilearn==0.11.1
 num2words==0.5.14
-numpy==2.2.4
+numpy==2.0.1
 openai==1.70.0
 opentelemetry-api==1.31.1
 opentelemetry-exporter-otlp-proto-common==1.31.1
@@ -120,8 +122,9 @@ orjson==3.10.16
 packaging==24.2
 pandas==2.2.3
 parso==0.8.4
+patsy==1.0.1
 pexpect==4.9.0
-pillow==11.1.0
+pillow==11.2.0
 platformdirs==4.3.7
 prompt_toolkit==3.0.50
 propcache==0.3.1
@@ -132,14 +135,15 @@ pure_eval==0.2.3
 pyasn1==0.6.1
 pyasn1_modules==0.4.2
 pybids==0.19.0
-pydantic==2.11.2
+pydantic==2.11.1
 pydantic-ai==0.0.52
 pydantic-ai-examples==0.0.52
 pydantic-ai-slim==0.0.52
 pydantic-evals==0.0.52
 pydantic-graph==0.0.52
 pydantic-settings==2.8.1
-pydantic_core==2.33.1
+pydantic_core==2.33.0
+pydicom==3.0.1
 pydub==0.25.1
 Pygments==2.19.1
 pymongo==4.11.3
@@ -150,7 +154,7 @@ python-dotenv==1.1.0
 python-multipart==0.0.20
 pytz==2025.2
 PyYAML==6.0.2
-pyzmq==26.4.0
+pyzmq==26.3.0
 redis==5.2.1
 referencing==0.36.2
 requests==2.32.3
@@ -171,6 +175,7 @@ SQLAlchemy==2.0.40
 sse-starlette==2.2.1
 stack-data==0.6.3
 starlette==0.46.1
+statsmodels==0.14.4
 textual==3.0.1
 textual-dev==1.7.0
 textual-serve==1.1.1
@@ -199,7 +204,7 @@ tree-sitter-yaml==0.7.0
 typer==0.15.2
 types-requests==2.32.0.20250328
 typing-inspection==0.4.0
-typing_extensions==4.13.1
+typing_extensions==4.13.0
 tzdata==2025.2
 uc-micro-py==1.0.3
 universal_pathlib==0.2.6
@@ -209,6 +214,7 @@ uvloop==0.21.0
 vine==5.1.0
 watchfiles==1.0.4
 wcwidth==0.2.13
+webcolors==24.11.1
 websockets==15.0.1
 widgetsnbextension==4.0.13
 wrapt==1.17.2

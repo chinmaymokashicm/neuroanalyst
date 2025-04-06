@@ -17,7 +17,7 @@ pip install "celery[redis]" textual-dev textual[syntax] "pydantic-ai[logfire,exa
 # pip install tzdata==2025.1
 # pip install protobuf>=5.0,<6.0
 
-# pip install git+https://github.com/chinmaymokashicm/neurolib.git
+pip install git+https://github.com/chinmaymokashicm/neurolib.git
 
 pip install --upgrade httpx==0.27.1
 
