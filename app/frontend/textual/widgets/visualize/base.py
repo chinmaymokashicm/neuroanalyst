@@ -1,5 +1,5 @@
 from ...helpers import refresh_widget, DefaultDisplayWidget
-from . import VisualizeProcess, VisualizePipeline, VisualizeWorkDirectory, VisualizeLog
+from . import VisualizeProcess, VisualizePipeline, VisualizeWorkDirectory, VisualizeLog, VisualizeDataset
 
 from textual import on, log
 from textual.app import App, ComposeResult, RenderResult
@@ -21,7 +21,7 @@ class Visualize(Widget):
     display_widget: Widget = DefaultDisplayWidget()
     
     options: dict[str, list[str]] = {
-        "core": ["process", "pipeline", "working_directory"],
+        "core": ["process", "pipeline", "working_directory", "datasets"],
         "insight": ["submit_user_query", "generate_report"],
         "logs": ["all_logs"],
     }
@@ -66,6 +66,8 @@ class Visualize(Widget):
                     refresh_widget(self, "display_widget", VisualizePipeline, self.display_widget_class)
                 elif selected_resource == "working_directory":
                     refresh_widget(self, "display_widget", VisualizeWorkDirectory, self.display_widget_class)
+                elif selected_resource == "datasets":
+                    refresh_widget(self, "display_widget", VisualizeDataset, self.display_widget_class)
             elif selected_api == "insight":
                 if selected_resource == "submit_user_query":
                     pass

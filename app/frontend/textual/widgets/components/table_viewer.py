@@ -5,7 +5,7 @@ from .....utils.db import find_many_from_db, find_one_from_db
 from .....utils.constants import *
 from .....utils.exceptions import DBRecordMissing
 from .....utils.envs import get_neuroanalyst_root_dirs, set_neuroanalyst_root_dirs
-from ...helpers import ActionEnum, APIRouteEnum
+from ...helpers import APIActionEnum, APIRouteEnum
 
 import json, re, requests
 from typing import Optional
@@ -13,10 +13,13 @@ from pathlib import Path, PosixPath
 
 from textual import on, log
 from textual.app import ComposeResult, RenderResult
-from textual.containers import Vertical
+from textual.containers import Vertical, Horizontal
 from textual.widget import Widget
 from textual.widgets import Button, TextArea, Select, DataTable
 import pyperclip
+
+COLUMN_WIDTH: int = 30
+ROW_HEIGHT: int = 3
 
 class TabularData(Widget):
     """
@@ -71,9 +74,13 @@ class TabularData(Widget):
         rows = self.get_rows_from_db()
         headers, data, has_data = self.convert_rows_to_data(rows)
         data_table: DataTable = self.query_one("#data_table")
-        data_table.clear()
-        data_table.add_columns(*headers)
-        data_table.add_rows(data[1:])
+        data_table.clear(columns=True)
+        # data_table.add_columns(*headers)
+        for header in headers:
+            data_table.add_column(header, width=COLUMN_WIDTH)
+        # data_table.add_rows(data[1:])
+        for row in data[1:]:
+            data_table.add_row(*row, height=ROW_HEIGHT)
         if has_data:
             self.notify("Table data refreshed successfully.", severity="information", title="Success")
         else:
@@ -96,9 +103,14 @@ class TabularData(Widget):
             data_table.header_height = 3
             rows = self.get_rows_from_db()
             headers, data, has_data = self.convert_rows_to_data(rows)
-            data_table.clear()
-            data_table.add_columns(*headers)
-            data_table.add_rows(data[1:])
+            data_table.clear(columns=True)
+            # data_table.add_columns(*headers)
+            for header in headers:
+                data_table.add_column(header, width=COLUMN_WIDTH)
+            # data_table.add_rows(data[1:])
+            for row in data[1:]:
+                data_table.add_row(*row, height=ROW_HEIGHT)
+            data_table
             if has_data:
                 self.notify("Table data loaded successfully.", severity="information", title="Success")
             else:

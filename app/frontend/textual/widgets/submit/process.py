@@ -1,6 +1,6 @@
 from .....utils.constants import *
 from .....models.core.process.execute import ProcessExecConfig
-from ...helpers import refresh_widget, DefaultDisplayWidget, ActionEnum, APIRouteEnum
+from ...helpers import refresh_widget, DefaultDisplayWidget, APIActionEnum, APIRouteEnum
 from ..components.data_viewer import DataSubmitterWidget
 from ..components.action import ActionOnWidget
 
@@ -69,8 +69,9 @@ class SubmitProcess(Widget):
                 "process_image_id": "PR-00000"
             }
             default_json: str = json.dumps(default_dict, indent=4)
-            refresh_widget(self, "display_widget", DataSubmitterWidget, self.display_widget_class, submit_url="https://example.com/api/submit", default_data=default_json, language="json")
+            submit_url: str = f"http://{FASTAPI_HOSTNAME}:{FASTAPI_PORT}/process/exec/create/"
+            refresh_widget(self, "display_widget", DataSubmitterWidget, self.display_widget_class, submit_url=submit_url, default_data=default_json, language="json")
         elif event.tab.id == "delete_process":
-            refresh_widget(self, "display_widget", ActionOnWidget, self.display_widget_class, api_route=APIRouteEnum.PROCESS_IMAGE, action=ActionEnum.DELETE)
+            refresh_widget(self, "display_widget", ActionOnWidget, self.display_widget_class, api_route=APIRouteEnum.PROCESS_IMAGE, action=APIActionEnum.DELETE, view_only=False)
         elif event.tab.id == "delete_process_exec":
-            refresh_widget(self, "display_widget", ActionOnWidget, self.display_widget_class, api_route=APIRouteEnum.PROCESS_EXEC, action=ActionEnum.DELETE)
+            refresh_widget(self, "display_widget", ActionOnWidget, self.display_widget_class, api_route=APIRouteEnum.PROCESS_EXEC, action=APIActionEnum.DELETE)

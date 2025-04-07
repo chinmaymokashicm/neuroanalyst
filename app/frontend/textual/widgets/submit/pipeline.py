@@ -1,5 +1,5 @@
 from .....utils.constants import *
-from ...helpers import refresh_widget, DefaultDisplayWidget, ActionEnum, APIRouteEnum
+from ...helpers import refresh_widget, DefaultDisplayWidget, APIActionEnum, APIRouteEnum
 from ..components.data_viewer import DataSubmitterWidget
 from ..components.action import ActionOnWidget
 
@@ -41,24 +41,26 @@ class SubmitPipeline(Widget):
             # Build pipeline
             default_dict: dict = {
                 "name": "random_pipeline",
+                "author": "Chinmay Mokashi",
                 "description": "Random pipeline",
                 "process_exec_ids": ["PE-123456", "PE-654321"],
                 "checkpoint_steps": [0, 1]
             }
             default_json: str = json.dumps(default_dict, indent=4)
+            submit_url: str = f"http://{FASTAPI_HOSTNAME}:{FASTAPI_PORT}/pipeline/create/"
             
             refresh_widget(
                 self, 
                 "display_widget", 
                 DataSubmitterWidget, 
                 self.display_widget_class, 
-                submit_url="https://example.com/api/submit", 
+                submit_url=submit_url, 
                 default_data=default_json,
                 language="json",
                 )
         elif event.tab.id == "execute_pipeline":
             # Execute pipeline 
-            refresh_widget(self, "display_widget", ActionOnWidget, self.display_widget_class, api_route=APIRouteEnum.PIPELINE, action=ActionEnum.EXECUTE)
+            refresh_widget(self, "display_widget", ActionOnWidget, self.display_widget_class, api_route=APIRouteEnum.PIPELINE, action=APIActionEnum.EXECUTE)
         elif event.tab.id == "delete_pipeline":
             # Delete pipeline
-            refresh_widget(self, "display_widget", ActionOnWidget, self.display_widget_class, api_route=APIRouteEnum.PIPELINE, action=ActionEnum.DELETE)
+            refresh_widget(self, "display_widget", ActionOnWidget, self.display_widget_class, api_route=APIRouteEnum.PIPELINE, action=APIActionEnum.DELETE)

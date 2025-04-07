@@ -84,7 +84,7 @@ class DataSubmitterWidget(Widget):
             if response.status_code in [200, 201]:
                 self.notify("Data submitted successfully.", severity="information")
             else:
-                self.notify(f"Error submitting data: {response.status_code}", severity="error")
+                self.notify(f"Error submitting data: {response.status_code}", severity="error", title="Submission Error")
                 try:
                     pyperclip.copy(response.json())
                     response_dict: dict = json.loads(response.text)

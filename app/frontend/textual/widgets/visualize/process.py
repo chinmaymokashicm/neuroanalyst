@@ -1,6 +1,6 @@
 from .....utils.constants import *
 from .....models.core.process.execute import ProcessExecConfig
-from ...helpers import refresh_widget, DefaultDisplayWidget, ActionEnum, APIRouteEnum
+from ...helpers import refresh_widget, DefaultDisplayWidget, APIActionEnum, APIRouteEnum
 from ..components.data_viewer import DataSubmitterWidget
 from ..components.action import ActionOnWidget
 from ..components.table_viewer import TabularData

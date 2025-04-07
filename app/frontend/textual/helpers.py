@@ -30,7 +30,7 @@ class DefaultDisplayWidget(Widget):
         """
         yield Static(self.render(), id="default-message")
 
-class ActionEnum(Enum):
+class APIActionEnum(Enum):
     """
     Enum for actions.
     """
@@ -47,6 +47,7 @@ class APIRouteEnum(Enum):
     PROCESS_EXEC = "/process/exec"
     WORKDIR = "/process/workdir"
     PIPELINE = "/pipeline"
+    DATASET = "/dataset"
 
 def refresh_widget(root_widget: Widget, widget_to_refresh_name: str, updated_widget: Widget, new_widget_class: Optional[str] = None, **properties) -> None:
     """

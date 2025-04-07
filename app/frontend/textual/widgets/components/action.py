@@ -4,7 +4,7 @@ Action on an item from the database.
 from .....utils.db import find_many_from_db, find_one_from_db, check_connection
 from .....utils.constants import *
 from .....utils.exceptions import DBRecordMissing, MongoDBConnectionError
-from ...helpers import ActionEnum, APIRouteEnum
+from ...helpers import APIActionEnum, APIRouteEnum
 
 import json, requests
 from typing import Optional
@@ -21,10 +21,10 @@ class ActionOnWidget(Widget):
     Widget that submits an action on a selected item.
     """
     api_route: APIRouteEnum
-    action: Optional[ActionEnum] = None
+    action: Optional[APIActionEnum] = None
     view_only: bool = False
     
-    def __init__(self, api_route: APIRouteEnum, action: Optional[ActionEnum] = None, view_only: bool = False, **kwargs):
+    def __init__(self, api_route: APIRouteEnum, action: Optional[APIActionEnum] = None, view_only: bool = False, **kwargs):
         super().__init__(**kwargs)
         self.api_route = api_route
         self.action = action
@@ -50,6 +50,7 @@ class ActionOnWidget(Widget):
             return []
         options = []
         if len(records) > 0:
+            pyperclip.copy(records[0])
             if "name" not in records[0]:
                 options: list[tuple[str, str]] = [(f"{record['id']}", record['id']) for record in records]
             else:
@@ -120,4 +121,30 @@ class ActionOnWidget(Widget):
         except Exception as e:
             log(f"Error: {str(e)}")
             self.notify(f"Error: {str(e)}", severity="error", title="Error")
+            return
+        
+    @on(Button.Pressed, "#action_button")
+    def action_button(self, event: Button.Pressed) -> None:
+        """
+        Handle the action button click event.
+        """
+        selected_id = self.query_one("#action_select", Select).value
+        if not selected_id:
+            self.notify("No item selected.", severity="error", title="Error")
+            return
+        
+        # Perform the action on the selected item
+        endpoint: str = f"http://{FASTAPI_HOSTNAME}:{FASTAPI_PORT}/{self.api_route.value}/{self.action.value}/{selected_id}/"
+        try:
+            response: requests.Response = requests.post(endpoint)
+            if response.status_code not in [200, 201]:
+                log(f"Failed to {self.action.value}: {response.text}")
+                self.notify(f"Failed to {self.action.value}: {response.text}", severity="error", title="Error")
+                pyperclip.copy(response.json())
+                return
+            self.notify(f"{self.action.value} performed successfully.", severity="information", title="Success")
+        except requests.RequestException as e:
+            log(f"Request failed: {str(e)}")
+            pyperclip.copy(str(e))
+            self.notify(f"Request failed: {str(e)}", severity="error", title="Error")
             return
