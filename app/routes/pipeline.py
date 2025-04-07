@@ -32,8 +32,8 @@ async def search_pipelines_by_keyword(keyword: str):
 
 # ==================================================================================================
 
-@router.post("/execute/", tags=["pipeline"])
-async def execute_pipeline(form_data: str = Form(...)) -> JSONResponse:
+@router.post("/create/", tags=["pipeline"])
+async def create_pipeline(form_data: str = Form(...)) -> JSONResponse:
     try:
         form_dict: dict = json.loads(form_data)
         print("Form data:", form_dict)
@@ -41,12 +41,23 @@ async def execute_pipeline(form_data: str = Form(...)) -> JSONResponse:
         print(f"Error decoding JSON: {e}")
         raise HTTPException(status_code=400, detail="Invalid form data")
 
-    # Execute process and return process exec id.
+    # Create pipeline and save it to database.
     try:
         pipeline: Pipeline = Pipeline.from_user(**form_dict)
         pipeline_id: str = pipeline.id
+        pipeline.to_db()
+        return JSONResponse(status_code=201, content={"message": f"Pipeline created with PID - {pipeline_id}"})
+    except Exception as e:
+        print(f"Error executing process: {e}")
+        raise HTTPException(status_code=400, detail=f"Failed to run pipeline. Error: {e}")
+
+@router.post("/execute/{pipeline_id}", tags=["pipeline"])
+async def execute_pipeline(pipeline_id: str) -> JSONResponse:
+    # Execute pipeline.
+    try:
+        pipeline: Pipeline = Pipeline.from_db(pipeline_id=pipeline_id)
         run_pipeline.apply_async(args=[pipeline.model_dump_json()]) # Push to Celery task
-        return JSONResponse(status_code=201, content={"message": f"Pipeline executed with PID - {pipeline_id}"})
+        return JSONResponse(status_code=201, content={"message": f"Pipeline executed. Check database for updates."})
     except Exception as e:
         print(f"Error executing process: {e}")
         raise HTTPException(status_code=400, detail=f"Failed to run pipeline. Error: {e}")

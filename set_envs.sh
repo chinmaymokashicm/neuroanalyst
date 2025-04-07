@@ -7,14 +7,14 @@ mkdir -p $HOME/neuroanalyst/working_dirs
 mkdir -p $HOME/neuroanalyst/reports
 
 # Define the environment variables
-ENV_VARS="
-export NEUROANALYST_HOME=\$HOME/neuroanalyst
-export NEUROANALYST_IMAGES=\$NEUROANALYST_HOME/apptainer/images
-export NEUROANALYST_DOCS=\$NEUROANALYST_HOME/apptainer/docs
-export NEUROANALYST_WORKDIR=\$NEUROANALYST_HOME/working_dirs
-export NEUROANALYST_REPORTS=\$NEUROANALYST_HOME/reports
-export NEUROANALYST_LOGS=\$NEUROANALYST_HOME/logs
-"
+# ENV_VARS="
+# export NEUROANALYST_HOME=\$HOME/neuroanalyst
+# export NEUROANALYST_IMAGES=\$NEUROANALYST_HOME/apptainer/images
+# export NEUROANALYST_DOCS=\$NEUROANALYST_HOME/apptainer/docs
+# export NEUROANALYST_WORKDIR=\$NEUROANALYST_HOME/working_dirs
+# export NEUROANALYST_REPORTS=\$NEUROANALYST_HOME/reports
+# export NEUROANALYST_LOGS=\$NEUROANALYST_HOME/logs
+# "
 
 # Function to check and add environment variable
 add_env_var() {
@@ -35,5 +35,6 @@ add_env_var "NEUROANALYST_DOCS" "export NEUROANALYST_DOCS=\$NEUROANALYST_HOME/ap
 add_env_var "NEUROANALYST_WORKDIR" "export NEUROANALYST_WORKDIR=\$NEUROANALYST_HOME/working_dirs"
 add_env_var "NEUROANALYST_REPORTS" "export NEUROANALYST_REPORTS=\$NEUROANALYST_HOME/reports"
 add_env_var "NEUROANALYST_LOGS" "export NEUROANALYST_LOGS=\$NEUROANALYST_HOME/logs"
+add_env_var "NEUROANALYST_DATASETS" "export NEUROANALYST_DATASETS=\$NEUROANALYST_HOME/datasets"
 
 source ~/.bashrc

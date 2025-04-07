@@ -8,10 +8,12 @@ from ....utils.envs import set_neuroanalyst_root_dirs, get_neuroanalyst_root_dir
 from datetime import datetime
 from pathlib import Path, PosixPath
 from string import Template
-import subprocess, json, inspect, os, shutil
+import subprocess, json, inspect, os, shutil, logging
 from typing import Optional, Any, get_type_hints
 
 from pydantic import BaseModel, DirectoryPath, FilePath, Field, field_validator
+
+logger = logging.getLogger(__name__)
 
 class WorkingDirectory(BaseModel):
     root_dir: DirectoryPath = Field(title="Root Directory. This is the directory where the process will be executed.")
@@ -359,10 +361,24 @@ class ProcessImageApptainer(BaseModel):
         if overwrite:
             command += "--force "
         command += f"{self.id}.sif {self.id}.def && mv {self.id}.sif {images_dir}"
-        try:
-            subprocess.run(command, check=True, shell=True)
-        except subprocess.CalledProcessError as e:
-            raise ValueError(f"An error occurred while building the Docker image: {e}")
+        # try:
+        #     subprocess.run(command, check=True, shell=True)
+        # except subprocess.CalledProcessError as e:
+        #     raise ValueError(f"An error occurred while building the Apptainer image: {e}")
+        
+        process = subprocess.Popen(
+            command,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            shell=True
+        )
+        
+        while True:
+            line = process.stdout.readline()
+            if not line:
+                break
+            logger.info(line.strip())
 
         # Save process image configuration to the database
         if save_to_db:

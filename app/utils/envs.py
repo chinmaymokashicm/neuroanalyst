@@ -19,7 +19,8 @@ def set_neuroanalyst_root_dirs() -> None:
         ENV_NEUROANALYST_DOCS: str(Path(home_dir) / "neuroanalyst" / "apptainer"/ "docs"),
         ENV_NEUROANALYST_WORKDIR: str(Path(home_dir) / "neuroanalyst" / "working_dirs"),
         ENV_NEUROANALYST_REPORTS: str(Path(home_dir) / "neuroanalyst" / "reports"),
-        ENV_NEUROANALYST_LOGS: str(Path(home_dir) / "neuroanalyst" / "logs")
+        ENV_NEUROANALYST_LOGS: str(Path(home_dir) / "neuroanalyst" / "logs"),
+        ENV_NEUROANALYST_DATASETS: str(Path(home_dir) / "neuroanalyst" / "datasets")
     }
     
     for env_var, dir_path in root_dirs.items():
@@ -34,7 +35,8 @@ def get_neuroanalyst_root_dirs(dir_type: str = "all") -> str | dict[str, str]:
         "docs": ENV_NEUROANALYST_DOCS,
         "workdir": ENV_NEUROANALYST_WORKDIR,
         "reports": ENV_NEUROANALYST_REPORTS,
-        "logs": ENV_NEUROANALYST_LOGS
+        "logs": ENV_NEUROANALYST_LOGS,
+        "datasets": ENV_NEUROANALYST_DATASETS
     }
     
     if dir_type == "all":

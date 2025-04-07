@@ -7,6 +7,8 @@ from ..utils.envs import set_neuroanalyst_root_dirs, get_neuroanalyst_root_dirs
 from pathlib import Path, PosixPath
 import re
 
+from imagelib.datasets.bids import SelectBIDSDatasetInfo
+
 def convert_all_process_images_to_table() -> list[dict]:
     """
     Convert all process images to a table format.
@@ -81,7 +83,7 @@ def convert_all_workdirs_to_table() -> list[dict]:
     Convert all workdirs to a table format.
     """
     skip_subdirs = ["venv*"]
-    set_neuroanalyst_root_dirs()
+    # set_neuroanalyst_root_dirs()
     root_dir: PosixPath = Path(get_neuroanalyst_root_dirs("workdir"))
     if root_dir is None:
         return []
@@ -95,3 +97,28 @@ def convert_all_workdirs_to_table() -> list[dict]:
                 }
             )
     return subdirs
+
+def convert_all_datasets_to_table(get_derivatives: bool = False) -> list[dict]:
+    """
+    Convert all datasets to a table format.
+    """
+    skip_subdirs = ["venv*"]
+    # set_neuroanalyst_root_dirs()
+    neuroanalyst_datasets_root: PosixPath = Path(get_neuroanalyst_root_dirs("datasets"))
+    if neuroanalyst_datasets_root is None:
+        return []
+    
+    dataset_paths: list[PosixPath] = [subdir for subdir in neuroanalyst_datasets_root.iterdir() if subdir.is_dir() and not any(re.match(pattern, subdir.name) for pattern in skip_subdirs)]
+    rows: list[dict] = []
+    for dataset_path in dataset_paths:
+        dataset_info: SelectBIDSDatasetInfo = SelectBIDSDatasetInfo.from_path(dataset_path, get_derivatives=get_derivatives)
+        row: dict = {
+            "id": dataset_path.name,
+            "path": str(dataset_info.bids_root),
+            "n_files": len(dataset_info.bids_files),
+            "description": dataset_info.dataset_description.Name,
+            "authors": ", ".join(dataset_info.dataset_description.Authors),
+            "get_derivatives": get_derivatives,
+        }
+        rows.append(row)
+    return rows

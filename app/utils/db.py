@@ -5,7 +5,7 @@ from .constants import MONGO_URI, DB_NAME
 from .exceptions import DBRecordMissing, MongoDBConnectionError
 
 from typing import Optional
-import re
+import re, logging
 
 from bids import BIDSLayout
 from bids.layout.models import BIDSJSONFile
@@ -13,6 +13,8 @@ from pydantic import BaseModel, Field
 from pymongo import MongoClient
 from pymongo.database import Database
 from pymongo.errors import ServerSelectionTimeoutError
+
+logger = logging.getLogger(__name__)
 
 class Connection(BaseModel, arbitrary_types_allowed=True):
     client: MongoClient = Field(title="The MongoDB client object")
@@ -45,10 +47,12 @@ def find_one_from_db(collection_name: str, filter: dict = {}, field_names: list[
         # return record if field_names is None else record[field_names]
         return record if field_names == [] else {field: record[field] for field in field_names}
     except ServerSelectionTimeoutError as e:
-        print(f"MongoDB connection error: {e}")
+        logger.exception(f"MongoDB connection error: {e}")
         return {}
     except Exception as e:
-        raise Exception(f"Failed to find record in collection {collection_name}. Error: {e}")
+        exception_message: str = f"Failed to find record in collection {collection_name}. Error: {e}"
+        logger.exception(exception_message)
+        raise Exception(exception_message)
 
 def find_many_from_db(collection_name: str, filter: dict = {}, field_names: list[str] = [], connection: Optional[Connection] = None) -> list[dict]:
     try:
@@ -60,7 +64,7 @@ def find_many_from_db(collection_name: str, filter: dict = {}, field_names: list
             raise DBRecordMissing(f"No records found in collection {collection_name} with filter {filter}")
         return [record for record in records] if field_names == [] else [{field: record[field] for field in field_names} for record in records]
     except ServerSelectionTimeoutError as e:
-        print(f"MongoDB connection error: {e}")
+        logger.exception(f"MongoDB connection error: {e}")
         return []
     except Exception as e:
         raise Exception(f"Failed to find records in collection {collection_name}. Error: {e}")
@@ -82,7 +86,7 @@ def search_by_keyword(collection_name: str, keyword: str, connection: Optional[C
             raise DBRecordMissing(f"No records found in collection {collection_name} with keyword {keyword}")
         return [record for record in records]
     except ServerSelectionTimeoutError as e:
-        print(f"MongoDB connection error: {e}")
+        logger.exception(f"MongoDB connection error: {e}")
         return []
     except Exception as e:
         raise Exception(f"Failed to search records in collection {collection_name} with keyword {keyword}. Error: {e}")
@@ -93,11 +97,13 @@ def insert_to_db(collection_name: str, record: dict, connection: Optional[Connec
         connection: Connection = Connection.from_defaults() if connection is None else connection
         collection = connection.db[collection_name]
         collection.insert_one(record)
-        print(f"Record inserted into collection {collection_name}")
+        logger.info(f"Record inserted into collection {collection_name}")
     except ServerSelectionTimeoutError as e:
-        print(f"MongoDB connection error: {e}")
+        logger.exception(f"MongoDB connection error: {e}")
     except Exception as e:
-        raise Exception(f"Failed to insert record into collection {collection_name}. Error: {e}")
+        exception_message: str = f"Failed to insert record into collection {collection_name}. Error: {e}"
+        logger.exception(exception_message)
+        raise Exception(exception_message)
     
 def update_db_record(collection_name: str, filter: dict, update: dict, connection: Optional[Connection] = None) -> None:
     try:
@@ -105,11 +111,13 @@ def update_db_record(collection_name: str, filter: dict, update: dict, connectio
         connection: Connection = Connection.from_defaults() if connection is None else connection
         collection = connection.db[collection_name]
         collection.update_one(filter, {"$set": update}, upsert=True)
-        print(f"Record updated in collection {collection_name}")
+        logger.info(f"Record updated in collection {collection_name}")
     except ServerSelectionTimeoutError as e:
-        print(f"MongoDB connection error: {e}")
+        logger.exception(f"MongoDB connection error: {e}")
     except Exception as e:
-        raise Exception(f"Failed to update record in collection {collection_name}. Error: {e}")
+        exception_message: str = f"Failed to update record in collection {collection_name}. Error: {e}"
+        logger.exception(exception_message)
+        raise Exception(exception_message)
     
 def delete_db_record(collection_name: str, filter: dict, connection: Optional[Connection] = None) -> None:
     try:
@@ -117,8 +125,10 @@ def delete_db_record(collection_name: str, filter: dict, connection: Optional[Co
         connection: Connection = Connection.from_defaults() if connection is None else connection
         collection = connection.db[collection_name]
         collection.delete_one(filter)
-        print(f"Record deleted from collection {collection_name}")
+        logger.info(f"Record deleted from collection {collection_name}")
     except ServerSelectionTimeoutError as e:
-        print(f"MongoDB connection error: {e}")
+        logger.exception(f"MongoDB connection error: {e}")
     except Exception as e:
-        raise Exception(f"Failed to delete record from collection {collection_name}. Error: {e}")
+        exception_message: str = f"Failed to delete record from collection {collection_name}. Error: {e}"
+        logger.exception(exception_message)
+        raise Exception(exception_message)

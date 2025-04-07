@@ -1,6 +1,6 @@
 from ..utils import get_static_json_response
 from ...utils.constants import COLLECTION_PROCESS_IMAGES
-from ...utils.db import find_one_from_db, find_many_from_db, insert_to_db, update_db_record, search_by_keyword
+from ...utils.db import find_one_from_db, find_many_from_db, insert_to_db, update_db_record, search_by_keyword, delete_db_record
 from ...utils.form import FormSchema
 from ..to_table import convert_all_process_images_to_table
 from ...models.core.process import ProcessImageApptainer
@@ -72,10 +72,14 @@ async def create_process(form_data: str | dict = Form(...)) -> JSONResponse:
         logging.error(f"Error creating process: {e}")
         raise HTTPException(status_code=400, detail=f"Failed to create process. Error: {e}")
 
-@router.put("/{image_id}/update/", tags=["process", "image"])
-async def update_process(image_id: str):
-    return {"message": f"Update process with id {image_id}"}
+# @router.put("/update/{image_id}", tags=["process", "image"])
+# async def update_process(image_id: str):
+#     return {"message": f"Update process with id {image_id}"}
 
-@router.delete("/{image_id}/delete/", tags=["process", "image"])
+@router.post("/delete/{image_id}", tags=["process", "image"])
 async def delete_process(image_id: str):
-    return {"message": f"Delete process with id {image_id}"}
+    try:
+        delete_db_record(COLLECTION_PROCESS_IMAGES, {"id": image_id})
+    except Exception as e:
+        logging.error(f"Error deleting process: {e}")
+        raise HTTPException(status_code=400, detail=f"Failed to delete process. Error: {e}") 

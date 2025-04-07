@@ -11,11 +11,13 @@ from ....utils.envs import get_neuroanalyst_root_dirs
 
 from typing import Any, Optional
 from pathlib import Path, PosixPath
-import subprocess, json
+import subprocess, json, logging
 from copy import deepcopy
 
 from pydantic import BaseModel, Field
 from bids import BIDSLayout
+
+logger = logging.getLogger(__name__)
 
 class ProcessExecConfig(BaseModel):
     output_volumes: dict[str, str] = Field(title="Output Volumes. The volumes to mount to the container.", default={"data_dir": None})
@@ -64,7 +66,7 @@ class ProcessExecApptainer(BaseModel):
         # for container_volume_name in self.process_exec_config.output_volumes:
         for container_volume_name in updated_process_exec_config_output_volumes:
             if container_volume_name not in config_container_volumes:
-                print(f"Warning: Output volume for {container_volume_name} not used.")
+                logger.warning(f"Output volume for {container_volume_name} not used.")
                 
         env_values: dict[str, str] = {}
         
@@ -79,11 +81,11 @@ class ProcessExecApptainer(BaseModel):
                 env_values[env_var_name] = env_var_value
             else:
                 # env_values[env_var_name] = ""
-                print(f"Warning: Environment variable {env_var_name} not set.")
+                logger.warning(f"Environment variable {env_var_name} not set.")
                 
         # Get environment variables provided in process exec but not defined in process definition
         remaining_envs: list[str] = list(set(updated_process_exec_config_env_vars.keys()) - set(config_environment_variables))
-        print(f"Warning: These environment variables were not defined in the process image but are provided while execution- {remaining_envs}")
+        logger.warning(f"These environment variables were not defined in the process image but are provided while execution- {remaining_envs}")
         for env_name in remaining_envs:
             env_value = updated_process_exec_config_env_vars[env_name]
             if not isinstance(env_value, dict) and " " in str(env_value):
@@ -131,13 +133,13 @@ class ProcessExecApptainer(BaseModel):
         
         id: str = generate_id(process_image.id, 6, "-")
         
-        command: str = cls.generate_apptainer_run_command(
-            process_image=process_image,
-            process_exec_config=process_exec_config,
-            id=id
-        )
+        # command: str = cls.generate_apptainer_run_command(
+        #     process_image=process_image,
+        #     process_exec_config=process_exec_config,
+        #     id=id
+        # )
         
-        return cls(id=id, process_exec_config=process_exec_config, process_image=process_image, command=command)
+        return cls(id=id, process_exec_config=process_exec_config, process_image=process_image)
     
     def to_db(self, connection: Optional[Connection] = None):
         insert_to_db(COLLECTION_PROCESS_EXECS, self.model_dump(mode="json"), connection)
@@ -177,9 +179,9 @@ class ProcessExecApptainer(BaseModel):
             self.command = self.generate_apptainer_run_command(additional_volumes=additional_volumes, additional_envs=additional_envs)
         # Run the Apptainer command and capture the output
         try:
-            print("Spawning Apptainer container...")
+            logger.info("Spawning Apptainer container...")
             output = subprocess.check_output(self.command, shell=True, universal_newlines=True)
-            print(f"\n\n\n\nApptainer container spawned with output: \n{output}\n\n\n\n")
+            logger.info(f"Apptainer container spawned with output: \n{output}")
         except subprocess.CalledProcessError as e:
             raise ValueError(f"An error occurred while spawning the Docker container: {e}")
 

@@ -1,7 +1,7 @@
 from ...models.core.process import ProcessExecApptainer
 from ..utils import get_static_json_response
 from ...utils.constants import COLLECTION_PROCESS_EXECS
-from ...utils.db import find_one_from_db, find_many_from_db, insert_to_db, update_db_record, search_by_keyword
+from ...utils.db import find_one_from_db, find_many_from_db, insert_to_db, update_db_record, search_by_keyword, delete_db_record
 from ..to_table import convert_all_process_execs_to_table
 from ...celery.tasks.process import execute_process
 
@@ -56,7 +56,7 @@ async def create_process_exec(form_data: str = Form(...)) -> JSONResponse:
         logging.error(f"Error executing process: {e}")
         raise HTTPException(status_code=400, detail=f"Failed to save process exec. Error: {e}")
 
-@router.post("/{exec_id}/execute/", tags=["process", "exec"])
+@router.post("/execute/{exec_id}", tags=["process", "exec"])
 async def execute_process_exec(exec_id: str):
     try:
         process_exec: ProcessExecApptainer = ProcessExecApptainer.from_db(exec_id)
@@ -68,16 +68,14 @@ async def execute_process_exec(exec_id: str):
         logging.error(f"Error executing process: {e}")
         raise HTTPException(status_code=400, detail=f"Failed to execute process. Error: {e}")
 
-@router.put("/{exec_id}/update/", tags=["process", "exec"])
-async def update_exec(exec_id: str):
-    return {"message": f"Update exec with id {exec_id}"}
+# @router.put("/update/{exec_id}", tags=["process", "exec"])
+# async def update_exec(exec_id: str):
+#     return {"message": f"Update exec with id {exec_id}"}
 
-@router.delete("/{exec_id}/delete/", tags=["process", "exec"])
+@router.post("/delete/{exec_id}", tags=["process", "exec"])
 async def delete_exec(exec_id: str):
-    return {"message": f"Delete exec with id {exec_id}"}
-
-# ==================================================================================================
-
-@router.get("/{exec_id}/status/", tags=["process", "exec"])
-async def get_exec_status(exec_id: str):
-    return {"message": f"Get status of exec with id {exec_id}"}
+    try:
+        delete_db_record(COLLECTION_PROCESS_EXECS, {"id": exec_id})
+    except Exception as e:
+        logging.error(f"Error deleting process exec: {e}")
+        raise HTTPException(status_code=400, detail=f"Failed to delete process exec. Error: {e}") 
