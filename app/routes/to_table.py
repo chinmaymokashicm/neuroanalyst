@@ -31,8 +31,18 @@ def convert_all_process_execs_to_table() -> list[dict]:
     """
     Convert all process executions to a table format.
     """
-    process_execs_dict: list[dict] = find_many_from_db(COLLECTION_PROCESS_EXECS, {})
-    process_execs: list[ProcessExecApptainer] = [ProcessExecApptainer(**process_exec_dict) for process_exec_dict in process_execs_dict]
+    # process_execs_dict: list[dict] = find_many_from_db(COLLECTION_PROCESS_EXECS, {})
+    process_exec_ids: list[str] = [process_exec_dict["id"] for process_exec_dict in find_many_from_db(COLLECTION_PROCESS_EXECS, {})]
+    
+    process_execs: list[ProcessExecApptainer] = []
+    for process_exec_id in process_exec_ids:
+        try:
+            process_exec: ProcessExecApptainer = ProcessExecApptainer.from_db(id=process_exec_id)
+            process_execs.append(process_exec)
+        except Exception as e:
+            print(e)
+    
+    # process_execs: list[ProcessExecApptainer] = [ProcessExecApptainer.from_db(id=process_exec_id) for process_exec_id in process_exec_ids]
     
     return [
         {
@@ -47,7 +57,6 @@ def convert_all_pipeline_steps_to_table(pipeline_id: str) -> list[dict]:
     """
     Convert all pipeline steps to a table format.
     """
-    # pipeline: Pipeline = find_one_from_db(COLLECTION_PIPELINES, {"id": pipeline_id})
     pipeline: Pipeline = Pipeline.from_db(COLLECTION_PIPELINES, pipeline_id)
     
     return [
@@ -64,13 +73,24 @@ def convert_all_pipelines_to_table() -> list[dict]:
     """
     Convert all pipelines to a table format.
     """
-    pipelines_dict: list[dict] = find_many_from_db(COLLECTION_PIPELINES, {})
-    pipelines: list[Pipeline] = [Pipeline(**pipeline_dict) for pipeline_dict in pipelines_dict]
+    pipeline_ids: list[str] = [pipeline_dict["id"] for pipeline_dict in find_many_from_db(COLLECTION_PIPELINES, {})]
+    
+    pipelines: list[Pipeline] = []
+    
+    for pipeline_id in pipeline_ids:
+        try:
+            pipeline: Pipeline = Pipeline.from_db(pipeline_id=pipeline_id)
+            pipelines.append(pipeline)
+        except Exception as e:
+            print(e)
+            
+    # pipelines: list[Pipeline] = [Pipeline.from_db(pipeline_id=pipeline_id) for pipeline_id in pipeline_ids]
 
     return [
         {
             "id": pipeline.id,
             "name": pipeline.name,
+            "author": pipeline.author,
             "description": pipeline.description,
             "n_steps": len(pipeline.steps),
             "checkpoint_steps": pipeline.checkpoint_steps

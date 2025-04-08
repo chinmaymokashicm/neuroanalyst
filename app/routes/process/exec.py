@@ -40,7 +40,7 @@ async def create_process_exec(form_data: str = Form(...)) -> JSONResponse:
     try:
         form_dict: dict = json.loads(form_data)
     except json.JSONDecodeError as e:
-        logging.error(f"Error decoding JSON: {e}")
+        logger.error(f"Error decoding JSON: {e}")
         raise HTTPException(status_code=400, detail="Invalid form data")
     
     # Create process exec and save to DB
@@ -50,10 +50,10 @@ async def create_process_exec(form_data: str = Form(...)) -> JSONResponse:
         process_exec_id: str = process_exec.id
         process_exec.to_db()
         success_content: dict = {"message": f"Process exec {process_exec_id} for process {process_id} saved to DB."}
-        logging.info(success_content["message"])
+        logger.info(success_content["message"])
         return JSONResponse(status_code=201, content=success_content)
     except Exception as e:
-        logging.error(f"Error executing process: {e}")
+        logger.exception(f"Error executing process: {e}")
         raise HTTPException(status_code=400, detail=f"Failed to save process exec. Error: {e}")
 
 @router.post("/execute/{exec_id}", tags=["process", "exec"])
@@ -62,10 +62,10 @@ async def execute_process_exec(exec_id: str):
         process_exec: ProcessExecApptainer = ProcessExecApptainer.from_db(exec_id)
         execute_process.apply_async(args=[process_exec.model_dump_json()]) # Push to Celery task
         success_content: dict = {"message": f"Process executed with PID - {exec_id}"}
-        logging.info(success_content["message"])
+        logger.info(success_content["message"])
         return JSONResponse(status_code=201, content=success_content)
     except Exception as e:
-        logging.error(f"Error executing process: {e}")
+        logger.exception(f"Error executing process: {e}")
         raise HTTPException(status_code=400, detail=f"Failed to execute process. Error: {e}")
 
 # @router.put("/update/{exec_id}", tags=["process", "exec"])
@@ -77,5 +77,5 @@ async def delete_exec(exec_id: str):
     try:
         delete_db_record(COLLECTION_PROCESS_EXECS, {"id": exec_id})
     except Exception as e:
-        logging.error(f"Error deleting process exec: {e}")
+        logger.exception(f"Error deleting process exec: {e}")
         raise HTTPException(status_code=400, detail=f"Failed to delete process exec. Error: {e}") 

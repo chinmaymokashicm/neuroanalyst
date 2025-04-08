@@ -1,4 +1,4 @@
-Bootstrap: docker
+Bootstrap: localimage
 From: $base_image
 Stage: build
 

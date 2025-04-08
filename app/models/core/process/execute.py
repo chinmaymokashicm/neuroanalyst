@@ -117,9 +117,9 @@ class ProcessExecApptainer(BaseModel):
         if collection is None or collection.count_documents({"id": id}) == 0:
             raise DBRecordMissing(f"Process execution with ID {id} does not exist in the database.")
         
-        process_exec_config: dict = find_one_from_db(COLLECTION_PROCESS_EXECS, {"id": id})
+        process_exec_dict: dict = find_one_from_db(COLLECTION_PROCESS_EXECS, {"id": id})
         
-        return cls(**process_exec_config)
+        return cls(**process_exec_dict)
     
     @classmethod
     def from_user(cls, process_exec_config: ProcessExecConfig, process_image_id: Optional[str] = None, process_image: Optional[ProcessImageApptainer] = None):
@@ -182,12 +182,12 @@ class ProcessExecApptainer(BaseModel):
             logger.info("Spawning Apptainer container...")
             output = subprocess.check_output(self.command, shell=True, universal_newlines=True)
             logger.info(f"Apptainer container spawned with output: \n{output}")
+            # Save process execution configuration to the database
+            if save_to_db:
+                self.to_db()
         except subprocess.CalledProcessError as e:
             raise ValueError(f"An error occurred while spawning the Docker container: {e}")
 
-        # Save process execution configuration to the database
-        if save_to_db:
-            self.to_db()
 
 
 

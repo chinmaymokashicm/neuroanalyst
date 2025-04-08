@@ -46,34 +46,40 @@ class PipelineStep(BaseModel):
         """
         bids_roots: list[DirectoryPath] = []
         for process_exec in self.process_execs:
-            bids_root: DirectoryPath = process_exec.process_image.working_directory.root_dir
+            if "data_dir" not in process_exec.process_exec_config:
+                continue
+            bids_root: DirectoryPath = process_exec.process_exec_config["data_dir"]
             if bids_root not in bids_roots:
                 bids_roots.append(bids_root)
         return bids_roots
     
-    def create_all_bids_dirtrees(self) -> None:
+    def create_all_bids_dirtrees(self, pipeline_name: str, authors: list[str] = [""]) -> None:
         tree: BIDSTree = BIDSTree()
         tree.set_default_values(name=self.name)
         tree.dataset_description = DatasetDescription(
             Name=self.name,
             DatasetType="derived",
-            Authors=[self.author],
-            GeneratedBy=[GeneratedBy(
-                Name=self.author, 
+            Authors=authors,
+            GeneratedBy=None
+        )
+        
+        tree.dataset_description.GeneratedBy = [
+            [GeneratedBy(
+                Name=self.name, 
                 Description="NeuroAnalyst", 
                 Container={"Container": "Apptainer"},
                 Version="0.0.1",
                 CodeURL="https://github.com/chinmaymokashicm/neuroanalyst"
                 )]
-        )
+        ]
         
         for bids_root in self.get_all_bids_roots():
-            tree.create(bids_root)
+            tree.create(bids_root / "derivatives" / pipeline_name)
     
-    def execute(self, pipeline_id: str, save_to_db: bool = True):
+    def execute(self, pipeline_id: str, pipeline_name: str, authors: list[str] = [""], save_to_db: bool = True):
         # ! Run this in Celery
         
-        self.create_all_bids_dirtrees()
+        self.create_all_bids_dirtrees(pipeline_name=pipeline_name, authors=authors)
         
         self.status = PipelineStatus.RUNNING
         
@@ -83,7 +89,7 @@ class PipelineStep(BaseModel):
                 process_id, process_exec_id = process_exec.process_image.id, process_exec.id
                 additional_envs: dict = {"PROCESS_ID": process_id, "PROCESS_EXEC_ID": process_exec_id, "PIPELINE_ID": pipeline_id}
                 process_exec.command = process_exec.generate_apptainer_run_command(additional_envs=additional_envs)
-                update_db_record(COLLECTION_PROCESS_EXECS, {"id": self.id}, {"command": process_exec.command})
+                update_db_record(COLLECTION_PROCESS_EXECS, {"id": process_exec.id}, {"command": process_exec.command})
                 process_exec.execute(save_to_db=save_to_db)
             except Exception as e:
                 self.status = PipelineStatus.FAILED
@@ -132,12 +138,12 @@ class Pipeline(BaseModel):
         # Every item in process_exec_ids represents one pipeline step. One pipeline step can have multiple process execs.
         step_wise_process_exec_ids: list[list[str]] = []
         for process_exec_id in process_exec_ids:
-            if isinstance(process_exec_ids, list):
+            if isinstance(process_exec_id, list):
                 step_wise_process_exec_ids.append(process_exec_id)
             else:
                 step_wise_process_exec_ids.append([process_exec_id])
         
-        pipeline_steps: list[PipelineStep] = [PipelineStep.from_user(name=i, process_exec_ids=step_wise_process_exec_ids[i]) for i in range(len(step_wise_process_exec_ids))]
+        pipeline_steps: list[PipelineStep] = [PipelineStep.from_user(name=str(i), process_exec_ids=step_wise_process_exec_ids[i]) for i in range(len(step_wise_process_exec_ids))]
         return cls(
             name=name,
             author=author,
@@ -173,8 +179,8 @@ class Pipeline(BaseModel):
             except Exception as e:
                 logger.critical(f"Could not load layout from {bids_root}: {e}")
                 
-        if save_to_db:
-            self.to_db()
+        # if save_to_db:
+        #     self.to_db()
         for i, step in enumerate(self.steps, 1):
             if step.status == PipelineStatus.FAILED and not retry_failed:
                 exception_message: str = f"Pipeline step {step.id} in {self.id} failed."
@@ -184,20 +190,28 @@ class Pipeline(BaseModel):
                 logger.warning(f"Skipping step {i}: {step.name} as it has already completed.")
                 continue
             
-            logger.info(f"Executing step {i}: {step.name}")
-            step.execute(save_to_db=save_to_db, pipeline_id=self.id)
+            logger.info(f"Executing step {i}: {step.name}", "\n\n\n\n")
+            step.execute(
+                pipeline_id=self.id,
+                pipeline_name=self.name,
+                authors=[self.author], 
+                save_to_db=save_to_db
+                )
             
             # Stop pipeline if a step fails
             if step.status == PipelineStatus.FAILED:
-                self.update_step_in_db(i - 1, step)
-                step.load_metrics(pipeline_id=self.id, bids_layouts=bids_layouts)
-                step.save_metrics_to_db()
-                exception_message: str = f"Pipeline step {step.id} in {self.id} failed."
-                logging.exception(exception_message)
-                raise Exception(exception_message)
+                logger.exception(f"Step {i}:{step.name} failed.", "\n\n")
+                if save_to_db:
+                    self.update_step_in_db(i - 1, step)
+                    step.load_metrics(pipeline_id=self.id, bids_layouts=bids_layouts)
+                    step.save_metrics_to_db()
+                    exception_message: str = f"Pipeline step {step.id} in {self.id} failed."
+                    logging.exception(exception_message)
+                    raise Exception(exception_message)
             
             # Update pipeline step in database
             if save_to_db:
+                logger.info(f"Saving step {i}:{step.name} metrics to DB.")
                 self.update_step_in_db(i - 1, step)
                 step.load_metrics(pipeline_id=self.id, bids_layouts=bids_layouts)
                 step.save_metrics_to_db()
@@ -216,23 +230,34 @@ class Pipeline(BaseModel):
         
     @classmethod
     def from_db(cls, pipeline_id: str, connection: Optional[Connection] = None):
-        pipeline_dict = find_one_from_db(COLLECTION_PIPELINES, {"id": pipeline_id}, connection)
-        for idx, step in enumerate(pipeline_dict["steps"]):
-            pipeline_dict["steps"][idx]["process_execs"] = []
-            for process_exec_id in step["process_exec_ids"]:
-                process_exec = ProcessExecApptainer.from_db(process_exec_id)
-                pipeline_dict["steps"][idx]["process_execs"].append(process_exec)
-        return cls(**pipeline_dict)
+        pipeline_dict = find_one_from_db(COLLECTION_PIPELINES, {"id": pipeline_id}, [], connection)
+        id: str = pipeline_dict["id"]
+        name: str = pipeline_dict["name"]
+        author: str = pipeline_dict["author"]
+        description: str = pipeline_dict["description"]
+        steps: list[PipelineStep] = [PipelineStep.from_user(
+            name=step["name"],
+            process_exec_ids=step["process_exec_ids"]
+        ) for step in pipeline_dict["steps"]]
+            
+        return cls(
+            id=id,
+            name=name,
+            author=author,
+            description=description,
+            steps=steps
+        )
     
     def to_db(self, connection: Optional[Connection] = None):
         steps: list[dict] = [{
             "id": step.id, 
-            "name": step.name, 
+            "name": step.name,
             "process_exec_ids": [process_exec.id for process_exec in step.process_execs], 
             "status": step.status} for step in self.steps]
         pipeline: dict = {
             "id": self.id,
             "name": self.name,
+            "author": self.author,
             "description": self.description,
             "steps": steps,
             "checkpoint_steps": self.checkpoint_steps
