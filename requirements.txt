@@ -66,7 +66,7 @@ httpx==0.27.1
 httpx-sse==0.4.0
 huggingface-hub==0.30.1
 idna==3.10
-imagelib @ git+https://github.com/chinmaymokashicm/neurolib.git@0a9d83150fc9aba18e5d8cfc9cdaaed49a46ff8d
+imagelib @ git+https://github.com/chinmaymokashicm/neurolib.git@b502c66580dd7e69b655443e25746224dec9d396
 importlib_metadata==8.6.1
 interface-meta==1.3.0
 ipykernel==6.29.5
@@ -136,11 +136,11 @@ pyasn1==0.6.1
 pyasn1_modules==0.4.2
 pybids==0.19.0
 pydantic==2.11.1
-pydantic-ai==0.0.52
-pydantic-ai-examples==0.0.52
-pydantic-ai-slim==0.0.52
-pydantic-evals==0.0.52
-pydantic-graph==0.0.52
+pydantic-ai==0.0.53
+pydantic-ai-examples==0.0.53
+pydantic-ai-slim==0.0.53
+pydantic-evals==0.0.53
+pydantic-graph==0.0.53
 pydantic-settings==2.8.1
 pydantic_core==2.33.0
 pydicom==3.0.1
@@ -218,5 +218,5 @@ webcolors==24.11.1
 websockets==15.0.1
 widgetsnbextension==4.0.13
 wrapt==1.17.2
-yarl==1.18.3
+yarl==1.19.0
 zipp==3.21.0
