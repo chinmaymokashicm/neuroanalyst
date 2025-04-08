@@ -361,28 +361,33 @@ class ProcessImageApptainer(BaseModel):
         if overwrite:
             command += "--force "
         command += f"{self.id}.sif {self.id}.def && mv {self.id}.sif {images_dir}"
-        # try:
-        #     subprocess.run(command, check=True, shell=True)
-        # except subprocess.CalledProcessError as e:
-        #     raise ValueError(f"An error occurred while building the Apptainer image: {e}")
+        try:
+            subprocess.run(command, check=True, shell=True)
+            # Save process image configuration to the database
+            if save_to_db:
+                self.to_db()
+        except subprocess.CalledProcessError as e:
+            raise ValueError(f"An error occurred while building the Apptainer image: {e}")
         
-        process = subprocess.Popen(
-            command,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            text=True,
-            shell=True
-        )
-        
-        while True:
-            line = process.stdout.readline()
-            if not line:
-                break
-            logger.info(line.strip())
+        # # Push subprocess stdout to logger
+        # logger.info(f"Building process image {self.name} [{self.tag}] with command: {command}")
+        # process = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        # while True:
+        #     output = process.stdout.readline()
+        #     if output == b"" and process.poll() is not None:
+        #         break
+        #     if output:
+        #         logger.info(output.strip().decode())
+        # rc = process.poll()
+        # if rc != 0:
+        #     raise ValueError(f"An error occurred while building the Apptainer image: {rc}")
+        # # Check if the image was created
+        # if not Path(images_dir).exists():
+        #     raise ValueError(f"Image {self.id}.sif was not created.")
 
-        # Save process image configuration to the database
-        if save_to_db:
-            self.to_db()
+        # # Save process image configuration to the database
+        # if save_to_db:
+        #     self.to_db()
 
 
 

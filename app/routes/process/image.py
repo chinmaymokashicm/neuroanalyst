@@ -44,9 +44,9 @@ async def load_process_image_schema() -> FormSchema:
 async def preview_process(form_data: str = Form(...)) -> JSONResponse:
     try:
         form_dict: dict = json.loads(form_data)
-        logging.info(f"Returning process preview")
+        logger.info(f"Returning process preview")
     except json.JSONDecodeError:
-        logging.error(f"Error getting process preview. Invalid form data!")
+        logger.exception(f"Error getting process preview. Invalid form data!")
         raise HTTPException(status_code=400, detail="Invalid form data")
     
     return ProcessImageApptainer.get_ui_submission_preview(form_dict)
@@ -58,7 +58,7 @@ async def create_process(form_data: str | dict = Form(...)) -> JSONResponse:
         if isinstance(form_data, str):
             form_dict: dict = json.loads(form_data)
     except json.JSONDecodeError as e:
-        logging.info(f"Error decoding JSON: {e}")
+        logger.info(f"Error decoding JSON: {e}")
         raise HTTPException(status_code=400, detail="Invalid form data")
 
     # Run process and return process id.
@@ -66,10 +66,10 @@ async def create_process(form_data: str | dict = Form(...)) -> JSONResponse:
         process_image: ProcessImageApptainer = ProcessImageApptainer.from_user(**form_dict)
         build_process_image.apply_async(args=[process_image.model_dump_json()]) # Push to Celery task
         success_content: dict = {"message": f"Process created with PID - {process_image.id}"}
-        logging.info(success_content["message"])
+        logger.info(success_content["message"])
         return JSONResponse(status_code=201, content=success_content)
     except Exception as e:
-        logging.error(f"Error creating process: {e}")
+        logger.exception(f"Error creating process: {e}")
         raise HTTPException(status_code=400, detail=f"Failed to create process. Error: {e}")
 
 # @router.put("/update/{image_id}", tags=["process", "image"])
@@ -81,5 +81,5 @@ async def delete_process(image_id: str):
     try:
         delete_db_record(COLLECTION_PROCESS_IMAGES, {"id": image_id})
     except Exception as e:
-        logging.error(f"Error deleting process: {e}")
+        logger.exception(f"Error deleting process: {e}")
         raise HTTPException(status_code=400, detail=f"Failed to delete process. Error: {e}") 
