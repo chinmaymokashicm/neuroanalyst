@@ -25,7 +25,6 @@ class TabularData(Widget):
     """
     Widget that loads list of rows from the given API endpoint and displays them in a table.
     """
-    
     api_route: APIRouteEnum
     
     def __init__(self, api_route: APIRouteEnum, **kwargs):
@@ -85,6 +84,13 @@ class TabularData(Widget):
             self.notify("Table data refreshed successfully.", severity="information", title="Success")
         else:
             self.notify("No data available to display.", severity="warning", title="Warning")
+            
+    @on(DataTable.CellSelected, "#data_table")
+    def cell_selected(self, event: DataTable.CellSelected):
+        """
+        Handle the cell selected event.
+        """
+        pyperclip.copy(event.value)
     
     def compose(self) -> ComposeResult:
         """

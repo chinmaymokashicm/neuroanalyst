@@ -9,18 +9,19 @@ PopupScreen {
 Header {
     dock: top;
     width: 100%;
-    background: magenta;
+    background: #294741;
 }
 
 Footer {
     dock: bottom;
     width: 100%;
-    background: #f1f1f1;
+    background: #22403a;
 }
 
 Markdown {
     # width: 100%;
     # background: gray;
+    # color: white;
 }
 
 Button {
@@ -52,19 +53,40 @@ Toast.-error .toast--title {
 
 .screen-container {
     layout: grid;
-    grid-size: 16 16;
+    grid-size: 16 32;
     # border: dashed green;
 }
 
 .welcome-container {
     column-span: 16;
-    row-span: 1;
+    row-span: 3;
     background: #549487;
+    layout: grid;
+    grid-size: 2 2;
+}
+
+.left-welcome-container {
+    column-span: 1;
+    row-span: 2;
+    # background: red;
+    layout: grid;
+    grid-size: 2 16;
+    text-align: center;
+}
+
+.right-welcome-container {
+    column-span: 1;
+    row-span: 2;
+    # background: blue;
+    # background: gray 30%;
+    layout: grid;
+    grid-size: 2 16;
+    text-align: center;
 }
 
 .main-container {
     column-span: 16;
-    row-span: 14;
+    row-span: 27;
     background: gray 30%;
     layout: grid;
     grid-size: 2 2;
@@ -89,7 +111,8 @@ Toast.-error .toast--title {
 
 .exit-container {
     column-span: 16;
-    row-span: 1;
+    row-span: 2;
+    width: 100%;
     # background: pink;
 }
 
@@ -102,5 +125,14 @@ Toast.-error .toast--title {
 }
 
 #close {
-    width: 100%;
+    width: 50%;
+    height: 100%;
+    border: solid white;
+}
+
+#about {
+    width: 50%;
+    height: 100%;
+    background: #204559;
+    border: solid white;
 }

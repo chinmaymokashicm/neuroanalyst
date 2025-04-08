@@ -96,7 +96,7 @@ class DataSubmitterWidget(Widget):
             # self.notify(f"POST Request Error: {e}: {traceback.format_exc()}", severity="error")
             self.notify(f"POST Request Error: {e}", severity="error")
             try:
-                pyperclip.copy(response.json())
+                pyperclip.copy(str(e))
                 self.notify("Error response copied to clipboard!")
             except:
                 self.notify("Tried copying error response. FAILED.")
@@ -124,7 +124,7 @@ class DataSubmitterWidget(Widget):
         """
         # self.notify(self.about_text, severity="information", title="About")
         # Open a new screen with the about text
-        self.app.push_screen(PopupScreen(title="About", content=self.about_text, footer="Close"))
+        self.app.push_screen(PopupScreen(title="About", content=self.about_text, footer="Close", show_table_of_contents=False))
         
     @on(Button.Pressed, "#save-button")
     def save_button(self, event: Button.Pressed):

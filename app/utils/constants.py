@@ -44,6 +44,21 @@ OPENAI_CLIENT_DEFAULT_HEADERS: dict = {"Ocp-Apim-Subscription-Key": OPENAI_API_K
 OPENAI_DEFAULT_MODEL: str = "meta-llama/Llama-3.1-70B-Instruct"
 SYSTEM_PROMPTS_PATH: str = "app/models/insight/prompts"
 
-# Textual CSS
+# Textual
 TEXTUAL_LAYOUT_MAIN_CSS_PATH: str = "app/frontend/textual/css/layouts/main.tcss"
 TEXTUAL_LAYOUT_RESOURCE_CSS_PATH: str = "app/frontend/textual/css/layouts/resource.tcss"
+
+with open("/Users/cmokashi/Documents/GitHub/neuroanalyst/docs/references/about_textual_app.md", "r") as f:
+    TEXTUAL_ABOUT_TEXT: str = f.read()
+# TEXTUAL_ABOUT_TEXT: str = ""
+TEXTUAL_LEFT_WELCOME_TEXT: str = """Submit Jobs
+- Creating new Process definitions via JSON input
+- Instantiating ProcessExecs from Processes with parameter specifications
+- Building Pipelines by chaining ProcessExecs
+- Submitting user queries to the Insight API for LLM-powered knowledge discovery
+"""
+TEXTUAL_RIGHT_WELCOME_TEXT: str = """Visualization
+- Lists of all defined Processes, ProcessExecs, and Pipelines
+- Detailed view of selected items, including parameter values and status
+- Results metrics and analysis outputs
+- Responses from the LLM-powered Insight API"""
