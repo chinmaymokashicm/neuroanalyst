@@ -17,8 +17,8 @@ attrs==25.3.0
 bids-validator==1.14.7.post0
 bidsschematools==1.0.4
 billiard==4.2.1
-boto3==1.37.28
-botocore==1.37.28
+boto3==1.37.27
+botocore==1.37.27
 cachetools==5.5.2
 celery==5.5.0
 certifi==2025.1.31
@@ -56,6 +56,7 @@ google-auth==2.38.0
 googleapis-common-protos==1.69.2
 gradio==5.23.3
 gradio_client==1.8.0
+greenlet==3.1.1
 griffe==1.7.2
 groovy==0.1.2
 groq==0.22.0
@@ -66,7 +67,7 @@ httpx==0.27.1
 httpx-sse==0.4.0
 huggingface-hub==0.30.1
 idna==3.10
-imagelib @ git+https://github.com/chinmaymokashicm/neurolib.git@0a9d83150fc9aba18e5d8cfc9cdaaed49a46ff8d
+imagelib @ git+https://github.com/chinmaymokashicm/neurolib.git@b502c66580dd7e69b655443e25746224dec9d396
 importlib_metadata==8.6.1
 interface-meta==1.3.0
 ipykernel==6.29.5
@@ -162,7 +163,7 @@ rich==14.0.0
 rich-toolkit==0.14.1
 rpds-py==0.24.0
 rsa==4.9
-ruff==0.11.4
+ruff==0.11.3
 s3transfer==0.11.4
 safehttpx==0.1.6
 scikit-learn==1.6.1
