@@ -118,7 +118,8 @@ class PipelineStep(BaseModel):
             
     def save_metrics_to_db(self) -> None:
         if self.metrics is None:
-            logger.critical(f"FAILED: Metrics for pipeline step {self.id} not calculated before saving to DB!")
+            exception_message: str = f"FAILED: Metrics for pipeline step {self.id} not calculated before saving to DB!"
+            logger.critical(exception_message)
             return
         for metric in self.metrics:
             insert_to_db(collection_name=COLLECTION_SUMMARIES, record=metric)
@@ -178,36 +179,32 @@ class Pipeline(BaseModel):
                 bids_layouts.append(BIDSLayout(bids_root, derivatives=True))
             except Exception as e:
                 logger.critical(f"Could not load layout from {bids_root}: {e}")
-                
-        # if save_to_db:
-        #     self.to_db()
+
         for i, step in enumerate(self.steps, 1):
             if step.status == PipelineStatus.FAILED and not retry_failed:
                 exception_message: str = f"Pipeline step {step.id} in {self.id} failed."
-                logging.exception(exception_message)
+                logger.exception(exception_message)
                 raise Exception(exception_message)
             if step.status == PipelineStatus.COMPLETED:
                 logger.warning(f"Skipping step {i}: {step.name} as it has already completed.")
                 continue
             
             logger.info(f"Executing step {i}: {step.name}", "\n\n\n\n")
-            step.execute(
-                pipeline_id=self.id,
-                pipeline_name=self.name,
-                authors=[self.author], 
-                save_to_db=save_to_db
+            try:
+                step.execute(
+                    pipeline_id=self.id,
+                    pipeline_name=self.name,
+                    authors=[self.author], 
+                    save_to_db=save_to_db
                 )
-            
-            # Stop pipeline if a step fails
-            if step.status == PipelineStatus.FAILED:
-                logger.exception(f"Step {i}:{step.name} failed.", "\n\n")
+            except Exception as e:
+                exception_message: str = f"Pipeline step {step.id} in {self.id} failed."
+                logger.exception(exception_message)
                 if save_to_db:
                     self.update_step_in_db(i - 1, step)
                     step.load_metrics(pipeline_id=self.id, bids_layouts=bids_layouts)
                     step.save_metrics_to_db()
-                    exception_message: str = f"Pipeline step {step.id} in {self.id} failed."
-                    logging.exception(exception_message)
-                    raise Exception(exception_message)
+                raise Exception(exception_message)
             
             # Update pipeline step in database
             if save_to_db:
@@ -222,11 +219,6 @@ class Pipeline(BaseModel):
                 return
         
         logger.info(f"Pipeline {self.id} completed successfully.")
-        
-        # except KeyboardInterrupt:
-        #     print(f"Pipeline {self.id} interrupted.")
-        #     # Kill all Docker containers
-        #     self.stop_all_processes()
         
     @classmethod
     def from_db(cls, pipeline_id: str, connection: Optional[Connection] = None):
@@ -269,5 +261,6 @@ class Pipeline(BaseModel):
         update_db_record(COLLECTION_PIPELINES, {"id": self.id}, {f"steps.{step_id}": step_dict}, connection)
         
     def stop_pipeline(self):
-        self.stop_all_processes()
-        logger.info(f"Pipeline {self.id} stopped.")
+        # self.stop_all_processes()
+        # logger.info(f"Pipeline {self.id} stopped.")
+        pass

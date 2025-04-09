@@ -368,26 +368,6 @@ class ProcessImageApptainer(BaseModel):
                 self.to_db()
         except subprocess.CalledProcessError as e:
             raise ValueError(f"An error occurred while building the Apptainer image: {e}")
-        
-        # # Push subprocess stdout to logger
-        # logger.info(f"Building process image {self.name} [{self.tag}] with command: {command}")
-        # process = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        # while True:
-        #     output = process.stdout.readline()
-        #     if output == b"" and process.poll() is not None:
-        #         break
-        #     if output:
-        #         logger.info(output.strip().decode())
-        # rc = process.poll()
-        # if rc != 0:
-        #     raise ValueError(f"An error occurred while building the Apptainer image: {rc}")
-        # # Check if the image was created
-        # if not Path(images_dir).exists():
-        #     raise ValueError(f"Image {self.id}.sif was not created.")
-
-        # # Save process image configuration to the database
-        # if save_to_db:
-        #     self.to_db()
 
 
 
