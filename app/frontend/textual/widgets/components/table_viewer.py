@@ -36,8 +36,15 @@ class TabularData(Widget):
         rows: list[dict] = []
         try:
             response: requests.Response = requests.get(endpoint, timeout=5)
-            if response.status_code != 200:
-                self.notify(f"Failed to fetch data: {response.text}", severity="error", title="Error")
+            if response.status_code not in [200, 201]:
+                # self.notify(f"Failed to fetch data: {response.text}", severity="error", title="Error")
+                try:
+                    # Attempt to parse the response as JSON
+                    error_message = response.json().get("detail", f"Error: {response.status_code}")
+                except ValueError:
+                    # Fallback to raw text if JSON parsing fails
+                    error_message = response.text or "Unknown error occurred."
+                self.notify(f"Failed to fetch data: {error_message}", severity="error", title="Error")
                 return []
             rows: list[dict] = response.json()
         except requests.RequestException as e:

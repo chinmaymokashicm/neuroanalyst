@@ -82,16 +82,16 @@ class DataSubmitterWidget(Widget):
             form_data_submission: str = json.dumps(json.loads(text)) if self.language == "json" else text
             response = requests.post(self.submit_url, data={"form_data": form_data_submission})
             if response.status_code in [200, 201]:
-                self.notify("Data submitted successfully.", severity="information")
+                self.notify("Data submitted successfully.", severity="information", title="Submission Success")
             else:
                 self.notify(f"Error submitting data: {response.status_code}", severity="error", title="Submission Error")
                 try:
-                    pyperclip.copy(response.json())
-                    response_dict: dict = json.loads(response.text)
-                    self.notify(f"{response_dict["detail"]}", severity="error", title="Submission Error")
+                    # pyperclip.copy(response.json())
+                    pyperclip.copy(response.text)
                     self.notify("Error response copied to clipboard!", severity="information", title="Submission Error")
-                except:
-                    self.notify("Tried copying error response. FAILED.", severity="error", title="Submission Error")
+                    self.query_one("#data_input").text = response.text
+                except Exception as e:
+                    self.notify(f"Tried copying error response. FAILED. {e}", severity="error", title="Submission Error")
         except requests.RequestException as e:
             # self.notify(f"POST Request Error: {e}: {traceback.format_exc()}", severity="error")
             self.notify(f"POST Request Error: {e}", severity="error")
