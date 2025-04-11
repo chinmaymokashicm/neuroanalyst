@@ -13,6 +13,7 @@ ${author}
 ${created_at}
 
 ## Base Docker Image
+${bootstrap}
 ${base_docker_image}
 
 ## Volumes

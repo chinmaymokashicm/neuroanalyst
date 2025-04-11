@@ -46,31 +46,34 @@ class PipelineStep(BaseModel):
         """
         bids_roots: list[DirectoryPath] = []
         for process_exec in self.process_execs:
-            if "data_dir" not in process_exec.process_exec_config:
+            if not hasattr(process_exec.process_exec_config, "output_volumes"):
+                logger.warning(f"'output_volumes' not found in {process_exec.id}: {process_exec.process_exec_config}")
                 continue
-            bids_root: DirectoryPath = process_exec.process_exec_config["data_dir"]
+            if "data_dir" not in process_exec.process_exec_config.output_volumes:
+                continue
+            bids_root: DirectoryPath = process_exec.process_exec_config.output_volumes["data_dir"]
             if bids_root not in bids_roots:
-                bids_roots.append(bids_root)
+                bids_roots.append(Path(bids_root))
         return bids_roots
     
     def create_all_bids_dirtrees(self, pipeline_name: str, authors: list[str] = [""]) -> None:
         tree: BIDSTree = BIDSTree()
         tree.set_default_values(name=self.name)
         tree.dataset_description = DatasetDescription(
-            Name=self.name,
+            Name=pipeline_name,
             DatasetType="derived",
             Authors=authors,
             GeneratedBy=None
         )
         
         tree.dataset_description.GeneratedBy = [
-            [GeneratedBy(
-                Name=self.name, 
+            GeneratedBy(
+                Name=pipeline_name, 
                 Description="NeuroAnalyst", 
                 Container={"Container": "Apptainer"},
                 Version="0.0.1",
                 CodeURL="https://github.com/chinmaymokashicm/neuroanalyst"
-                )]
+                )
         ]
         
         for bids_root in self.get_all_bids_roots():
@@ -87,7 +90,7 @@ class PipelineStep(BaseModel):
         for process_exec in self.process_execs:
             try:
                 process_id, process_exec_id = process_exec.process_image.id, process_exec.id
-                additional_envs: dict = {"PROCESS_ID": process_id, "PROCESS_EXEC_ID": process_exec_id, "PIPELINE_ID": pipeline_id}
+                additional_envs: dict = {"PROCESS_ID": process_id, "PROCESS_EXEC_ID": process_exec_id, "PIPELINE_ID": pipeline_id, "PIPELINE_NAME": pipeline_name}
                 process_exec.command = process_exec.generate_apptainer_run_command(additional_envs=additional_envs)
                 update_db_record(COLLECTION_PROCESS_EXECS, {"id": process_exec.id}, {"command": process_exec.command})
                 process_exec.execute(save_to_db=save_to_db)
@@ -114,7 +117,12 @@ class PipelineStep(BaseModel):
         for layout in bids_layouts:
             if self.metrics is None:
                 self.metrics = []
-            self.metrics.extend(get_sidecar_info_from_dataset(layout=layout, pipeline_id=pipeline_id))
+            metrics: list = get_sidecar_info_from_dataset(layout=layout, pipeline_id=pipeline_id)
+            if metrics is None:
+                exception_message: str = "Metrics were not found. Something wrong?"
+                logger.exception(exception_message)
+                raise Exception(exception_message)
+            self.metrics.extend(metrics)
             
     def save_metrics_to_db(self) -> None:
         if self.metrics is None:
@@ -163,6 +171,8 @@ class Pipeline(BaseModel):
             for bids_root in step_bids_roots:
                 if bids_root not in bids_roots:
                     bids_roots.append(bids_root)
+        if len(bids_roots) == 0:
+            logger.warning(f"No BIDS layouts found in {step.name}.")
         return bids_roots
     
     def execute(self, save_to_db: bool = True, retry_failed: bool = True):
@@ -179,6 +189,12 @@ class Pipeline(BaseModel):
                 bids_layouts.append(BIDSLayout(bids_root, derivatives=True))
             except Exception as e:
                 logger.critical(f"Could not load layout from {bids_root}: {e}")
+                
+        if len(bids_layouts) == 0:
+            exception_message: str = "No BIDS layouts found. Looks like something went wrong."
+            logger.exception(exception_message)
+            logger.info(self.get_all_bids_roots())
+            raise Exception(exception_message)
 
         for i, step in enumerate(self.steps, 1):
             if step.status == PipelineStatus.FAILED and not retry_failed:

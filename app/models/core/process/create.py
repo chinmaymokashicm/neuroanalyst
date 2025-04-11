@@ -10,8 +10,9 @@ from pathlib import Path, PosixPath
 from string import Template
 import subprocess, json, inspect, os, shutil, logging
 from typing import Optional, Any, get_type_hints
+from enum import Enum
 
-from pydantic import BaseModel, DirectoryPath, FilePath, Field, field_validator
+from pydantic import BaseModel, DirectoryPath, FilePath, Field, field_validator, model_validator
 
 logger = logging.getLogger(__name__)
 
@@ -95,6 +96,10 @@ class ContainerVolumes(BaseModel, extra="allow"):
     data_dir: str = Field(title="Data Directory. The directory where the BIDS dataset is stored.", default="/bids_dir/")
     # output_dir: str = Field(title="Output Directory. The directory where the output will be stored.", default="/output_dir/")
 
+class ApptainerBuildBootstrapEnum(Enum):
+    LOCALIMAGE = "localimage"
+    DOCKER = "docker"
+
 class ProcessImageApptainer(BaseModel):
     id: str = Field(title="ID. The unique identifier of the process image.", default_factory=lambda: generate_id("PR", 6, "-"))
     name: str = Field(title="Name. The name of the process.")
@@ -103,14 +108,15 @@ class ProcessImageApptainer(BaseModel):
     version: str = Field(title="Version. The version of the process.", default="0.1.0")
     description: str = Field(title="Description. A brief description of the process.", default="")
     created_at: datetime = Field(title="Created At. The date and time when the process was created.", default=datetime.now())
-    base_docker_image: str = Field(title="Base Docker Image. The base Docker image to use for the process.")
+    bootstrap: ApptainerBuildBootstrapEnum = Field(title="Apptainer Build Bootstrap.")
+    base_image_from: str = Field(title="Base Image. The base image to use for the process. C")
     working_directory: WorkingDirectory = Field(title="Working Directory. Information about the directory where the process will be executed.")
     test_command: Optional[str] = Field(title="Run test command on container build. If None, skips test.", default=None)
     container_volumes: Optional[ContainerVolumes | dict] = Field(title="Container Volumes. The volumes to mount to the container.", default_factory=ContainerVolumes)
     environment_variables: list[str] = Field(title="Environment Variables. The environment variables to set in the container.", default=DEFAULT_CONTAINER_ENVS)
     
     @field_validator("tag")
-    def check_tag(cls, value):
+    def check_tag(cls, value: str):
         if len(value) == 0:
             raise ValueError("Tag must be non-empty.")
         # Check if first character is a lowercase letter
@@ -129,6 +135,12 @@ class ProcessImageApptainer(BaseModel):
             return ContainerVolumes(**value)
         return value
     
+    @model_validator(mode="after")
+    def update_base_image_path(self):
+        if self.bootstrap == ApptainerBuildBootstrapEnum.LOCALIMAGE:
+            self.base_image_from: str = str(Path(os.getenv("NEUROANALYST_IMAGES")) / self.base_image_from)
+        return self
+    
     @classmethod
     def from_db(cls, id: str, connection: Optional[Connection] = None):
         connection: Connection = Connection.from_defaults() if connection is None else connection
@@ -137,12 +149,12 @@ class ProcessImageApptainer(BaseModel):
         if collection is None or collection.count_documents({"id": id}) == 0:
             raise DBRecordMissing(f"Process image with ID {id} does not exist in the database.")
         
-        process_image_config: dict = find_one_from_db(COLLECTION_PROCESS_IMAGES, {"id": id})
+        process_image_dict: dict = find_one_from_db(COLLECTION_PROCESS_IMAGES, {"id": id})
         
-        return cls(**process_image_config)
+        return cls(**process_image_dict)
     
     @classmethod
-    def from_user(cls, name: str, tag: str, author: str, description: str, base_docker_image: str, working_directory: dict, container_volumes: Optional[dict] = None, environment_variables: list[str] = DEFAULT_CONTAINER_ENVS) -> "ProcessImageApptainer":
+    def from_user(cls, name: str, tag: str, author: str, description: str, bootstrap: ApptainerBuildBootstrapEnum, base_image_from: str, working_directory: dict, container_volumes: Optional[dict] = None, environment_variables: list[str] = DEFAULT_CONTAINER_ENVS) -> "ProcessImageApptainer":
         try:
             working_directory: WorkingDirectory = WorkingDirectory.from_user(**working_directory)
         except ValueError as e:
@@ -154,7 +166,9 @@ class ProcessImageApptainer(BaseModel):
             tag=tag,
             author=author,
             description=description,
-            base_docker_image=base_docker_image,
+            bootstrap=bootstrap,
+            # base_docker_image=base_docker_image,
+            base_image_from=base_image_from,
             working_directory=working_directory,
             container_volumes=container_volumes,
             environment_variables=environment_variables,
@@ -206,7 +220,8 @@ class ProcessImageApptainer(BaseModel):
         with open(Path(TEMPLATES_DIR) / "sif.def", "r") as f:
             template = Template(f.read())
             definition = template.substitute(
-                base_image=self.base_docker_image,
+                bootstrap=self.bootstrap.value,
+                base_image=self.base_image_from,
                 # working_dir=self.working_directory.root_dir,
                 requirements_file=self.working_directory.requirements_file.name,
                 requirements_exec_prefix=self.working_directory.requirements_exec_prefix,
@@ -241,7 +256,8 @@ class ProcessImageApptainer(BaseModel):
             version=self.version,
             author=self.author,
             created_at=self.created_at.strftime("%Y-%m-%d %H:%M:%S"),
-            base_docker_image=self.base_docker_image,
+            bootstrap=self.bootstrap.value,
+            base_docker_image=self.base_image_from,
             container_volumes_bullets=container_volumes_bullets,
             environment_variables=" ".join(self.environment_variables),
             process_image_id=self.id,
@@ -288,6 +304,7 @@ class ProcessImageApptainer(BaseModel):
             "name": form_dict["name"],
             "tag": form_dict["tag"],
             "description": form_dict["description"],
+            "bootstrap": form_dict["bootstrap"],
             "base_docker_image": form_dict["base_docker_image"],
             "working_directory": working_directory,
             "container_volumes": form_dict["container_volumes"],

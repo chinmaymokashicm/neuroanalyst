@@ -111,7 +111,9 @@ def update_db_record(collection_name: str, filter: dict, update: dict, connectio
         connection: Connection = Connection.from_defaults() if connection is None else connection
         collection = connection.db[collection_name]
         # collection.update_one(filter, {"$set": update}, upsert=True)
-        collection.update_one(filter, {"$set": update})
+        # collection.update_one(filter, {"$set": update})
+        result = collection.update_one(filter, {"$set": update})
+        logger.info(f"Matched count: {result.matched_count}, Modified count: {result.modified_count}")
         logger.info(f"Record updated in collection {collection_name}")
     except ServerSelectionTimeoutError as e:
         logger.exception(f"MongoDB connection error: {e}")

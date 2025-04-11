@@ -48,7 +48,7 @@ SYSTEM_PROMPTS_PATH: str = "app/models/insight/prompts"
 TEXTUAL_LAYOUT_MAIN_CSS_PATH: str = "app/frontend/textual/css/layouts/main.tcss"
 TEXTUAL_LAYOUT_RESOURCE_CSS_PATH: str = "app/frontend/textual/css/layouts/resource.tcss"
 
-with open("/Users/cmokashi/Documents/GitHub/neuroanalyst/docs/references/about_textual_app.md", "r") as f:
+with open("docs/references/about_textual_app.md", "r") as f:
     TEXTUAL_ABOUT_TEXT: str = f.read()
 # TEXTUAL_ABOUT_TEXT: str = ""
 TEXTUAL_LEFT_WELCOME_TEXT: str = """Submit Jobs
