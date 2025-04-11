@@ -13,16 +13,21 @@ def convert_all_process_images_to_table() -> list[dict]:
     """
     Convert all process images to a table format.
     """
-    process_images_dict: list[dict] = find_many_from_db(COLLECTION_PROCESS_IMAGES, {})
-    process_images: list[ProcessImageApptainer] = [ProcessImageApptainer(**process_image_dict) for process_image_dict in process_images_dict]
-    
+    process_image_ids: list[str] = [result["id"] for result in find_many_from_db(COLLECTION_PROCESS_IMAGES, {}, field_names=["id"])]
+    process_images: list[ProcessImageApptainer] = []
+    for process_image_id in process_image_ids:
+        try:
+            process_images.append(ProcessImageApptainer.from_db(id=process_image_id))
+        except Exception as e:
+            print(e)
     return [
         {
             "id": process_image.id,
             "name": process_image.name,
             "description": process_image.description,
             "created_at": process_image.created_at.isoformat(),
-            "base_docker_image": process_image.base_docker_image,
+            "bootstrap": process_image.bootstrap.value,
+            "base_image_from": process_image.base_image_from,
         }
         for process_image in process_images
     ]
@@ -32,7 +37,7 @@ def convert_all_process_execs_to_table() -> list[dict]:
     Convert all process executions to a table format.
     """
     # process_execs_dict: list[dict] = find_many_from_db(COLLECTION_PROCESS_EXECS, {})
-    process_exec_ids: list[str] = [process_exec_dict["id"] for process_exec_dict in find_many_from_db(COLLECTION_PROCESS_EXECS, {})]
+    process_exec_ids: list[str] = [process_exec_dict["id"] for process_exec_dict in find_many_from_db(COLLECTION_PROCESS_EXECS, {}, field_names=["id"])]
     
     process_execs: list[ProcessExecApptainer] = []
     for process_exec_id in process_exec_ids:

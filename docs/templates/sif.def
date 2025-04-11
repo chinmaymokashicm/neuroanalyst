@@ -1,4 +1,4 @@
-Bootstrap: localimage
+Bootstrap: $bootstrap
 From: $base_image
 Stage: build
 
