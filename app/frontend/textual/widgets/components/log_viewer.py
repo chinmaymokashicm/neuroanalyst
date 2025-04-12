@@ -44,6 +44,7 @@ class StreamingLogWidget(Widget):
                 while True:
                     message = await websocket.recv()
                     lines = message.splitlines()
+                    lines.reverse()
                     # Add space between lines
                     lines = [line + "\n" for line in lines]
                     # last_line_number += len(lines)
