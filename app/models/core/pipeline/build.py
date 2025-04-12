@@ -205,7 +205,7 @@ class Pipeline(BaseModel):
                 logger.warning(f"Skipping step {i}: {step.name} as it has already completed.")
                 continue
             
-            logger.info(f"Executing step {i}: {step.name}", "\n\n\n\n")
+            logger.info(f"Executing step {i}: {step.name}")
             try:
                 step.execute(
                     pipeline_id=self.id,
