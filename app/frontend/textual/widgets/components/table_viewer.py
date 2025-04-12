@@ -97,7 +97,10 @@ class TabularData(Widget):
         """
         Handle the cell selected event.
         """
-        pyperclip.copy(event.value)
+        try:
+            pyperclip.copy(event.value)
+        except Exception as e:
+            self.notify(f"Could not copy cell: {e}")
     
     def compose(self) -> ComposeResult:
         """

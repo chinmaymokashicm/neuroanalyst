@@ -109,7 +109,7 @@ class ProcessImageApptainer(BaseModel):
     description: str = Field(title="Description. A brief description of the process.", default="")
     created_at: datetime = Field(title="Created At. The date and time when the process was created.", default=datetime.now())
     bootstrap: ApptainerBuildBootstrapEnum = Field(title="Apptainer Build Bootstrap.")
-    base_image_from: str = Field(title="Base Image. The base image to use for the process. C")
+    base_image_from: str = Field(title="Base Image. The base image to use for the process.")
     working_directory: WorkingDirectory = Field(title="Working Directory. Information about the directory where the process will be executed.")
     test_command: Optional[str] = Field(title="Run test command on container build. If None, skips test.", default=None)
     container_volumes: Optional[ContainerVolumes | dict] = Field(title="Container Volumes. The volumes to mount to the container.", default_factory=ContainerVolumes)

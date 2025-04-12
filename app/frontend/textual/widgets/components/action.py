@@ -50,7 +50,10 @@ class ActionOnWidget(Widget):
             return []
         options = []
         if len(records) > 0:
-            pyperclip.copy(records[0])
+            try:
+                pyperclip.copy(records[0])
+            except Exception as e:
+                self.notify(f"Failed to copy: {e}")
             if "name" not in records[0]:
                 options: list[tuple[str, str]] = [(f"{record['id']}", record['id']) for record in records]
             else:
@@ -140,7 +143,10 @@ class ActionOnWidget(Widget):
             if response.status_code not in [200, 201]:
                 log(f"Failed to {self.action.value}: {response.text}")
                 self.notify(f"Failed to {self.action.value}: {response.text}", severity="error", title="Error")
-                pyperclip.copy(response.json())
+                try:
+                    pyperclip.copy(response.json())
+                except Exception as e:
+                    self.notify(f"Failed to copy: {e}")
                 return
             self.notify(f"{self.action.value} performed successfully.", severity="information", title="Success")
         except requests.RequestException as e:
