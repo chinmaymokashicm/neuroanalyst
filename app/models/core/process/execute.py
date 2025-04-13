@@ -94,7 +94,7 @@ class ProcessExecApptainer(BaseModel):
                 
         # Create the Apptainer command using the container name, volume tag pairs, and environment variables
         neuroanalyst_images_dir: str = get_neuroanalyst_root_dirs("images")
-        command: str = f"cd {neuroanalyst_images_dir} && apptainer run"
+        command: str = f"cd {neuroanalyst_images_dir} && apptainer run --contain"
         # command: str = f"cd {neuroanalyst_images_dir} && apptainer instance start"
         for volume_tag_pair in volume_tag_pairs:
             command += f" -B {volume_tag_pair[0]}:{volume_tag_pair[1]}"
