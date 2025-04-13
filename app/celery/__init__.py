@@ -33,7 +33,7 @@ def setup_loggers(logger, *args, **kwargs):
         "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
     )
     # Example: File logging
-    fh = logging.FileHandler(CELERY_LOG_FILEPATH)
+    fh = logging.FileHandler(CELERY_LOGS_FILEPATH)
     fh.setFormatter(formatter)
     logger.addHandler(fh)
 
