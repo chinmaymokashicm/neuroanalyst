@@ -62,7 +62,7 @@ def convert_all_pipeline_steps_to_table(pipeline_id: str) -> list[dict]:
     """
     Convert all pipeline steps to a table format.
     """
-    pipeline: Pipeline = Pipeline.from_db(COLLECTION_PIPELINES, pipeline_id)
+    pipeline: Pipeline = Pipeline.from_db(pipeline_id)
     
     return [
         {
@@ -109,7 +109,10 @@ def convert_all_workdirs_to_table() -> list[dict]:
     """
     skip_subdirs = ["venv*"]
     # set_neuroanalyst_root_dirs()
-    root_dir: PosixPath = Path(get_neuroanalyst_root_dirs("workdir"))
+    neuroanalyst_workdir_root = get_neuroanalyst_root_dirs("workdir")
+    if isinstance(neuroanalyst_workdir_root, dict):
+        raise ValueError("Expected a string but got a dictionary.")
+    root_dir: PosixPath = PosixPath(neuroanalyst_workdir_root)
     if root_dir is None:
         return []
     subdirs: list[dict] = []
@@ -129,11 +132,14 @@ def convert_all_datasets_to_table(get_derivatives: bool = False) -> list[dict]:
     """
     skip_subdirs = ["venv*"]
     # set_neuroanalyst_root_dirs()
-    neuroanalyst_datasets_root: PosixPath = Path(get_neuroanalyst_root_dirs("datasets"))
+    neuroanalyst_datasets_root: str | dict = get_neuroanalyst_root_dirs("datasets")
+    if isinstance(neuroanalyst_datasets_root, dict):
+        raise ValueError("Expected a string but got a dictionary.")
+    neuroanalyst_datasets_root_path = PosixPath(neuroanalyst_datasets_root)
     if neuroanalyst_datasets_root is None:
         return []
     
-    dataset_paths: list[PosixPath] = [subdir for subdir in neuroanalyst_datasets_root.iterdir() if subdir.is_dir() and not any(re.match(pattern, subdir.name) for pattern in skip_subdirs)]
+    dataset_paths: list[PosixPath] = [subdir for subdir in neuroanalyst_datasets_root_path.iterdir() if subdir.is_dir() and not any(re.match(pattern, subdir.name) for pattern in skip_subdirs)]
     rows: list[dict] = []
     for dataset_path in dataset_paths:
         dataset_info: SelectBIDSDatasetInfo = SelectBIDSDatasetInfo.from_path(dataset_path, get_derivatives=get_derivatives)
@@ -142,7 +148,7 @@ def convert_all_datasets_to_table(get_derivatives: bool = False) -> list[dict]:
             "path": str(dataset_info.bids_root),
             "n_files": len(dataset_info.bids_files),
             "description": dataset_info.dataset_description.Name,
-            "authors": ", ".join(dataset_info.dataset_description.Authors),
+            "authors": ", ".join(dataset_info.dataset_description.Authors or []),
             "get_derivatives": get_derivatives,
         }
         rows.append(row)

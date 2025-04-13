@@ -1,6 +1,7 @@
 import logging
 from enum import Enum
-from typing import Optional
+from typing import Optional, Callable, Any, Iterable
+from pathlib import Path, PosixPath
 
 from fastapi.responses import JSONResponse
 
@@ -12,7 +13,7 @@ class AppTypeEnum(Enum):
 
 
 # Wrapper to generate static JSON response to a query function.
-def get_static_json_response(query_func: callable, query_params: iter, success_status: int = 200, error_status: int = 500):
+def get_static_json_response(query_func: Callable, query_params: Iterable, success_status: int = 200, error_status: int = 500):
     """
     Wrapper to generate static response for query functions.
     """
@@ -44,3 +45,16 @@ async def log_reader(log_file: str, start_line: int = 0, n_lines: Optional[int] 
     if n_lines is None:
         return lines[start_line:]
     return lines[start_line: start_line + n_lines]
+
+def get_folder_tree(folderpath: str | PosixPath) -> dict[str, Any]:
+    """
+    Get folder tree structure.
+    """
+    folderpath = PosixPath(folderpath)
+    folder_tree = {}
+    for item in folderpath.iterdir():
+        if item.is_dir():
+            folder_tree[item.name] = get_folder_tree(item)
+        else:
+            folder_tree[item.name] = str(item)
+    return folder_tree

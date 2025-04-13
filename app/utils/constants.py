@@ -37,6 +37,10 @@ DEFAULT_CONTAINER_ENVS: list[str] = ["DERIVATIVES", "BIDS_FILTERS", "PIPELINE_NA
 # Redis broker (locally-running, on a HPC)
 REDIS_BROKER_URL = "redis://localhost:6379/0"
 
+# Celery worker
+CELERY_LOGS_FILENAME: str = "celery.log"
+CELERY_LOGS_FILEPATH: str = os.path.join(os.getenv(ENV_NEUROANALYST_LOGS), CELERY_LOGS_FILENAME)
+
 # Insight API
 OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY")
 OPENAI_CLIENT_BASE_URL: str = "https://apimd.mdanderson.edu/dig/llm/llama31-70b/v1/"

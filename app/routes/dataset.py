@@ -2,7 +2,7 @@
 Work with BIDS datasets
 """
 
-from .utils import get_static_json_response
+from .utils import get_static_json_response, get_folder_tree
 from ..utils.envs import set_neuroanalyst_root_dirs, get_neuroanalyst_root_dirs
 from ..utils.constants import *
 from ..utils.db import find_one_from_db, find_many_from_db, insert_to_db, update_db_record, search_by_keyword
@@ -33,12 +33,32 @@ async def get_dataset_info(name: str, derivatives: bool = False) -> JSONResponse
     Get dataset info
     """
     # set_neuroanalyst_root_dirs()
-    neuroanalyst_datasets_root: str = get_neuroanalyst_root_dirs("datasets")
-    dataset_root: PosixPath = Path(neuroanalyst_datasets_root) / name
+    neuroanalyst_datasets_root_value = get_neuroanalyst_root_dirs("datasets")
+    if isinstance(neuroanalyst_datasets_root_value, dict):
+        raise HTTPException(status_code=500, detail="Expected a string but got a dictionary.")
+    neuroanalyst_datasets_root: str = neuroanalyst_datasets_root_value
+    dataset_root: PosixPath = PosixPath(Path(neuroanalyst_datasets_root) / name)
     try:
         dataset_info: SelectBIDSDatasetInfo = SelectBIDSDatasetInfo.from_path(dataset_root, get_derivatives=derivatives)
         dataset_info_dict: dict = dataset_info.to_dict()
         dataset_info_dict["id"] = name
         return JSONResponse(status_code=201, content=dataset_info_dict)
+    except Exception as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    
+@router.get("/tree/{name}", tags=["dataset"])
+async def get_dataset_tree(name: str) -> JSONResponse:
+    """
+    Get dataset tree
+    """
+    # set_neuroanalyst_root_dirs()
+    neuroanalyst_datasets_root = get_neuroanalyst_root_dirs("datasets")
+    if isinstance(neuroanalyst_datasets_root, dict):
+        raise HTTPException(status_code=500, detail="Expected a string but got a dictionary.")
+    dataset_root: PosixPath = PosixPath(Path(neuroanalyst_datasets_root) / name)
+    try:
+        dataset_tree: dict = get_folder_tree(dataset_root)
+        dataset_tree["id"] = name
+        return JSONResponse(status_code=201, content=dataset_tree)
     except Exception as e:
         raise HTTPException(status_code=404, detail=str(e))
