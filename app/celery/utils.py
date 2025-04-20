@@ -20,7 +20,6 @@ def get_custom_logger(task_name: str) -> logging.Logger:
     log_dir_path: str = get_neuroanalyst_root_dirs("logs")
     if isinstance(log_dir_path, dict):
         raise ValueError("Expected a string but got a dictionary.")
-    log_dir_path: str = os.path.join(log_dir_path, task_name)
     os.makedirs(log_dir_path, exist_ok=True)
     log_file_name: str = generate_log_file_name(task_name)
     log_file_path: str = os.path.join(log_dir_path, log_file_name)
