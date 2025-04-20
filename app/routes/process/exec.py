@@ -49,7 +49,7 @@ async def create_process_exec(form_data: str = Form(...)) -> JSONResponse:
         process_id: str = process_exec.process_image.id
         process_exec_id: str = process_exec.id
         process_exec.to_db()
-        success_content: dict = {"message": f"Process exec {process_exec_id} for process {process_id} saved to DB."}
+        success_content: dict = {"message": f"Process exec {process_exec_id} for process {process_id} saved to DB.", "exec_id": process_exec_id}
         logger.info(success_content["message"])
         return JSONResponse(status_code=201, content=success_content)
     except Exception as e:
