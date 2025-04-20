@@ -5,8 +5,10 @@ from ...utils.form import FormSchema
 from ..to_table import convert_all_process_images_to_table
 from ...models.core.process import ProcessImageApptainer
 from ...celery.tasks.process import build_process_image
+from ...utils.envs import get_neuroanalyst_root_dirs
 
 import json, traceback, logging
+from pathlib import Path, PosixPath
 
 from fastapi import APIRouter, Request, Form, HTTPException
 from fastapi.responses import JSONResponse
@@ -79,6 +81,16 @@ async def create_process(form_data: str | dict = Form(...)) -> JSONResponse:
 @router.post("/delete/{image_id}", tags=["process", "image"])
 async def delete_process(image_id: str):
     try:
+        image_dir: str = get_neuroanalyst_root_dirs("images")
+        if isinstance(image_dir, dict):
+            raise HTTPException(status_code=500, detail="Expected a string but got a dictionary.")
+        image_dir = Path(image_dir)
+        image_path: Path = image_dir / f"{image_id}.sif"
+        if not image_path.exists():
+            raise HTTPException(status_code=404, detail=f"Image {image_id} not found.")
+        image_path.unlink()
+        logger.info(f"Deleted image: {image_path}")
+        # Delete from database
         delete_db_record(COLLECTION_PROCESS_IMAGES, {"id": image_id})
     except Exception as e:
         logger.exception(f"Error deleting process: {e}")
