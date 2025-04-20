@@ -20,12 +20,20 @@ echo "Virtual environment $venv_name activated."
 
 # Install required packages
 echo "Installing required packages..."
-# Run the install_requirements.sh script if it exists
-if [ -f "install_requirements.sh" ]; then
-    echo "Running install_requirements.sh..."
-    bash install_requirements.sh "$venv_name"
+# Check if requirements.txt exists
+if [ -f "requirements.txt" ]; then
+    echo "Installing packages from requirements.txt..."
+    pip install --upgrade pip
+    pip install -r requirements.txt
 else
-    echo "install_requirements.sh not found. Skipping."
+    echo "requirements.txt not found. Skipping package installation."
+    # Run the install_requirements.sh script if it exists
+    if [ -f "install_requirements.sh" ]; then
+        echo "Running install_requirements.sh..."
+        bash install_requirements.sh "$venv_name"
+    else
+        echo "install_requirements.sh not found. Skipping."
+    fi
 fi
 echo "Required packages installed."
 

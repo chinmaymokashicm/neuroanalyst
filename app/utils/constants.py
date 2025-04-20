@@ -42,6 +42,11 @@ CELERY_LOGS_FILENAME: str = "celery.log"
 CELERY_LOGS_FILEPATH: str = os.path.join(os.getenv(ENV_NEUROANALYST_LOGS), CELERY_LOGS_FILENAME)
 
 # Insight API
+MILVUS_VECTOR_DB_URI: str = "app/models/insight/vector_db/milvus.db"
+MILVUS_PIPELINE_REPORTS_COLLECTION: str = "pipeline_reports"
+MILVUS_PAPERS_COLLECTION: str = "papers"
+MILVUS_SPECS_COLLECTION: str = "specs"
+MILVUS_ANSWERS_COLLECTION: str = "answers"
 OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY")
 OPENAI_CLIENT_BASE_URL: str = "https://apimd.mdanderson.edu/dig/llm/llama31-70b/v1/"
 OPENAI_CLIENT_DEFAULT_HEADERS: dict = {"Ocp-Apim-Subscription-Key": OPENAI_API_KEY, "Content-Type": "application/json"}
