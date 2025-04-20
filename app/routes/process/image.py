@@ -90,6 +90,26 @@ async def delete_process(image_id: str):
             raise HTTPException(status_code=404, detail=f"Image {image_id} not found.")
         image_path.unlink()
         logger.info(f"Deleted image: {image_path}")
+        
+        docs_dir: str = get_neuroanalyst_root_dirs("docs")
+        if isinstance(docs_dir, dict):
+            raise HTTPException(status_code=500, detail="Expected a string but got a dictionary.")
+        docs_dir = Path(docs_dir)
+        if not docs_dir.exists():
+            raise HTTPException(status_code=404, detail=f"Docs directory {docs_dir} not found.")
+        # Delete the entire docs directory
+        docs_path: Path = docs_dir / image_id
+        if docs_path.exists():
+            for item in docs_path.iterdir():
+                if item.is_dir():
+                    item.rmdir()
+                else:
+                    item.unlink()
+            docs_path.rmdir()
+            logger.info(f"Deleted docs directory: {docs_path}")
+        else:
+            logger.info(f"Docs directory {docs_path} does not exist.")
+        
         # Delete from database
         delete_db_record(COLLECTION_PROCESS_IMAGES, {"id": image_id})
     except Exception as e:
