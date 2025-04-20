@@ -1,5 +1,4 @@
 from ..process.execute import ProcessExecApptainer
-from ..process.test import check_process_exec_status
 from ....utils.db import Connection, insert_to_db, update_db_record, find_one_from_db, check_connection
 from ....utils.constants import *
 from ....utils.generate import generate_id
