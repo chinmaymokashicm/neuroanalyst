@@ -28,7 +28,7 @@ async def get_all_datasets(get_derivatives: bool = False) -> JSONResponse:
     return get_static_json_response(convert_all_datasets_to_table, ([get_derivatives]))
 
 @router.get("/id/{name}", tags=["dataset"])
-async def get_dataset_info(name: str, derivatives: bool = False) -> JSONResponse:
+async def get_dataset_info(name: str, derivatives: bool = True) -> JSONResponse:
     """
     Get dataset info
     """

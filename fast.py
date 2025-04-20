@@ -1,5 +1,5 @@
 from app.routes.process import image, exec, workdir
-from app.routes import pipeline, dataset
+from app.routes import pipeline, dataset, file
 from app.routes.utils import log_reader
 from app.utils.constants import *
 from app.utils.envs import set_neuroanalyst_root_dirs
@@ -35,6 +35,7 @@ app.include_router(image.router, prefix="/process/image", tags=["process", "imag
 app.include_router(exec.router, prefix="/process/exec", tags=["process", "exec"])
 app.include_router(workdir.router, prefix="/process/workdir", tags=["workdir"])
 app.include_router(dataset.router, prefix="/dataset", tags=["dataset"])
+app.include_router(file.router, prefix="/file", tags=["file"])
 
 # app.mount("/static", StaticFiles(directory="logs/templates/", html=True), name="static")
 

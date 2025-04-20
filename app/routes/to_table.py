@@ -25,7 +25,8 @@ def convert_all_process_images_to_table() -> list[dict]:
             "id": process_image.id,
             "name": process_image.name,
             "description": process_image.description,
-            "created_at": process_image.created_at.isoformat(),
+            # "created_at": process_image.created_at.isoformat(),
+            "created_at": process_image.created_at.strftime("%Y-%m-%d %H:%M:%S"),
             "bootstrap": process_image.bootstrap.value,
             "base_image_from": process_image.base_image_from,
         }
@@ -149,7 +150,7 @@ def convert_all_datasets_to_table(get_derivatives: bool = False) -> list[dict]:
             "n_files": len(dataset_info.bids_files),
             "description": dataset_info.dataset_description.Name,
             "authors": ", ".join(dataset_info.dataset_description.Authors or []),
-            "get_derivatives": get_derivatives,
+            # "get_derivatives": get_derivatives
         }
         rows.append(row)
     return rows
