@@ -41,8 +41,12 @@ async def get_workdir_info(name: str) -> JSONResponse:
             # workdir_info[item.name] = str(item)
             pass
         else:
-            with open(item, "r") as f:
-                content: str = f.read()
-            workdir_info[item.name] = content
+            try:
+                with open(item, "r") as f:
+                    content: str = f.read()
+                workdir_info[item.name] = content
+            except Exception as e:
+                logger.error(f"Error reading file {item}: {e}")
+                workdir_info[item.name] = str(e)
     # workdir_info["id"] = name
     return JSONResponse(status_code=201, content=workdir_info)
