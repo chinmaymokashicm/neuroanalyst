@@ -52,28 +52,28 @@ async def root():
     logging.info("Hello World")
     return {"message": "Hello World"}
 
-@app.websocket("/ws/log/{file_name}")
-async def stream(websocket: WebSocket, file_name: str):
-    logger.info(f"Websocket connection established for {file_name}")
-    last_line_number: int = 0
-    await websocket.accept()
-    try:
-        while True:
-            await asyncio.sleep(1)
-            log_filepath: str = os.path.join(os.getenv(ENV_NEUROANALYST_LOGS), f"{file_name.split('.')[0]}.log")
-            if not os.path.exists(log_filepath):
-                logger.error(f"Log file {log_filepath} does not exist.")
-                await websocket.send_text("Log file does not exist.")
-                continue
-            logs = await log_reader(log_filepath, start_line=last_line_number)
-            last_line_number += len(logs)  # Update the last line number
-            await websocket.send_text("\n".join(logs))
-    except Exception as e:
-        logging.error(f"Websocket closed. Error: {e}")
-        await websocket.close()
-    finally:
-        logging.info("Websocket closed.")
-        await websocket.close()
+# @app.websocket("/ws/log/{file_name}")
+# async def stream(websocket: WebSocket, file_name: str):
+#     logger.info(f"Websocket connection established for {file_name}")
+#     last_line_number: int = 0
+#     await websocket.accept()
+#     try:
+#         while True:
+#             await asyncio.sleep(1)
+#             log_filepath: str = os.path.join(os.getenv(ENV_NEUROANALYST_LOGS), f"{file_name.split('.')[0]}.log")
+#             if not os.path.exists(log_filepath):
+#                 logger.error(f"Log file {log_filepath} does not exist.")
+#                 await websocket.send_text("Log file does not exist.")
+#                 continue
+#             logs = await log_reader(log_filepath, start_line=last_line_number)
+#             last_line_number += len(logs)  # Update the last line number
+#             await websocket.send_text("\n".join(logs))
+#     except Exception as e:
+#         logging.error(f"Websocket closed. Error: {e}")
+#         await websocket.close()
+#     finally:
+#         logging.info("Websocket closed.")
+#         await websocket.close()
 
 if __name__ == "__main__":
     uvicorn.run(app, log_level="trace", port=FASTAPI_PORT, reload=True)
