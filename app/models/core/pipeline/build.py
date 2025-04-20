@@ -97,6 +97,7 @@ class PipelineStep(BaseModel):
             except Exception as e:
                 self.status = PipelineStatus.FAILED
                 raise Exception(f"Failed to execute process execution {process_exec.id}. Error: {e}")
+        self.status = PipelineStatus.COMPLETED
         
         # Monitor for all processes to complete
         # while self.status == PipelineStatus.RUNNING:
@@ -197,10 +198,10 @@ class Pipeline(BaseModel):
             raise Exception(exception_message)
 
         for i, step in enumerate(self.steps, 1):
-            if step.status == PipelineStatus.FAILED and not retry_failed:
-                exception_message: str = f"Pipeline step {step.id} in {self.id} failed."
-                logger.exception(exception_message)
-                raise Exception(exception_message)
+            # if step.status == PipelineStatus.FAILED and not retry_failed:
+            #     exception_message: str = f"Pipeline step {step.id} in {self.id} failed."
+            #     logger.exception(exception_message)
+            #     raise Exception(exception_message)
             if step.status == PipelineStatus.COMPLETED:
                 logger.warning(f"Skipping step {i}: {step.name} as it has already completed.")
                 continue
