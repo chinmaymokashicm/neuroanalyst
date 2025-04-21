@@ -18,6 +18,7 @@ from imagelib.datasets.bids import SelectBIDSDatasetInfo
 
 from fastapi import APIRouter, Request, Form, HTTPException
 from fastapi.responses import JSONResponse
+from bids import BIDSLayout
 
 logger = logging.getLogger(__name__)
 
@@ -60,5 +61,24 @@ async def get_dataset_tree(name: str) -> JSONResponse:
         dataset_tree: dict = get_folder_tree(dataset_root)
         dataset_tree["id"] = name
         return JSONResponse(status_code=201, content=dataset_tree)
+    except Exception as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    
+@router.get("/entities/", tags=["dataset"])
+async def filter_dataset_by_entities(name: str, entities: dict) -> JSONResponse:
+    """
+    Filter dataset by entities
+    """
+    # set_neuroanalyst_root_dirs()
+    neuroanalyst_datasets_root = get_neuroanalyst_root_dirs("datasets")
+    if isinstance(neuroanalyst_datasets_root, dict):
+        raise HTTPException(status_code=500, detail="Expected a string but got a dictionary.")
+    dataset_root: PosixPath = PosixPath(Path(neuroanalyst_datasets_root) / name)
+    try:
+        layout: BIDSLayout = BIDSLayout(dataset_root, derivatives=True)
+        filtered_data: list = layout.get(entities)
+        # Serialize the filtered data
+        filtered_data = [str(item) for item in filtered_data]
+        return JSONResponse(status_code=201, content=filtered_data)
     except Exception as e:
         raise HTTPException(status_code=404, detail=str(e))
