@@ -65,10 +65,15 @@ async def get_dataset_tree(name: str) -> JSONResponse:
         raise HTTPException(status_code=404, detail=str(e))
     
 @router.get("/entities/", tags=["dataset"])
-async def filter_dataset_by_entities(name: str, entities: dict) -> JSONResponse:
+async def filter_dataset_by_entities(name: str, entities: str) -> JSONResponse:
     """
     Filter dataset by entities
     """
+    try:
+        entities: dict = json.loads(entities)
+    except json.JSONDecodeError as e:
+        logger.info(f"Error decoding JSON: {e}")
+        raise HTTPException(status_code=400, detail="Invalid entities format. Expected a JSON string.")
     # set_neuroanalyst_root_dirs()
     neuroanalyst_datasets_root = get_neuroanalyst_root_dirs("datasets")
     if isinstance(neuroanalyst_datasets_root, dict):
