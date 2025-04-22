@@ -36,11 +36,15 @@ def check_connection(connection: Optional[Connection] = None) -> dict:
     connection = Connection.from_defaults() if connection is None else connection
     return connection.client.server_info()
 
-def find_one_from_db(collection_name: str, filter: dict = {}, field_names: list[str] = [], connection: Optional[Connection] = None) -> dict:
+def find_one_from_db(collection_name: str, filter: Optional[dict] = None, field_names: Optional[list[str]] = None, connection: Optional[Connection] = None) -> dict:
     try:
         check_connection()
         connection: Connection = Connection.from_defaults() if connection is None else connection
         collection = connection.db[collection_name]
+        if filter is None:
+            filter = {}
+        if field_names is None:
+            field_names = []
         record = collection.find_one(filter, {"_id": 0})
         if record is None:
             raise DBRecordMissing(f"Record not found in collection {collection_name} with filter {filter}")
@@ -54,11 +58,15 @@ def find_one_from_db(collection_name: str, filter: dict = {}, field_names: list[
         logger.exception(exception_message)
         raise Exception(exception_message)
 
-def find_many_from_db(collection_name: str, filter: dict = {}, field_names: list[str] = [], connection: Optional[Connection] = None) -> list[dict]:
+def find_many_from_db(collection_name: str, filter: Optional[dict] = None, field_names: Optional[list[str]] = None, connection: Optional[Connection] = None) -> list[dict]:
     try:
         check_connection()
         connection: Connection = Connection.from_defaults() if connection is None else connection
         collection = connection.db[collection_name]
+        if filter is None:
+            filter = {}
+        if field_names is None:
+            field_names = []
         records = collection.find(filter, {"_id": 0})
         if records is None:
             raise DBRecordMissing(f"No records found in collection {collection_name} with filter {filter}")
