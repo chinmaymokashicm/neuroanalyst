@@ -81,7 +81,7 @@ async def filter_dataset_by_entities(name: str, entities: str) -> JSONResponse:
     dataset_root: PosixPath = PosixPath(Path(neuroanalyst_datasets_root) / name)
     try:
         layout: BIDSLayout = BIDSLayout(dataset_root, derivatives=True)
-        filtered_data: list = layout.get(entities)
+        filtered_data: list = layout.get(**entities)
         # Serialize the filtered data
         filtered_data = [str(item) for item in filtered_data]
         return JSONResponse(status_code=201, content=filtered_data)
