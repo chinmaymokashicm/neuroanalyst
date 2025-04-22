@@ -152,7 +152,7 @@ class Pipeline(BaseModel):
             else:
                 step_wise_process_exec_ids.append([process_exec_id])
         
-        pipeline_steps: list[PipelineStep] = [PipelineStep.from_user(name=str(i), process_exec_ids=step_wise_process_exec_ids[i]) for i in range(len(step_wise_process_exec_ids))]
+        pipeline_steps: list[PipelineStep] = [PipelineStep.from_user(name=f"Step {i}", process_exec_ids=step_wise_process_exec_ids[i]) for i in range(len(step_wise_process_exec_ids), start=1)]
         return cls(
             name=name,
             author=author,
