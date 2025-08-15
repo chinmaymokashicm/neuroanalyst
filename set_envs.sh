@@ -6,16 +6,6 @@ mkdir -p $HOME/neuroanalyst/apptainer/docs
 mkdir -p $HOME/neuroanalyst/working_dirs
 mkdir -p $HOME/neuroanalyst/reports
 
-# Define the environment variables
-# ENV_VARS="
-# export NEUROANALYST_HOME=\$HOME/neuroanalyst
-# export NEUROANALYST_IMAGES=\$NEUROANALYST_HOME/apptainer/images
-# export NEUROANALYST_DOCS=\$NEUROANALYST_HOME/apptainer/docs
-# export NEUROANALYST_WORKDIR=\$NEUROANALYST_HOME/working_dirs
-# export NEUROANALYST_REPORTS=\$NEUROANALYST_HOME/reports
-# export NEUROANALYST_LOGS=\$NEUROANALYST_HOME/logs
-# "
-
 # Function to check and add environment variable
 add_env_var() {
     local var_name=$1

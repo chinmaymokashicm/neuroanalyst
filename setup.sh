@@ -3,7 +3,7 @@
 # ==============================================================================
 # Set up the Python environment
 python_version=3.12
-venv_name=venv
+venv_name=.venv
 
 # Create the virtual environment using venv
 if [ -d "$venv_name" ]; then
