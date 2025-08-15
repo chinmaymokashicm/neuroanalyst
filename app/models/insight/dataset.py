@@ -1,39 +1,28 @@
-from .connection import LLMConnection
-from ...utils.db import Connection
+"""
+Work with generating insights wrt BIDS datasets
+"""
+from .connection import LLMConnection, VectorDBConnection
+from ...utils.db import find_one_from_db, find_many_from_db
 from ...utils.constants import *
 
 from pathlib import Path, PosixPath
+import logging
 
 from pydantic import BaseModel, Field, DirectoryPath
-from pydantic_ai import Agent
-import pandas as pd
+import numpy as np
 
-class BIDSPipeline(BaseModel):
-    name: str = Field(description="Name of the pipeline")
-    description: str = Field(description="Description of the dataset if available in dataset")
-    outputs: list[str] = Field(description="Types of outputs generated.")
-    subjects: list[str] = Field(description="Subjects present in this pipeline.")
-    summary: str = Field(description="Detailed summary of the pipeline after analyzing all the available data.")
+# vector_db_connection: VectorDBConnection = VectorDBConnection.from_defaults()
 
-class BIDSDataset(BaseModel):
-    root_dir: DirectoryPath = Field(description="Root of the BIDS dataset.")
-    participants: pd.DataFrame = Field(description="Information loaded from participants.tsv or similar. Demographic and behavioral information of the subjects.")
-    datatypes: list[str] = Field(description="Different datatypes available in the dataset.")
-    pipelines: list[BIDSPipeline] = Field(description="Available pipelines.")
-    subjects: list[str] = Field(description="Subjects present in this pipeline.")
-    summary: str = Field(description="Detailed summary of the dataset after analyzing the information in the raw dataset and then its derivatives.")
-    
-with open(Path(SYSTEM_PROMPTS_PATH) / "data.txt", "r") as f:
-    data_system_prompt: str = f.read()
-    
-connection: LLMConnection = LLMConnection.from_defaults()
-
-data_agent: Agent = Agent(model=connection.model, system_prompt=data_system_prompt)
-
-@data_agent.tool_plain
-def get_datasets() -> list[str]:
+def get_metrics_embeddings(pipeline_id: str) -> np.ndarray:
     """
-    Fetch all datasets that were used for analysis.
+    Get the embeddings for the metrics
     """
-    connection: Connection = Connection.from_defaults()
+    records: list[dict] = find_many_from_db(COLLECTION_SUMMARIES, {"pipeline_id": pipeline_id})
+    metrics: list[dict] = [record["metrics"] for record in records]
+    # Create chunks by splitting the records by attaching each metric dict to the rest of the record, returning a list of dicts of length equal to the number of metrics
+    metrics_embeddings: list[dict] = []
+    for record in records:
+        for metric in record["metrics"]:
+            metrics_embeddings.append({**record, **metric})
     
+    return metrics_embeddings
