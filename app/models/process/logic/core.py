@@ -19,39 +19,39 @@ DEFAULT_ARGS_DICT: list[dict] = [
         "type": "str | PosixPath",
         "description": "Path to the input file"
     },
-    {
-        "name": "layout",
-        "type": "BIDSLayout",
-        "description": "BIDSLayout object of the dataset"
-    },
-    {
-        "name": "pipeline_name",
-        "type": "str",
-        "description": "Name of the pipeline"
-    },
-    {
-        "name": "overwrite",
-        "type": "bool",
-        "description": "Whether to overwrite existing files"
-    },
-    {
-        "name": "process_id",
-        "type": "str",
-        "is_optional": True,
-        "description": "ID of the NeuProcess"
-    },
-    {
-        "name": "process_exec_id",
-        "type": "str",
-        "is_optional": True,
-        "description": "ID of the NeuProcessExec"
-    },
-    {
-        "name": "pipeline_id",
-        "type": "str",
-        "is_optional": True,
-        "description": "ID of the NeuPipeline"
-    }
+    # {
+    #     "name": "layout",
+    #     "type": "BIDSLayout",
+    #     "description": "BIDSLayout object of the dataset"
+    # },
+    # {
+    #     "name": "pipeline_name",
+    #     "type": "str",
+    #     "description": "Name of the pipeline"
+    # },
+    # {
+    #     "name": "overwrite",
+    #     "type": "bool",
+    #     "description": "Whether to overwrite existing files"
+    # },
+    # {
+    #     "name": "process_id",
+    #     "type": "str",
+    #     "is_optional": True,
+    #     "description": "ID of the NeuProcess"
+    # },
+    # {
+    #     "name": "process_exec_id",
+    #     "type": "str",
+    #     "is_optional": True,
+    #     "description": "ID of the NeuProcessExec"
+    # },
+    # {
+    #     "name": "pipeline_id",
+    #     "type": "str",
+    #     "is_optional": True,
+    #     "description": "ID of the NeuPipeline"
+    # }
 ]
 
 # ==================================================

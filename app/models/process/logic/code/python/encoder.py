@@ -42,39 +42,51 @@ class PythonEncoder(BaseEncoder):
             return result
         
         try:
-            # Generate function signature
-            signature = self._generate_signature(logic.arguments)
+            # Use provided import statements
+            imports = logic.import_statements or []
             
             # Generate function body
             body = self._format_code_body(logic.code)
             
-            # Use provided import statements
-            imports = logic.import_statements or []
-            
-            # Generate docstring if enabled
+            # Initialize variables
             docstring = ""
-            if self.config.include_docstring:
-                docstring = self._generate_docstring(logic)
             
-            # Combine all parts
-            function_parts = []
-            
-            # Add imports first
-            if imports:
-                function_parts.extend(imports)
-                function_parts.append("")  # Empty line after imports
-            
-            # Add function definition
-            function_parts.append(f"def {logic.about.name}{signature}:")
-            
-            # Add docstring if present
-            if docstring:
-                function_parts.append(docstring)
-            
-            # Add function body
-            function_parts.append(body)
-            
-            generated_code = "\n".join(function_parts)
+            # Check if the code already contains a complete function definition
+            if logic.code.strip().startswith('def '):
+                # Code is already a complete function - use it directly
+                generated_code = "\n".join([
+                    *imports,
+                    "",  # Empty line after imports if there are any
+                    body
+                ]) if imports else body
+            else:
+                # Generate function definition
+                # Generate function signature
+                signature = self._generate_signature(logic.arguments)
+                
+                # Generate docstring if enabled
+                if self.config.include_docstring:
+                    docstring = self._generate_docstring(logic)
+                
+                # Combine all parts
+                function_parts = []
+                
+                # Add imports first
+                if imports:
+                    function_parts.extend(imports)
+                    function_parts.append("")  # Empty line after imports
+                
+                # Add function definition
+                function_parts.append(f"def {logic.about.name}{signature}:")
+                
+                # Add docstring if present
+                if docstring:
+                    function_parts.append(docstring)
+                
+                # Add function body
+                function_parts.append(body)
+                
+                generated_code = "\n".join(function_parts)
             
             # Validate generated code if enabled
             validation_errors = []
@@ -146,7 +158,13 @@ class PythonEncoder(BaseEncoder):
         if not code.strip():
             return "    pass"
         
-        # Split into lines and ensure proper indentation
+        # Check if the code already contains a function definition
+        stripped_code = code.strip()
+        if stripped_code.startswith('def '):
+            # Code contains a complete function definition - use it as is
+            return code
+        
+        # Split into lines and ensure proper indentation for function body
         lines = code.split('\n')
         formatted_lines = []
         
