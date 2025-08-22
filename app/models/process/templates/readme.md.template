@@ -1,0 +1,175 @@
+# {pipeline_name}
+
+**Author:** {author}  
+**Version:** {version}  
+**Description:** {description}  
+**Process ID:** {process_id}  
+**Created:** {created_date}
+
+## Overview
+
+This is a NeuroAnalyst process generated from NeuProcessLogic. It provides a complete BIDS-compliant neuroimaging processing workflow with parallel execution capabilities.
+
+### Processing Function: `{function_name}`
+
+{function_description}
+
+## Usage
+
+### Basic Usage
+
+```bash
+# Process specific subjects with required parameters
+python main.py /path/to/bids/dataset 
+    --pipeline-name {pipeline_name} 
+    --pipeline-id PL001 
+    --process-exec-id PE001 
+    --bids-filters '{{"subject": ["01", "02"]}}'
+```
+
+### Advanced Usage
+
+```bash
+# Process specific subjects and tasks with parallel processing
+python main.py /path/to/bids/dataset \
+    --pipeline-name {pipeline_name} \
+    --pipeline-id PL001 \
+    --process-exec-id PE002 \
+    --bids-filters '{{"subject": ["01", "02"], "task": ["rest"]}}' \
+    --max-workers 4
+
+# Disable parallel processing
+python main.py /path/to/bids/dataset \
+    --pipeline-name {pipeline_name} \
+    --pipeline-id PL001 \
+    --process-exec-id PE003 \
+    --bids-filters '{{"task": ["rest"]}}' \
+    --no-parallel
+
+# Overwrite existing outputs with validation
+python main.py /path/to/bids/dataset \
+    --pipeline-name {pipeline_name} \
+    --pipeline-id PL001 \
+    --process-exec-id PE004 \
+    --bids-filters '{{"subject": ["01"]}}' \
+    --pipeline-id PL001 \
+    --process-exec-id PE004 \
+    --overwrite \
+    --validate-bids
+```
+
+## Arguments
+
+### Required Arguments
+- `bids_root`: Path to BIDS root directory
+- `--pipeline-name`: Name of the processing pipeline (used for output path generation)
+- `--bids-filters`: BIDS filters as JSON string for file selection
+- `--pipeline-id`: Unique pipeline identifier for provenance tracking
+- `--process-exec-id`: Unique process execution identifier for provenance tracking
+
+### Optional Arguments
+- `--derivatives-dir`: Custom derivatives directory name
+- `--overwrite`: Overwrite existing files
+- `--no-parallel`: Disable parallel processing
+- `--max-workers`: Maximum number of parallel workers
+- `--validate-bids`: Validate BIDS compliance
+
+## Function Arguments
+
+The processing function `{function_name}` accepts the following arguments:
+
+{function_arguments}
+
+## Provenance Tracking
+
+The pipeline implements comprehensive provenance tracking through:
+
+- **Pipeline ID**: Unique identifier for the processing pipeline configuration
+- **Process Execution ID**: Unique identifier for each execution run
+- **Metadata Generation**: Detailed JSON sidecar files for each output
+- **Processing Summary**: Complete execution logs and statistics
+
+## Environment
+
+### Base Container Image
+{base_container_image}
+
+### Python Packages
+{python_packages_list}
+
+## Container Usage
+
+### Building the Container
+
+```bash
+# Build Singularity container
+singularity build {process_id}.sif {process_id}.def
+```
+
+### Running the Container
+
+```bash
+# Run with Singularity
+singularity run \
+    --bind /path/to/bids:/bids:ro \
+    --bind /path/to/output:/output \
+    {process_id}.sif \
+    /bids \
+    --pipeline-name {pipeline_name} \
+    --pipeline-id PL001 \
+    --process-exec-id PE001 \
+    --bids-filters '{{"subject": ["01"]}}' \
+    --pipeline-id PL001 \
+    --process-exec-id PE001
+```
+
+## Output Structure
+
+The pipeline creates outputs in the BIDS derivatives format:
+
+```
+derivatives/
+└── {pipeline_name}/
+    ├── processing_results.csv      # Detailed processing results
+    ├── processing_summary.json     # Summary statistics with provenance
+    └── sub-<subject>/
+        └── [ses-<session>/]
+            └── <datatype>/
+                ├── <output_files>  # Processing outputs
+                └── <sidecar_files> # Metadata JSON files
+```
+
+## Metadata
+
+Each output file is accompanied by a JSON sidecar file containing:
+- Processing parameters and configuration
+- Pipeline ID and Process Execution ID for provenance
+- Execution timing and performance metrics
+- BIDS entity information
+- Function-specific metadata
+
+## Error Handling
+
+The pipeline includes comprehensive error handling:
+- Individual file failures don't stop the entire pipeline
+- Detailed error messages are logged for debugging
+- Processing results include success/failure status for each file
+- Summary statistics show overall pipeline performance
+
+## Development
+
+This pipeline was generated from NeuroAnalyst NeuProcessLogic. To modify the processing logic:
+
+1. Update the source NeuProcessLogic function
+2. Regenerate the pipeline using NeuroAnalyst NeuProcessDir
+3. Rebuild the container if needed
+
+## Support
+
+For issues related to:
+- **NeuroAnalyst Framework**: [GitHub Issues](https://github.com/chinmaymokashicm/neuroanalyst/issues)
+- **This Pipeline**: Contact {author}
+
+---
+
+*Generated by NeuroAnalyst NeuProcessDir v1.0*

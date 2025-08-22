@@ -1,0 +1,84 @@
+Bootstrap: docker
+From: {base_container_image}
+
+%labels
+    Author {author}
+    Version {version}
+    Description {description}
+    Pipeline {pipeline_name}
+    ProcessID {process_id}
+    Created {created_timestamp}
+
+%help
+    {description}
+    
+    This container provides a complete environment for running the {pipeline_name} 
+    neuroimaging pipeline using NeuroAnalyst.
+    
+    Usage:
+        singularity run <container> <bids_root> --pipeline-name <name> --pipeline-id <id> --process-exec-id <exec_id> --bids-filters <filters> [options]
+    
+    Required Arguments:
+        <bids_root>           Path to BIDS root directory
+        --pipeline-name       Name of the processing pipeline
+        --pipeline-id         Unique pipeline identifier
+        --process-exec-id     Unique process execution identifier
+        --bids-filters        BIDS filters as JSON string
+    
+    For detailed usage information, see the README.md file.
+
+%files
+    main.py /opt/neuprocess/main.py
+    neuprocess_config.json /opt/neuprocess/config.json
+
+%post
+    # Set timezone
+    export DEBIAN_FRONTEND=noninteractive
+    ln -fs /usr/share/zoneinfo/UTC /etc/localtime
+    
+    # Run installation script
+    cd /opt/neuprocess
+    bash install_requirements.sh
+    
+    # Create symbolic links for easy access
+    ln -s /opt/neuprocess/main.py /usr/local/bin/neuprocess
+    chmod +x /usr/local/bin/neuprocess
+    
+    # Set up working directory
+    mkdir -p /work /input /output
+    
+    echo "Container build complete!"
+
+%environment
+    export PYTHONPATH="/opt/neuprocess:$PYTHONPATH"
+    export PATH="/opt/neuprocess:$PATH"
+    
+    # NeuroAnalyst environment variables
+    export NEUPROCESS_PIPELINE="{pipeline_name}"
+    export NEUPROCESS_VERSION="{version}"
+    export NEUPROCESS_AUTHOR="{author}"
+
+%runscript
+    # Default run script
+    if [ $# -eq 0 ]; then
+        echo "Usage: singularity run <container> <bids_root> --pipeline-name <name> --bids-filters <filters> --pipeline-id <id> --process-exec-id <exec_id> [options]"
+        echo "For help: singularity run <container> --help"
+        exit 1
+    fi
+    
+    # Change to working directory
+    cd /work
+    
+    # Execute the main script
+    exec python3 /opt/neuprocess/main.py "$@"
+
+%test
+    # Test that Python packages are installed correctly
+    python3 -c "import pybids; import nibabel; import numpy; import pandas"
+    echo "Package imports successful"
+    
+    # Test that main script is accessible
+    python3 /opt/neuprocess/main.py --help
+    echo "Main script accessible"
+    
+    echo "Container tests passed!"
