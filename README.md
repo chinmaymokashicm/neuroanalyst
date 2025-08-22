@@ -1,289 +1,366 @@
-# What is NeuroAnalyst?
+# NeuroAnalyst
 
-NeuroAnalyst is a comprehensive framework designed to standardize and automate neuroimaging data processing and analysis workflows. It addresses the significant challenges researchers face with complex neuroimaging pipelines by providing a structured, containerized environment for executing reproducible analyses. By combining robust processing capabilities with advanced metadata management and AI-powered knowledge discovery, NeuroAnalyst bridges the gap between raw neuroimaging data and meaningful scientific insights.
+NeuroAnalyst is a comprehensive framework for standardizing and automating neuroimaging data processing workflows. It transforms Python functions into complete, BIDS-compliant processing pipelines with containerized execution and rich metadata management.
 
 ## Key Features
-- Package your niche data analysis into containerized workflows
-- Generate structured and enhanced metadata, documentation, and reports
-- Enable higher-order large-scale data analysis
-- Accelerate knowledge discovery by fusing above-mentioned features with scientific literature using Large Language Models (LLMs)
 
-## Why NeuroAnalyst?
+- **Function-to-Pipeline**: Convert Python functions into complete processing workflows
+- **BIDS Compliance**: Automatic dataset validation and metadata generation  
+- **Containerization**: Generate Singularity containers with all dependencies
+- **Generic ID Framework**: Unified identification system across all components
+- **Template-Based Generation**: Standardized script and container creation
+- **HPC Integration**: Optimized for high-performance computing environments
 
-The neuroimaging research community faces several critical challenges that NeuroAnalyst aims to address:
+## Quick Start
 
-### Reproducibility Crisis
-Neuroimaging analyses often suffer from poor reproducibility due to inconsistent computing environments, undocumented processing steps, and variable parameter settings. This leads to wasted research effort and undermines scientific integrity.
+### Environment Setup
 
-### Technical Barriers
-Setting up and running neuroimaging pipelines requires substantial computational expertise, creating significant barriers for researchers who want to focus on scientific questions rather than technical implementation.
+First, set up the NeuroAnalyst environment:
 
-### Data Integration Challenges
-Modern neuroscience requires integration of multiple data types and processing streams, which is challenging without standardized interfaces and metadata schemas.
+```bash
+# Clone the repository
+git clone https://github.com/chinmaymokashicm/neuroanalyst.git
+cd neuroanalyst
 
-### Knowledge Discovery Bottlenecks
-The vast and rapidly growing neuroimaging literature makes it difficult for researchers to contextualize their findings within the broader scientific landscape.
-
-NeuroAnalyst tackles these challenges through a structured approach to workflow management combined with rich metadata extraction and LLM-enhanced information retrieval capabilities.
-
-## NeuroAnalyst Architecture
-
-```
-+-------------------------------+
-|        NeuroAnalyst TUI       |
-|   +----------+ +----------+   |
-|   |  Submit  | |  Results |   |
-|   |  Panel   | |   Panel  |   |
-|   +----------+ +----------+   |
-+-------------------------------+
-            |       ^
-            V       |
-+-------------------------------+
-|        Core API Layer         |
-| +-------------------------+   |
-| |  Process Management     |   |
-| +-------------------------+   |
-| |  Pipeline Orchestration |   |
-| +-------------------------+   |
-| |  Execution Engine       |   |
-| +-------------------------+   |
-+-------------------------------+
-            |       ^
-            V       |
-+-------------------------------+
-|    Container Infrastructure   |
-|   +----------------------+    |
-|   |  Apptainer Images   |    |
-|   +----------------------+    |
-|   |  HPC Environment    |    |
-|   +----------------------+    |
-+-------------------------------+
-            |       ^
-            V       |
-+-------------------------------+
-|     Insight & Knowledge       |
-|        Discovery Layer        |
-|   +----------------------+    |
-|   |  Metadata Extraction |    |
-|   +----------------------+    |
-|   |  LLM Integration     |    |
-|   +----------------------+    |
-+-------------------------------+
+# Run setup script (creates virtual environment, installs dependencies, sets environment variables)
+source setup.sh
 ```
 
-The architecture consists of four key layers:
-
-1. **User Interface Layer**: A Textual-based Terminal User Interface (TUI) with dual panels for job submission and results visualization.
-
-2. **Core API Layer**: Manages processes, process executions, and pipelines, forming the backbone of the workflow management system.
-
-3. **Container Infrastructure**: Leverages Apptainer containers on HPC environments to ensure consistent, reproducible execution environments.
-
-4. **Insight & Knowledge Discovery Layer**: Extracts structured metadata from processing results and integrates with LLMs to contextualize findings within scientific literature.
-
-## How NeuroAnalyst Works
-
-NeuroAnalyst follows a modular design philosophy built around three core concepts:
-
-### 1. Processes
-
-A Process is a fundamental unit of computation in NeuroAnalyst. Each Process:
-- Has a well-defined input/output specification
-- Is packaged as a self-contained Apptainer container
-- Contains all necessary dependencies and environment settings
-- Includes metadata about its purpose, parameters, and expected outputs
-
-### 2. Process Executions
-
-A Process Execution (ProcessExec) is an instance of a Process with specific parameter values. Each ProcessExec:
-- References a specific Process
-- Contains concrete parameter values
-- Has a unique identifier for tracking and reproducibility
-- Records execution metadata (timing, resource usage, etc.)
-
-### 3. Pipelines
-
-A Pipeline is a directed acyclic graph (DAG) of ProcessExecs. Each Pipeline:
-- Defines the execution order and dependencies between ProcessExecs
-- Manages data flow between Process Executions
-- Tracks overall progress and status
-- Collects comprehensive metadata across the entire workflow
-
-This hierarchical structure allows for both flexibility and reproducibility:
+This creates the following directory structure:
 
 ```
-+----------------+
-|    Process     |
-|  Definition    |
-+----------------+
-        |
-        | instantiate with parameters
-        V
-+----------------+
-|  Process Exec  |
-|   Instance     |
-+----------------+
-        |
-        | combine into
-        V
-+----------------+
-|    Pipeline    |
-|                |
-+----------------+
+~/neuroanalyst/
+├── apptainer/images/      # Singularity images (base, processes, pipelines)
+├── working_dirs/          # Temporary processing directories
+├── reports/              # Generated reports and outputs
+├── logs/                 # Framework log files
+└── datasets/             # BIDS datasets and derivatives
 ```
 
-### Pipeline Creation Workflow
+### Basic Usage
 
-```
-+-------------------+    +-------------------+    +-------------------+
-| 1. Build Process  | -> | 2. Build Process  | -> | 3. Build Pipeline |
-|    - Define inputs|    |    Execution      |    |    - Chain        |
-|    - Define params|    |    - Set params   |    |      ProcessExecs |
-|    - Define outputs    |    - Set inputs   |    |    - Define deps  |
-+-------------------+    +-------------------+    +-------------------+
-                                                           |
-                                                           V
-                                               +-------------------+
-                                               | 4. Execute        |
-                                               |    Pipeline       |
-                                               |    - Submit to HPC|
-                                               |    - Monitor      |
-                                               |    - Collect data |
-                                               +-------------------+
-```
+```python
+from app.utils import PATHS, CONFIG, ensure_directories
+from app.models.process.wrapper import neuprocess, NeuProcessDecoratorConfig
+from app.models.process.dir.core import NeuProcessDir, NeuProcessDirConfig
+from app.models.process.logic.core import NeuProcessLogic
+from app.models.about import About
 
-1. **Build Process**: Define a containerized unit of computation with specified inputs/outputs
-2. **Build ProcessExec**: Create an instance of a Process with concrete parameter values
-3. **Build Pipeline**: Chain multiple ProcessExecs together, defining dependencies
-4. **Execute Pipeline**: Run the entire workflow on the HPC environment
+# Ensure all directories are set up
+ensure_directories()
 
-## Current Demo Implementation
+# 1. Define your analysis function
+def brain_volume_analysis(input_file, output_dir):
+    """Calculate brain volume from structural MRI."""
+    # Your analysis logic here
+    return results
 
-The current demo showcases a lightweight implementation of NeuroAnalyst using the Python Textual library for the Terminal User Interface (TUI). The interface is divided into two main panels:
+# 2. Create NeuProcessLogic with metadata
+logic = NeuProcessLogic(
+    about=About(
+        name="brain_volume_analysis",
+        description="Brain volume calculation pipeline",
+        author="Your Name"
+    ),
+    arguments=[],  # Define arguments as needed
+    code="# Your function code here"
+)
 
-### Left Panel: Job Submission
+# 3. Generate complete directory structure
+config = NeuProcessDirConfig()
+neuprocess_dir = NeuProcessDir(logic=logic, config=config)
 
-This panel currently supports:
-- Creating new Process definitions via JSON input
-- Instantiating ProcessExecs from Processes with parameter specifications
-- Building Pipelines by chaining ProcessExecs
-- Submitting user queries to the Insight API for LLM-powered knowledge discovery
-
-**Note:** The current implementation requires direct JSON submission for all operations, as the form-based input functionality is still under development. A far superior version with intuitive forms and visual workflow builders is being actively developed.
-
-### Right Panel: Results Visualization
-
-This panel displays:
-- Lists of all defined Processes, ProcessExecs, and Pipelines
-- Detailed view of selected items, including parameter values and status
-- Results metrics and analysis outputs
-- Responses from the LLM-powered Insight API
-
-### Technical Implementation Details
-
-The demo leverages:
-- **Textual TUI Framework**: For creating the terminal-based user interface with panels, input fields, and rich text display
-- **Apptainer Containers**: For packaging neuroimaging tools and their dependencies in a portable format suitable for HPC environments
-- **HPC Integration**: For executing computationally intensive neuroimaging analyses on high-performance computing resources
-- **Core API**: The backend component managing the creation and execution of Processes, ProcessExecs, and Pipelines
-
-Example JSON for creating a Process:
-
-```json
-{
-    "name": "random_process",
-    "tag": "randomprocess",
-    "author": "Chinmay Mokashi",
-    "description": "Random process image",
-    "base_docker_image": "python:3.12",
-    "working_directory": {
-        "process_workdir_name": "random_process",
-        "main_file": "main.py",
-        "requirements_file": "install_requirements.sh",
-        "main_exec_prefix": "python",
-        "requirements_exec_prefix": "bash"
-    },
-    "container_volumes": {
-        "data_dir": "/bids_dir/"
-    },
-    "environment_variables": [
-        "DERIVATIVES",
-        "BIDS_FILTERS",
-        "PIPELINE_NAME",
-        "OVERWRITE",
-        "PROCESS_ID",
-        "PROCESS_EXEC_ID",
-        "PIPELINE_ID"
-    ]
-}
+# 4. Create scripts and containers using the configured paths
+output_path = neuprocess_dir.create_directory(PATHS.get_process_workdir("my_process"))
 ```
 
-Example JSON for creating a ProcessExec:
+This generates:
+- `main.py`: BIDS-compliant processing script
+- `neuprocess.def`: Singularity container definition  
+- `execute.sh`: HPC job submission script
+- Complete documentation and metadata
 
-```json
-{
-    "process_exec_config": {
-        "output_volumes": {
-            "data_dir": null
-        },
-        "environment_var_values": {
-            "DERIVATIVES": null,
-            "BIDS_FILTERS": null,
-            "PIPELINE_NAME": null,
-            "OVERWRITE": null,
-            "PROCESS_ID": null,
-            "PROCESS_EXEC_ID": null,
-            "PIPELINE_ID": null
-        }
-    },
-    "process_image_id": "PR-00000"
-}
+For detailed information about paths and configuration, see [Constants Guide](docs/CONSTANTS_GUIDE.md).
+
+## Component Architecture & Relationships
+
+The following UML diagrams illustrate the detailed relationships between all the core components we've developed in NeuroAnalyst:
+
+### Core Component Class Diagram
+
+```mermaid
+classDiagram
+    class UserDefinedFunction {
+        +String name
+        +String description
+        +Function logic
+        +execute()
+    }
+    
+    class NeuProcessLogic {
+        +About metadata
+        +List~Argument~ arguments
+        +ProgrammingLanguage language
+        +String code
+        +validate()
+        +encode()
+    }
+    
+    class NeuProcessDir {
+        +NeuProcessLogic logic
+        +NeuProcessDirConfig config
+        +String process_id
+        +Path output_directory
+        +create_directory()
+        +generate_scripts()
+    }
+    
+    class NeuProcess {
+        +String image_id
+        +String container_path
+        +Dict environment
+        +List~String~ dependencies
+        +execute()
+        +build_container()
+    }
+    
+    class NeuProcessExec {
+        +String exec_id
+        +NeuProcess process
+        +Dict parameters
+        +ExecutionStatus status
+        +Dict results
+        +run()
+        +monitor()
+    }
+    
+    class NeuPipeline {
+        +String pipeline_id
+        +List~NeuProcessExec~ executions
+        +Dict dependencies
+        +PipelineStatus status
+        +execute_pipeline()
+        +manage_dag()
+    }
+    
+    %% Core workflow relationships
+    UserDefinedFunction --> NeuProcessLogic : "decorated by"
+    NeuProcessLogic --> NeuProcessDir : "generates"
+    NeuProcessDir --> NeuProcess : "creates"
+    NeuProcess --> NeuProcessExec : "instantiated as"
+    NeuProcessExec --> NeuPipeline : "orchestrated by"
+    
+    %% Supporting infrastructure
+    class IDGenerationFramework {
+        +Dict~String~ ID_CONFIGS
+        +generate_id(type)
+        +validate_id(id)
+        +check_availability(id)
+    }
+    
+    class TemplateSystem {
+        +Dict templates
+        +render_template(name, vars)
+        +validate_template()
+    }
+    
+    class ConfigurationManager {
+        +validate_bids()
+        +manage_parameters()
+        +setup_environment()
+    }
+    
+    %% Infrastructure relationships
+    IDGenerationFramework --> NeuProcessDir : "provides IDs"
+    IDGenerationFramework --> NeuProcess : "provides IDs"
+    IDGenerationFramework --> NeuProcessExec : "provides IDs"
+    IDGenerationFramework --> NeuPipeline : "provides IDs"
+    
+    TemplateSystem --> NeuProcessDir : "used by"
+    ConfigurationManager --> NeuProcessLogic : "validates"
+    ConfigurationManager --> NeuProcessDir : "configures"
 ```
 
-## What Makes NeuroAnalyst Different?
+### Component Flow Sequence Diagram
 
-NeuroAnalyst distinguishes itself from existing neuroimaging tools through several key innovations:
+```mermaid
+sequenceDiagram
+    participant User
+    participant UDF as User-Defined Function
+    participant NPL as NeuProcessLogic
+    participant NPD as NeuProcessDir
+    participant NP as NeuProcess
+    participant NPE as NeuProcessExec
+    participant Pipeline as NeuPipeline
+    participant IDGen as ID Framework
+    participant Templates as Template System
+    
+    User->>UDF: Write analysis function
+    UDF->>NPL: Apply @neuprocess decorator
+    NPL->>NPL: Add metadata & validation
+    
+    NPL->>NPD: Create directory structure
+    NPD->>IDGen: Request process_id
+    IDGen-->>NPD: Return PR-XXXXXX
+    
+    NPD->>Templates: Request script templates
+    Templates-->>NPD: Python/Docker/Singularity templates
+    NPD->>NPD: Generate scripts with parameters
+    
+    NPD->>NP: Build Singularity container
+    NP->>NP: Package dependencies
+    
+    Pipeline->>NPE: Create execution instance
+    NPE->>IDGen: Request exec_id
+    IDGen-->>NPE: Return PE-XXXXXX
+    
+    Pipeline->>NPE: Execute with parameters
+    NPE->>NP: Run containerized process
+    NP-->>NPE: Return results
+    NPE-->>Pipeline: Execution complete
+```
 
-### 1. Container-First Philosophy
+### System Architecture Overview
 
-Unlike traditional neuroimaging pipelines that often rely on complex local installations, NeuroAnalyst embraces a container-first approach where each process is packaged as a self-contained Apptainer image. This ensures:
-- Complete reproducibility across computing environments
-- Simplified deployment on HPC systems
-- Version control of both code and dependencies
-- Easy sharing of customized analysis methods
+```mermaid
+graph TB
+    subgraph "User Layer"
+        UDF[User-Defined Function<br/>Raw Python Logic]
+    end
+    
+    subgraph "Processing Layer"
+        NPL[NeuProcessLogic<br/>Decorated Function]
+        NPD[NeuProcessDir<br/>Script Generator]
+        NP[NeuProcess<br/>Singularity Container]
+        NPE[NeuProcessExec<br/>Runtime Instance]
+        Pipeline[NeuPipeline<br/>Orchestrator]
+    end
+    
+    subgraph "Infrastructure Layer"
+        IDGen[ID Generation Framework<br/>• process_id: PR-XXXXXX<br/>• pipeline_id: PL-XXXXXX<br/>• exec_id: PE-XXXXXX]
+        Templates[Template System<br/>• Python scripts<br/>• Dockerfiles<br/>• Singularity definitions]
+        Config[Configuration Management<br/>• BIDS validation<br/>• Parameter handling<br/>• Environment setup]
+    end
+    
+    subgraph "Execution Parameters"
+        Params[Container Parameters<br/>--pipeline-name<br/>--pipeline-id<br/>--process-exec-id<br/>--bids-filters<br/>--bids-root]
+    end
+    
+    %% Main flow
+    UDF --> NPL
+    NPL --> NPD
+    NPD --> NP
+    NP --> NPE
+    NPE --> Pipeline
+    
+    %% Infrastructure connections
+    IDGen -.-> NPD
+    IDGen -.-> NP
+    IDGen -.-> NPE
+    IDGen -.-> Pipeline
+    
+    Templates -.-> NPD
+    Config -.-> NPL
+    Config -.-> NPD
+    
+    Params -.-> NP
+    Params -.-> NPE
+    
+    classDef userLayer fill:#e1f5fe
+    classDef processingLayer fill:#f3e5f5
+    classDef infraLayer fill:#e8f5e8
+    classDef paramLayer fill:#fff3e0
+    
+    class UDF userLayer
+    class NPL,NPD,NP,NPE,Pipeline processingLayer
+    class IDGen,Templates,Config infraLayer
+    class Params paramLayer
+```
 
-### 2. Structured Process Hierarchy
+### Component Relationships
 
-The Process → ProcessExec → Pipeline model provides a flexible yet structured approach to workflow management:
-- Processes can be reused across multiple pipelines
-- Parameter variations are explicitly tracked
-- Dependencies are formally defined and validated
-- Execution history is preserved for reproducibility
+#### **Core Processing Flow**
+1. **UserDefinedFunction** → **NeuProcessLogic**: Raw functions are decorated with metadata and validation
+2. **NeuProcessLogic** → **NeuProcessDir**: Decorated functions generate complete directory structures
+3. **NeuProcessDir** → **NeuProcess**: Directory structures become Singularity containers
+4. **NeuProcess** → **NeuProcessExec**: Containers are instantiated for specific executions
+5. **NeuProcessExec** → **NeuPipeline**: Executions are orchestrated in workflows
 
-### 3. Integrated Knowledge Discovery
+#### **Infrastructure Support**
+- **ID Generation Framework**: Provides unique identifiers for all components using configurable prefixes
+- **Template System**: Standardizes script and container generation with proper parameter handling
+- **Configuration Management**: Ensures BIDS compliance and validates execution parameters
 
-The integration of LLMs for interpreting and contextualizing results sets NeuroAnalyst apart:
-- Automatic generation of context-aware documentation
-- Literature-informed interpretation of findings
-- Identification of relevant prior work
-- Natural language querying of results and methods
+#### **Key Features**
+- **Generic ID System**: Supports `process_id`, `pipeline_id`, `process_exec_id`, `neuprocess_id`, `neuprocess_exec_id`
+- **Corrected Parameters**: All containers use `--pipeline-name`, `--pipeline-id`, `--process-exec-id`, `--bids-filters`, `--bids-root`
+- **Template-Based Generation**: Consistent script and container creation across all components
+- **Metadata Preservation**: Rich metadata flows through the entire processing chain
 
-## Future Development
+## Architecture
 
-While the current demo showcases the core functionality of NeuroAnalyst, several enhancements are planned:
+NeuroAnalyst follows a structured component hierarchy that transforms user functions into executable pipelines:
 
-1. **Enhanced UI**: A more sophisticated user interface with form-based input, interactive pipeline visualization, and integrated results exploration.
+**Core Processing Flow:**
+1. **User-Defined Function** → **NeuProcessLogic** (decorator with metadata)
+2. **NeuProcessLogic** → **NeuProcessDir** (script and container generation)  
+3. **NeuProcessDir** → **NeuProcess** (Singularity containers)
+4. **NeuProcess** → **NeuProcessExec** (runtime instances)
+5. **NeuProcessExec** → **NeuPipeline** (workflow orchestration)
 
-2. **Expanded Container Library**: More pre-packaged neuroimaging processes covering commonly used analyses across multiple modalities.
+**Supporting Infrastructure:**
+- **ID Generation Framework**: Unified system for unique component identification
+- **Template System**: Standardized script and container generation
+- **Configuration Management**: BIDS validation and parameter handling
 
-3. **Advanced Pipeline Features**: Support for conditional execution, parameter sweeps, and dynamic workflow adaptation based on intermediate results.
+## Current Implementation Status
 
-4. **Improved Knowledge Discovery**: Enhanced LLM integration with specialized neuroimaging knowledge and reasoning capabilities.
+### Core Framework ✅ **Implemented**
+- **NeuProcessLogic**: Function decoration with metadata and validation
+- **NeuProcessDir**: Complete script and container generation system  
+- **Generic ID Framework**: Supports `process_id`, `pipeline_id`, `process_exec_id`, `neuprocess_id`, `neuprocess_exec_id`
+- **Template System**: Python scripts, Dockerfiles, and Singularity definitions
+- **BIDS Integration**: PyBIDS-based validation and path construction
 
-5. **Collaborative Features**: Sharing and reusing processes and pipelines across research teams with proper versioning and attribution.
+### Container Parameters ✅ **Corrected**
+All generated containers use the standardized parameter set:
+- `--pipeline-name`: Processing pipeline identifier
+- `--pipeline-id`: Unique pipeline ID  
+- `--process-exec-id`: Execution instance ID
+- `--bids-filters`: Dataset filtering criteria
+- `--bids-root`: BIDS dataset root directory
 
-## Conclusion
+### In Development 🚧
+- **NeuProcess**: Singularity container management and execution
+- **NeuPipeline**: Multi-process workflow orchestration and DAG management
+- **NeuProcessExec**: Runtime execution instances with parameter tracking
 
-NeuroAnalyst represents a significant step forward in neuroimaging workflow management by combining containerized processing, structured metadata, and AI-powered knowledge discovery. The current TUI demo provides a glimpse of the system's capabilities, with substantial improvements planned for future versions.
+### Future Development 📋
+- **Enhanced TUI**: Form-based input and interactive pipeline visualization
+- **Insight API**: LLM-powered knowledge discovery and result contextualization
+- **HPC Integration**: Advanced job scheduling and resource management
+- **Collaborative Features**: Pipeline sharing and version control
 
-By addressing the technical challenges of neuroimaging research while enhancing knowledge discovery, NeuroAnalyst aims to accelerate scientific progress and improve reproducibility in the field. We welcome feedback from the scientific community as we continue to develop and refine this tool to meet the needs of neuroimaging researchers.
+## Examples
+
+Working examples are available in:
+- `app/models/process/wrapper/examples/` - Decorator usage examples
+- `app/models/process/wrapper/tests/` - Integration tests
+- `app/models/process/dir/tests/` - Directory generation tests
+
+## What Makes NeuroAnalyst Different
+
+### 1. Function-Centric Development
+Transform Python functions directly into complete processing pipelines without complex container definitions or deployment scripts.
+
+### 2. BIDS-First Architecture  
+Built-in BIDS compliance ensures datasets are structured correctly and metadata is preserved throughout processing.
+
+### 3. Generic Infrastructure
+Unified ID generation, template system, and configuration management support any neuroimaging workflow.
+
+### 4. Container-Ready Output
+Automatic generation of Singularity containers optimized for HPC environments with proper security controls.
+
+### 5. Metadata Preservation
+Rich metadata flows through the entire processing chain, enabling reproducibility and provenance tracking.
