@@ -5,6 +5,8 @@ mkdir -p $HOME/neuroanalyst/apptainer/images
 mkdir -p $HOME/neuroanalyst/apptainer/docs
 mkdir -p $HOME/neuroanalyst/working_dirs
 mkdir -p $HOME/neuroanalyst/reports
+mkdir -p $HOME/neuroanalyst/logs
+mkdir -p $HOME/neuroanalyst/datasets
 
 # Function to check and add environment variable
 add_env_var() {
