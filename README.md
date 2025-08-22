@@ -82,6 +82,71 @@ This generates:
 
 For detailed information about paths and configuration, see [Constants Guide](docs/CONSTANTS_GUIDE.md).
 
+## System Architecture Overview
+
+NeuroAnalyst operates across three distinct node types, each optimized for specific roles in the neuroimaging ecosystem:
+
+```mermaid
+flowchart LR
+    subgraph HPC ["🖥️ Compute Node (HPC)"]
+        direction TB
+        Jobs[Batch Jobs]
+        Containers[Singularity Containers]
+        Parallel[Parallel Processing]
+        
+        Jobs --> Containers --> Parallel
+    end
+    
+    subgraph App ["🌐 Application Node"]
+        direction TB
+        WebUI[Web Interface]
+        RestAPI[REST APIs]
+        JobMgmt[Job Management]
+        
+        WebUI --> RestAPI --> JobMgmt
+    end
+    
+    subgraph DB ["🗄️ Database Node"]
+        direction TB
+        MongoDB[(MongoDB<br/>:27017)]
+        ELK[(ELK Stack<br/>:9200, :5601)]
+        Files[(File Storage)]
+        
+        MongoDB -.-> |metadata| APIs
+        ELK -.-> |logs| APIs  
+        Files -.-> |results| APIs
+        APIs[Database APIs]
+    end
+    
+    %% Communications
+    App -->|"Submit Jobs"| HPC
+    HPC -->|"Results & Logs"| DB
+    App <-->|"Query Data"| DB
+    
+    %% Security isolation
+    classDef isolated stroke:#e53e3e,stroke-width:3px,stroke-dasharray: 8 4
+    class DB,App isolated
+    
+    %% Node styling with contrasting title colors
+    classDef hpcNode fill:#dbeafe,stroke:#1e40af,stroke-width:2px,color:#1e3a8a
+    classDef dbNode fill:#dcfce7,stroke:#15803d,stroke-width:2px,color:#14532d  
+    classDef appNode fill:#fef3c7,stroke:#b45309,stroke-width:2px,color:#92400e
+    
+    class HPC hpcNode
+    class DB dbNode
+    class App appNode
+```
+
+### Node Characteristics
+
+| Node | Purpose | Constraints | Data Access |
+|------|---------|-------------|-------------|
+| **Compute (HPC)** | Execute processing pipelines | • No persistent services<br/>• Batch mode only<br/>• Container isolation | • Read-only datasets<br/>• Write to derivatives only |
+| **Database** | Store metadata, logs, results | • Separate from App node<br/>• Multiple DB systems<br/>• Port-based access | • MongoDB: Pipeline metadata<br/>• ELK: Execution logs<br/>• Files: Processing results |
+| **Application** | User interface & job management | • Separate from DB node<br/>• Web-based access<br/>• Authentication required | • Submit jobs to HPC<br/>• Query data from DB<br/>• Track job progress |
+
+**Security Model**: Database and Application nodes must run on separate servers. HPC nodes cannot host persistent services.
+
 ## Component Architecture & Relationships
 
 The following UML diagrams illustrate the detailed relationships between all the core components we've developed in NeuroAnalyst:
@@ -363,4 +428,4 @@ Unified ID generation, template system, and configuration management support any
 Automatic generation of Singularity containers optimized for HPC environments with proper security controls.
 
 ### 5. Metadata Preservation
-Rich metadata flows through the entire processing chain, enabling reproducibility and provenance tracking.
+Rich metadata flows through the entire processing chain, enabling reproducibility and provenance tracking.![](![](![](![]())))
