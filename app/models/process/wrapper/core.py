@@ -135,39 +135,59 @@ def neuprocess_decorator(config: NeuProcessDecoratorConfig):
                 bids_entities = _extract_bids_entities(input_path, config)
                 
                 # Execute the wrapped function
-                raw_result = func(input_filepath, *args, **kwargs)
-                
+                try:
+                    raw_result = func(input_filepath, *args, **kwargs)
+                    error_in_func = False
+                except Exception as func_error:
+                    raw_result = None
+                    error_in_func = True
+                    func_error_message = str(func_error)
+
                 # Validate the result format using NeuProcessOutput
-                if isinstance(raw_result, dict):
-                    validated_result = NeuProcessOutput(**raw_result)
-                elif isinstance(raw_result, tuple) and len(raw_result) >= 3:
-                    # Handle legacy tuple format
-                    output_data, metrics, output_entities = raw_result[:3]
-                    forced_outputs = raw_result[3] if len(raw_result) > 3 else None
-                    
+                if not error_in_func:
+                    if isinstance(raw_result, dict):
+                        validated_result = NeuProcessOutput(**raw_result)
+                    elif isinstance(raw_result, tuple) and len(raw_result) >= 3:
+                        # Handle legacy tuple format
+                        output_data, metrics, output_entities = raw_result[:3]
+                        forced_outputs = raw_result[3] if len(raw_result) > 3 else None
+
+                        validated_result = NeuProcessOutput(
+                            data=output_data,
+                            description=f"Processed by {config.pipeline_name}",
+                            metadata={
+                                "metrics": metrics,
+                                "output_bids_entities": output_entities,
+                                "forced_output_filepaths": forced_outputs
+                            }
+                        )
+                    else:
+                        error_in_func = True
+                        func_error_message = (
+                            f"Function must return a dictionary with keys: "
+                            f"'data', 'description', 'metadata' "
+                            f"or a tuple (output_data, metrics, output_entities[, forced_outputs]). "
+                            f"Got: {type(raw_result)}"
+                        )
+                if error_in_func:
+                    # Prepare error metadata
                     validated_result = NeuProcessOutput(
-                        data=output_data,
-                        description=f"Processed by {config.pipeline_name}",
+                        data=None,
+                        description=f"Error in {config.pipeline_name}",
                         metadata={
-                            "metrics": metrics,
-                            "output_bids_entities": output_entities,
-                            "forced_output_filepaths": forced_outputs
+                            "error": func_error_message,
+                            "function_name": func.__name__,
+                            "function_module": func.__module__,
+                            "input_filepath": str(input_filepath)
                         }
-                    )
-                else:
-                    raise ValueError(
-                        f"Function must return a dictionary with keys: "
-                        f"'data', 'description', 'metadata' "
-                        f"or a tuple (output_data, metrics, output_entities[, forced_outputs]). "
-                        f"Got: {type(raw_result)}"
                     )
                 
                 # Construct output filepath using PyBIDS
+                output_entities = validated_result.metadata.get('output_bids_entities', {})
                 output_filepath = _construct_output_path(
                     input_path=input_path,
                     config=config,
-                    suffix=validated_result.metadata.get('output_bids_entities', {}).get('suffix'),
-                    extension=validated_result.metadata.get('output_bids_entities', {}).get('extension')
+                    output_entities=output_entities
                 )
                 
                 # Create output directory if it doesn't exist
@@ -287,42 +307,97 @@ def _extract_bids_entities(input_path: Path, config: NeuProcessDecoratorConfig) 
 def _construct_output_path(
     input_path: Path, 
     config: NeuProcessDecoratorConfig, 
+    output_entities: Optional[Dict[str, str]] = None,
     suffix: Optional[str] = None,
     extension: Optional[str] = None
 ) -> Path:
-    """Construct BIDS-compliant output path using PyBIDS."""
+    """
+    Construct BIDS-compliant output path using PyBIDS with entity override support.
+    
+    This function creates output paths by:
+    1. Extracting entities from the input file path
+    2. Allowing functions to override/add entities via output_entities
+    3. Using intelligent defaults when entities are not specified
+    4. Constructing BIDS-compliant paths using PyBIDS or manual fallback
+    
+    Args:
+        input_path: Input file path
+        config: Decorator configuration
+        output_entities: Dict of entities from function output to override/add to input entities.
+                        Common entities include:
+                        - 'desc': Description suffix (e.g., 'preprocessed', 'smoothed')
+                        - 'space': Coordinate space (e.g., 'MNI152', 'T1w')
+                        - 'datatype': BIDS datatype directory (e.g., 'anat', 'func', 'dwi')
+                        - 'extension': File extension (e.g., '.nii.gz', '.json')
+                        - Any other BIDS entities (e.g., 'res', 'atlas', 'fwhm')
+        suffix: Legacy parameter - will be overridden by output_entities['desc'] if present
+        extension: Legacy parameter - will be overridden by output_entities['extension'] if present
+        
+    Returns:
+        Path: BIDS-compliant output file path
+        
+    Examples:
+        # Function specifies custom entities
+        output_entities = {
+            'desc': 'preprocessed',
+            'space': 'MNI152', 
+            'extension': '.nii.gz'
+        }
+        # Result: derivatives/pipeline/sub-01/func/sub-01_space-MNI152_desc-preprocessed_bold.nii.gz
+        
+        # Function changes datatype
+        output_entities = {
+            'desc': 'transformed',
+            'datatype': 'anat'
+        }
+        # Result: derivatives/pipeline/sub-01/anat/sub-01_desc-transformed_T1w.nii.gz
+        
+        # No entities specified - uses pipeline_name as desc
+        output_entities = {}
+        # Result: derivatives/pipeline/sub-01/func/sub-01_desc-pipeline_name_bold.nii.gz
+    """
     
     # Extract entities from input path
     entities = _extract_bids_entities(input_path, config)
     
-    # Set default suffix if not provided
-    if suffix is None:
-        suffix = config.pipeline_name
+    # Override/add entities from function output
+    if output_entities:
+        entities.update(output_entities)
     
-    # Set default extension based on input if not provided
-    if extension is None:
-        extension = input_path.suffix
+    # Handle legacy suffix parameter - only use if 'desc' not in output_entities
+    if 'desc' not in entities:
+        if suffix is not None:
+            entities['desc'] = suffix
+        else:
+            # Only use pipeline_name as default if no desc entity provided
+            entities['desc'] = config.pipeline_name
+    
+    # Handle legacy extension parameter - only use if 'extension' not in output_entities
+    if 'extension' not in entities:
+        if extension is not None:
+            entities['extension'] = extension
+        else:
+            entities['extension'] = input_path.suffix
     
     # Use PyBIDS build_path
     if config.bids_layout:
         try:
-            # Determine derivatives directory
-            derivatives_name = config.derivatives_dir or config.pipeline_name
+            # Determine derivatives directory - use pipeline_name if derivatives_dir is default
+            if config.derivatives_dir == CONFIG.DERIVATIVES_DIR:
+                derivatives_name = config.pipeline_name
+            else:
+                derivatives_name = config.derivatives_dir or config.pipeline_name
             
-            # Build path using PyBIDS
-            # Add processing suffix to entities
-            entities['desc'] = suffix
-            
-            # Remove datatype from entities if present (will be inferred)
-            entities.pop('datatype', None)
+            # Add pipeline to entities for path construction
+            entities['pipeline'] = derivatives_name
             
             # Build the path
             built_path = config.bids_layout.build_path(
                 entities,
                 path_patterns=[
+                    'derivatives/{pipeline}/sub-{subject}/[ses-{session}/]{datatype}/sub-{subject}[_ses-{session}][_task-{task}][_acq-{acquisition}][_run-{run}][_space-{space}]_desc-{desc}{extension}',
                     'derivatives/{pipeline}/sub-{subject}/[ses-{session}/]func/sub-{subject}[_ses-{session}][_task-{task}][_acq-{acquisition}][_run-{run}][_space-{space}]_desc-{desc}_bold{extension}',
-                    'derivatives/{pipeline}/sub-{subject}/[ses-{session}/]anat/sub-{subject}[_ses-{session}][_acq-{acquisition}][_run-{run}][_space-{space}]_desc-{desc}_T1w{extension}',
-                    'derivatives/{pipeline}/sub-{subject}/[ses-{session}/]{datatype}/sub-{subject}[_ses-{session}][_task-{task}][_acq-{acquisition}][_run-{run}][_space-{space}]_desc-{desc}{extension}'
+                    'derivatives/{pipeline}/sub-{subject}/[ses-{session}/]anat/sub-{subject}[_ses-{session}][_acq-{acquisition}][_run-{run}][_space-{space}]_desc-{desc}_T1w{extension}'
                 ],
                 validate=False,
                 absolute_paths=True
@@ -335,7 +410,11 @@ def _construct_output_path(
             pass  # Fall back to manual construction
     
     # Manual path construction as fallback
-    derivatives_name = config.derivatives_dir or config.pipeline_name
+    # Determine derivatives directory - use pipeline_name if derivatives_dir is default
+    if config.derivatives_dir == CONFIG.DERIVATIVES_DIR:
+        derivatives_name = config.pipeline_name
+    else:
+        derivatives_name = config.derivatives_dir or config.pipeline_name
     derivatives_path = Path(config.bids_root) / "derivatives" / derivatives_name
     
     # Build subject directory path
@@ -347,14 +426,19 @@ def _construct_output_path(
     if session_id:
         subject_dir = subject_dir / f"ses-{session_id}"
     
-    # Determine datatype (try to infer from input path or use 'func' as default)
-    datatype = 'func'  # Default
-    if 'anat' in str(input_path):
-        datatype = 'anat'
-    elif 'dwi' in str(input_path):
-        datatype = 'dwi'
-    elif 'fmap' in str(input_path):
-        datatype = 'fmap'
+    # Determine datatype (use extracted entities first, then infer from input path)
+    datatype = entities.get('datatype', 'func')  # Use extracted datatype if available
+    if datatype == 'func' and 'datatype' not in entities:  # Only infer if not already determined
+        if 'anat' in str(input_path):
+            datatype = 'anat'
+        elif 'dwi' in str(input_path):
+            datatype = 'dwi'
+        elif 'fmap' in str(input_path):
+            datatype = 'fmap'
+        elif any(x in str(input_path).lower() for x in ['t1w', 't2w', 'flair', 'pd']):
+            datatype = 'anat'
+        elif any(x in str(input_path).lower() for x in ['bold', 'task-']):
+            datatype = 'func'
     
     output_dir = subject_dir / datatype
     
@@ -377,7 +461,9 @@ def _construct_output_path(
             filename_parts.append(f"{entity}-{value}")
     
     # Add description suffix
-    filename_parts.append(f"desc-{suffix}")
+    desc_value = entities.get('desc')
+    if desc_value:
+        filename_parts.append(f"desc-{desc_value}")
     
     # Add modality suffix (infer from input or use generic)
     if datatype == 'func':
@@ -390,7 +476,8 @@ def _construct_output_path(
         else:
             filename_parts.append('T1w')  # Default
     
-    filename = "_".join(filename_parts) + extension
+    extension_value = entities.get('extension', input_path.suffix)
+    filename = "_".join(filename_parts) + extension_value
     
     return output_dir / filename
 
