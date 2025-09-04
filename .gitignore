@@ -5,6 +5,8 @@ PR-*/
 working_dirs/
 database/
 __pycache__/
+test_*
+debug_*
 *.pyc
 *.log
 

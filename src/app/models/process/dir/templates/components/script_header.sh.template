@@ -1,0 +1,18 @@
+#
+# ${script_type} script for running ${process_id} ${execution_mode_desc}
+#
+# This script runs the NeuProcess ${execution_mode_desc} 
+# ${scheduler_desc}
+#
+# Usage: ${usage_command}
+#
+# Environment Variables:
+${environment_variables_comment}
+#
+# Bind Paths:
+${bind_paths_comment}
+#
+# Author: ${author}
+# Created: ${creation_date}
+
+set -e  # Exit immediately if a command exits with a non-zero status

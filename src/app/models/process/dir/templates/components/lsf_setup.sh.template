@@ -1,0 +1,2 @@
+# Change to the directory where the job was submitted from
+cd $LSB_SUBCWD

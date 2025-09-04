@@ -1,0 +1,29 @@
+# Process custom bind paths for venv and set up symbolic links
+for BIND in "${CUSTOM_BIND_PATHS[@]}"; do
+    IFS='=' read -r INTERNAL_PATH EXTERNAL_PATH <<< "$BIND"
+    if [[ -z "$EXTERNAL_PATH" ]]; then
+        echo "Warning: Invalid bind path format: $BIND, should be INTERNAL_PATH=EXTERNAL_PATH"
+        continue
+    fi
+    
+    # Create directory structure if needed
+    mkdir -p "$PROCESS_DIR/$(dirname "$INTERNAL_PATH")"
+    
+    # Create symbolic link
+    ln -sf "$EXTERNAL_PATH" "$PROCESS_DIR/$INTERNAL_PATH"
+    echo "Created symbolic link: $EXTERNAL_PATH -> $PROCESS_DIR/$INTERNAL_PATH"
+done
+
+# Set up symbolic links for predefined bind paths (only if not already handled by custom bind paths)
+if [[ ! -z "${symbolic_links_setup}" && "${symbolic_links_setup}" != "# No symbolic links to set up" ]]; then
+    echo "Setting up predefined symbolic links..."
+    # Store paths that were already bound through custom options
+    declare -A ALREADY_BOUND
+    for BIND in "${CUSTOM_BIND_PATHS[@]}"; do
+        IFS='=' read -r INTERNAL_PATH _ <<< "$BIND"
+        ALREADY_BOUND["$INTERNAL_PATH"]=1
+    done
+    
+    # Now execute the symbolic_links_setup with a wrapper to check if path was already bound
+    ${symbolic_links_setup}
+fi

@@ -1,0 +1,115 @@
+#!/bin/bash
+#
+# Submit script for ${process_id} (${process_name})
+#
+# This script submits the job to the ${scheduler} scheduler.
+#
+# Usage: ./submit.sh [--mode container|venv] [--scheduler-arg ARG]... [-- script args...]
+#
+# Examples:
+#   ./submit.sh --mode container --scheduler-arg="--time=01:00:00" --scheduler-arg="--mem=8G" -- --env DATA_DIR=/path/to/data
+#   ./submit.sh --mode venv -- --bind data=/external/data arg1 arg2
+#
+# Created by: ${author}
+# Date: ${creation_date}
+#
+
+# Get the directory where this script is located
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+
+# Default to container mode if both are available
+MODE="container"
+SCHEDULER_ARGS=()
+SCRIPT_ARGS=()
+DOUBLE_DASH_SEEN=false
+
+# Parse arguments to extract mode and separate scheduler args from script args
+while [[ $# -gt 0 ]]; do
+    if [[ "$DOUBLE_DASH_SEEN" == "true" ]]; then
+        # After -- all args go to the script
+        SCRIPT_ARGS+=("$1")
+        shift
+    else
+        case "$1" in
+            --mode)
+                if [[ -z "$2" || "$2" == --* ]]; then
+                    echo "Error: --mode requires an argument (container or venv)"
+                    exit 1
+                fi
+                MODE="$2"
+                shift 2
+                ;;
+            --mode=*)
+                MODE="${1#--mode=}"
+                shift
+                ;;
+            --scheduler-arg)
+                if [[ -z "$2" || "$2" == --* ]]; then
+                    echo "Error: --scheduler-arg requires an argument"
+                    exit 1
+                fi
+                SCHEDULER_ARGS+=("$2")
+                shift 2
+                ;;
+            --scheduler-arg=*)
+                SCHEDULER_ARGS+=("${1#--scheduler-arg=}")
+                shift
+                ;;
+            --)
+                DOUBLE_DASH_SEEN=true
+                shift
+                ;;
+            *)
+                # Default: if no double dash seen yet, assume it's a scheduler arg
+                SCRIPT_ARGS+=("$1")
+                shift
+                ;;
+        esac
+    fi
+done
+
+echo "Submitting ${process_id} to ${scheduler} scheduler using $MODE mode..."
+
+# Debug information
+if [ ${#SCHEDULER_ARGS[@]} -gt 0 ]; then
+    echo "Scheduler arguments: ${SCHEDULER_ARGS[*]}"
+fi
+if [ ${#SCRIPT_ARGS[@]} -gt 0 ]; then
+    echo "Script arguments: ${SCRIPT_ARGS[*]}"
+fi
+
+# Build the submission command with scheduler arguments
+SUBMIT_CMD="${submit_command}"
+for arg in "${SCHEDULER_ARGS[@]}"; do
+    SUBMIT_CMD="$SUBMIT_CMD $arg"
+done
+
+# Check mode and submit appropriate script
+if [[ "$MODE" == "container" ]]; then
+    if [ -f "$SCRIPT_DIR/run_container.sh" ]; then
+        echo "Submitting container job..."
+        $SUBMIT_CMD "$SCRIPT_DIR/run_container.sh" "${SCRIPT_ARGS[@]}"
+        exit $?
+    else
+        echo "Error: Container script not found!"
+        if [ -f "$SCRIPT_DIR/run_venv.sh" ]; then
+            echo "Try using --mode venv instead."
+        fi
+        exit 1
+    fi
+elif [[ "$MODE" == "venv" ]]; then
+    if [ -f "$SCRIPT_DIR/run_venv.sh" ]; then
+        echo "Submitting venv job..."
+        $SUBMIT_CMD "$SCRIPT_DIR/run_venv.sh" "${SCRIPT_ARGS[@]}"
+        exit $?
+    else
+        echo "Error: Venv script not found!"
+        if [ -f "$SCRIPT_DIR/run_container.sh" ]; then
+            echo "Try using --mode container instead."
+        fi
+        exit 1
+    fi
+else
+    echo "Error: Invalid mode '$MODE'. Use 'container' or 'venv'."
+    exit 1
+fi

@@ -1,0 +1,6 @@
+# Core requirements for ${process_id} - ${process_name}
+neuroanalyst>=0.1.0
+numpy>=1.21.0
+pandas>=1.3.0
+pybids>=0.16.0
+${python_requirements}

@@ -1,0 +1,20 @@
+# Get the directory where this script is located
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
+# Set the process directory (${dir_levels} levels up from script)
+PROCESS_DIR="$( cd "$SCRIPT_DIR/${dir_path}" &> /dev/null && pwd )"
+
+# Configuration
+PROCESS_ID="${process_id}"
+PROCESS_NAME="${process_name}"
+${resource_path_var}="${resource_path}"
+${script_var}="${script_path}"
+${other_vars}
+
+echo "============================================================="
+echo "${script_header}: Executing $PROCESS_ID ($PROCESS_NAME) ${execution_mode_desc}"
+${scheduler_echo}
+echo "Process Directory: $PROCESS_DIR"
+echo "============================================================="
+
+# Set environment variables
+${environment_variables_export}

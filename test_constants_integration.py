@@ -88,10 +88,10 @@ def test_template_paths():
         from utils.constants import CONFIG
         
         templates = {
-            "Main Script": CONFIG.MAIN_SCRIPT_TEMPLATE,
+            "Main Script": CONFIG.MAIN_TEMPLATE,
             "README": CONFIG.README_TEMPLATE,
-            "Requirements": CONFIG.REQUIREMENTS_TEMPLATE,
-            "Singularity": CONFIG.SINGULARITY_TEMPLATE
+            "Install": CONFIG.INSTALL_TEMPLATE,
+            "Container": CONFIG.CONTAINER_TEMPLATE
         }
         
         for name, template in templates.items():

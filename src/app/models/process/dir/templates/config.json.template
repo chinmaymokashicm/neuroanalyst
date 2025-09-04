@@ -1,0 +1,16 @@
+{
+  "process_id": "${process_id}",
+  "process_name": "${process_name}",
+  "version": "${version}",
+  "author": "${author}",
+  "description": "${description}",
+  "creation_date": "${creation_date}",
+  "language": "${language}",
+  "language_packages": ${language_packages},
+  "system_packages": ${system_packages},
+  "environment_variables": ${environment_variables},
+  "bind_paths": ${bind_paths},
+  "parallel_execution": ${parallel_execution},
+  "max_workers": ${max_workers},
+  "bids_validate": ${bids_validate}
+}

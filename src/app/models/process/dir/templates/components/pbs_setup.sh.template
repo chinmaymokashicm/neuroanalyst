@@ -1,0 +1,2 @@
+# Change to the directory where the job was submitted from
+cd $PBS_O_WORKDIR

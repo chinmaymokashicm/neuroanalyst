@@ -1,0 +1,61 @@
+"""
+wrapper.py - NeuProcess Wrapper for ${process_id} - ${process_name}
+
+This file imports the user-defined function (UDF) from udf.py, wraps it with
+the NeuProcess framework, and exposes the wrapped function for use.
+
+Version: ${version}
+Created: ${creation_date}
+Author: ${author}
+"""
+
+import os
+import logging
+from typing import Dict, Any, Union, Callable
+from pathlib import Path
+
+# Import the decorator from the neuroanalyst package
+from neuroanalyst.models.process.wrapper import neuprocess, NeuProcessDecoratorConfig
+
+# Import the UDF from udf.py
+from .udf import ${func_name}
+
+# Set up logging
+logger = logging.getLogger('${process_id}')
+
+# Get pipeline information from environment variables
+pipeline_id = os.environ.get('PIPELINE_ID', 'default_pipeline')
+pipeline_name = os.environ.get('PIPELINE_NAME', 'Default Pipeline')
+
+# Log pipeline information
+if 'PIPELINE_ID' in os.environ:
+    logger.info(f"Using pipeline ID from environment: {pipeline_id}")
+else:
+    logger.warning(f"PIPELINE_ID not found in environment, using default: {pipeline_id}")
+
+if 'PIPELINE_NAME' in os.environ:
+    logger.info(f"Using pipeline name from environment: {pipeline_name}")
+else:
+    logger.warning(f"PIPELINE_NAME not found in environment, using default: {pipeline_name}")
+
+# Configure the wrapper with the process-specific settings
+wrapper_config_params = {
+    "process_id": "${process_id}",
+    "pipeline_id": pipeline_id,
+    "pipeline_name": pipeline_name,
+    "bids_root": "/data",
+}
+wrapper_config: NeuProcessDecoratorConfig = NeuProcessDecoratorConfig(**wrapper_config_params)
+
+# Apply the wrapper to the imported UDF
+wrapped_${func_name} = neuprocess(wrapper_config)(${func_name})
+
+# Export the wrapped function
+def get_wrapped_udf() -> Callable:
+    """
+    Returns the wrapped user-defined function.
+    
+    Returns:
+        Callable: The wrapped UDF function ready for execution within the NeuProcess framework.
+    """
+    return wrapped_${func_name}

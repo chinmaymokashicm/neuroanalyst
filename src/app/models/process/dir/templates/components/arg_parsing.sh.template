@@ -1,0 +1,31 @@
+# Initialize variables for parsing
+${singularity_args_init}
+MAIN_SCRIPT_ARGS=()
+CUSTOM_ENV_VARS=()
+CUSTOM_BIND_PATHS=()
+
+# Parse command-line arguments
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --env)
+            if [[ -z "$2" || "$2" == --* ]]; then
+                echo "Error: --env requires a KEY=VALUE argument"
+                exit 1
+            fi
+            CUSTOM_ENV_VARS+=("$2")
+            shift 2
+            ;;
+        --bind)
+            if [[ -z "$2" || "$2" == --* ]]; then
+                echo "Error: --bind requires a PATH=EXTERNAL_PATH argument"
+                exit 1
+            fi
+            CUSTOM_BIND_PATHS+=("$2")
+            shift 2
+            ;;
+        *)
+            MAIN_SCRIPT_ARGS+=("$1")
+            shift
+            ;;
+    esac
+done

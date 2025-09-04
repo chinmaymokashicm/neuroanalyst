@@ -1,0 +1,21 @@
+# Run the main script with all arguments passed to this script
+echo "Running script with arguments: ${MAIN_SCRIPT_ARGS[@]}"
+python "$PROCESS_DIR/$MAIN_SCRIPT" "${MAIN_SCRIPT_ARGS[@]}"
+
+exit_code=$?
+if [ $exit_code -eq 0 ]; then
+    echo "Script execution completed successfully"
+else
+    echo "Script execution failed with exit code $exit_code"
+fi
+
+# Clean up symbolic links if they were created
+if [[ ! -z "${symbolic_links_cleanup}" && "${symbolic_links_cleanup}" != "# No symbolic links to clean up" ]]; then
+    echo "Cleaning up symbolic links..."
+    ${symbolic_links_cleanup}
+fi
+
+# Deactivate the virtual environment
+deactivate
+
+exit $exit_code

@@ -1,0 +1,7 @@
+# Check if the image exists
+if [ ! -f "$IMAGE_PATH" ]; then
+    echo "ERROR: Singularity image not found at $IMAGE_PATH"
+    echo "Please build the image first using:"
+    echo "singularity build \"$IMAGE_PATH\" \"$PROCESS_DIR/$DEF_FILE\""
+    exit 1
+fi

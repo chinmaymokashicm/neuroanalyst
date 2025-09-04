@@ -1,0 +1,11 @@
+#!/bin/bash
+#SBATCH --job-name=${process_id}
+#SBATCH --output=${process_id}_%j.out
+#SBATCH --error=${process_id}_%j.err
+#SBATCH --time=${slurm_time:-12:00:00}
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=${max_workers}
+#SBATCH --mem=${slurm_mem:-8G}
+#SBATCH --partition=${slurm_partition:-compute}
+#SBATCH --account=${slurm_account:-default}
+#SBATCH --qos=${slurm_qos:-normal}

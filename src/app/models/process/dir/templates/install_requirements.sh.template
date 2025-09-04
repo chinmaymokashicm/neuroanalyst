@@ -1,0 +1,33 @@
+#!/bin/bash
+#
+# install_requirements.sh
+#
+# This script installs all required dependencies for the NeuProcess execution.
+# It can be run directly to set up the environment for script-based execution.
+# It is also included in the Singularity definition file for container-based execution.
+#
+# For: ${process_id} - ${process_name}
+# Version: ${version}
+# Created: ${creation_date}
+# Author: ${author}
+
+set -e  # Exit immediately if a command exits with a non-zero status
+
+echo "==============================================================="
+echo "Installing requirements for ${process_id} - ${process_name}"
+echo "==============================================================="
+
+# System packages
+${system_packages_section}
+
+pip install pydantic pybids
+
+# Install neuroanalyst package (required for neuprocess_wrapper)
+pip install -U neuroanalyst
+
+# Language-specific packages
+${language_packages_section}
+
+${other_installation_steps}
+
+echo "Installation completed successfully!"

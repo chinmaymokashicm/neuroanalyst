@@ -132,13 +132,13 @@ def example_template_usage():
     from app.utils import get_template_path
     
     # Get template paths
-    main_template = get_template_path(CONFIG.MAIN_SCRIPT_TEMPLATE)
+    main_template = get_template_path(CONFIG.MAIN_TEMPLATE)
     readme_template = get_template_path(CONFIG.README_TEMPLATE)
-    singularity_template = get_template_path(CONFIG.SINGULARITY_TEMPLATE)
+    container_template = get_template_path(CONFIG.CONTAINER_TEMPLATE)
     
     print(f"Main script template: {main_template}")
     print(f"README template: {readme_template}")
-    print(f"Singularity template: {singularity_template}")
+    print(f"Container template: {container_template}")
 
 
 if __name__ == "__main__":

@@ -1,0 +1,25 @@
+# Process custom bind paths for container
+# Prepare bind options
+BIND_OPTS=()
+
+# Add predefined bind paths - split the options correctly
+# Parse the bind_options into an array of --bind and path pairs
+declare -a BIND_PARTS
+read -r -a BIND_PARTS <<< "${bind_options}"
+
+# Process the array in pairs
+for ((i=0; i<${#BIND_PARTS[@]}; i+=2)); do
+    if [[ "${BIND_PARTS[i]}" == "--bind" && -n "${BIND_PARTS[i+1]}" ]]; then
+        BIND_OPTS+=("--bind" "${BIND_PARTS[i+1]}")
+    fi
+done
+
+# Add custom bind paths from command line
+for BIND in "${CUSTOM_BIND_PATHS[@]}"; do
+    IFS='=' read -r INTERNAL_PATH EXTERNAL_PATH <<< "$BIND"
+    if [[ -z "$EXTERNAL_PATH" ]]; then
+        echo "Warning: Invalid bind path format: $BIND, should be INTERNAL_PATH=EXTERNAL_PATH"
+        continue
+    fi
+    BIND_OPTS+=("--bind" "$EXTERNAL_PATH:$PROCESS_DIR/$INTERNAL_PATH")
+done

@@ -1,0 +1,48 @@
+Bootstrap: ${bootstrap_method}
+From: ${base_image}
+
+%labels
+    AUTHOR ${author}
+    PROCESS_ID ${process_id}
+    PROCESS_NAME ${process_name}
+    VERSION ${version}
+    CREATION_DATE ${creation_date}
+
+%help
+    ${description}
+    
+    Process ID: ${process_id}
+    Process Name: ${process_name}
+    Version: ${version}
+    Author: ${author}
+    
+    Usage:
+    singularity run ${process_id}.sif --input_file /path/to/input --output_dir /path/to/output
+    
+    For more information, see the README.md file included in the process directory.
+
+%environment
+    export LC_ALL=C
+    export PYTHONUNBUFFERED=1
+    ${environment_variables_export}
+
+%files
+    ./install_requirements.sh /opt/install_requirements.sh
+    ./main.py /opt/main.py
+    ${extra_files}
+
+%post
+    # Install basic dependencies
+    apt-get update -y
+    apt-get install -y python3 python3-pip
+
+    # Make installation script executable and run it
+    chmod +x /opt/install_requirements.sh
+    /opt/install_requirements.sh
+    
+    # Clean up
+    apt-get clean
+    rm -rf /var/lib/apt/lists/*
+
+%runscript
+    exec python3 /opt/main.py "$@"

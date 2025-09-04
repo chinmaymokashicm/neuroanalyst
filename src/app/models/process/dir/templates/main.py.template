@@ -1,0 +1,144 @@
+#!/usr/bin/env python3
+"""
+main.py - Main execution script for ${process_id} - ${process_name}
+
+This script serves as the entry point for the NeuProcess execution.
+It imports the wrapped user-defined function from the wrapper module.
+
+Version: ${version}
+Created: ${creation_date}
+Author: ${author}
+"""
+
+import os
+import sys
+import json
+import logging
+from pathlib import Path
+import argparse
+from concurrent.futures import ProcessPoolExecutor
+from typing import Dict, Any, List, Optional, Union, Callable
+
+# Import the wrapped user-defined function
+from wrapper import get_wrapped_udf
+
+# Set up logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler(sys.stdout)
+    ]
+)
+logger = logging.getLogger('${process_id}')
+
+# ============= MAIN EXECUTION =============
+
+def process_file(file_path: Union[str, Path], **kwargs) -> Dict[str, Any]:
+    """Process a single file with the UDF function."""
+    # Get the wrapped function
+    wrapped_udf = get_wrapped_udf()
+    # Call the wrapped function with the file path and other arguments
+    return wrapped_udf(input_filepath=file_path, **kwargs)
+
+def main():
+    """Main function to parse arguments and execute the process."""
+    parser = argparse.ArgumentParser(description='${description}')
+    
+# ${arg_parser_section}
+    
+    args = parser.parse_args()
+    
+    # Execute the process
+    logger.info(f"Starting execution of ${process_id} - ${process_name}")
+    
+    # Convert arguments to dictionary for the function
+#     func_args = {
+# ${func_args_section}
+#     }
+    
+    # Process based on the kind of NeuProcessLogic
+    kind = "${kind}"  # Get the string value here
+    if kind == "file":
+        # File-level processing
+        logger.info("Performing file-level processing")
+        
+        # Get BIDS dataset root
+        bids_root = "/data"
+        logger.info(f"Using BIDS dataset at {bids_root}")
+        
+        # Get BIDS filters from environment variable
+        bids_filters = None
+        if 'BIDS_FILTERS' in os.environ:
+            try:
+                bids_filters = json.loads(os.environ['BIDS_FILTERS'])
+                logger.info(f"Using BIDS filters from environment: {bids_filters}")
+            except json.JSONDecodeError as e:
+                logger.error(f"Failed to parse BIDS_FILTERS environment variable: {e}")
+                return 1
+        
+        if not bids_filters:
+            logger.error("BIDS_FILTERS must be provided via environment variable for file-level processing")
+            return 1
+            
+        # Import BIDSLayout
+        try:
+            from bids import BIDSLayout
+        except ImportError:
+            logger.error("bids-standard package is required for file-level processing")
+            logger.error("Install with: pip install pybids")
+            return 1
+            
+        # Create BIDSLayout
+        try:
+            layout = BIDSLayout(bids_root)
+            logger.info(f"BIDS dataset loaded from {bids_root}")
+        except Exception as e:
+            logger.error(f"Failed to load BIDS dataset: {e}")
+            return 1
+            
+        # Get files matching the filters
+        try:
+            matching_files = layout.get(return_type='filename', **bids_filters)
+            logger.info(f"Found {len(matching_files)} files matching the filters")
+        except Exception as e:
+            logger.error(f"Failed to query BIDS dataset: {e}")
+            return 1
+            
+        if not matching_files:
+            logger.warning("No files found matching the filters")
+            return 0
+            
+        # Process the files in parallel
+        results = []
+        max_workers = 8  # Default to 8 workers for parallel processing
+        
+        # Use parallel processing
+        logger.info(f"Using parallel processing with {max_workers} workers")
+        with ProcessPoolExecutor(max_workers=max_workers) as executor:
+            # future_to_file = {executor.submit(process_file, file, **func_args): file for file in matching_files}
+            future_to_file = {executor.submit(process_file, file): file for file in matching_files}
+            for future in future_to_file:
+                file = future_to_file[future]
+                try:
+                    result = future.result()
+                    results.append((file, result))
+                    logger.info(f"Processed {file}")
+                except Exception as e:
+                    logger.error(f"Error processing {file}: {e}")
+        
+        logger.info(f"Processed {len(results)} files successfully")
+        
+    else:
+        # Bulk processing - call the function directly with the wrapped version
+        logger.info("Performing bulk dataset processing")
+        wrapped_udf = get_wrapped_udf()
+        # result = wrapped_udf(**func_args)
+        result = wrapped_udf()
+        logger.info(f"Bulk processing completed")
+    
+    logger.info(f"Execution completed successfully")
+    return 0
+
+if __name__ == "__main__":
+    sys.exit(main())
