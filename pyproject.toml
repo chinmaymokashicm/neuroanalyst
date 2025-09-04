@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "Package for scalable, transparent, and reproducible neuroimaging analysis"
 authors = ["Mokashi,Chinmay <CMokashi@mdanderson.org>", "Mokashi,Chinmay <chinmaymokashicm@gmail.com>"]
 readme = "README.md"
-packages = [{ include = "app", from = "src" }]
+packages = [{ include = "neuroanalyst", from = "src" }]
 
 [tool.poetry.dependencies]
 python = "^3.12"
