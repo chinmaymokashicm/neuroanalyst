@@ -119,3 +119,6 @@ wrapt = "1.17.3"
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
+
+[tool.poetry.scripts]
+neuroanalyst-setup = "neuroanalyst.scripts.setup:main"
