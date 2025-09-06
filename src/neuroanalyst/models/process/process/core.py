@@ -32,7 +32,7 @@ class NeuProcess(BaseModel):
     2. Creating virtual environments for script-based execution
     
     A NeuProcess can be created from a NeuProcessDir, a path to a process directory,
-    or a process ID.
+    or a process ID using the provided classmethods.
     
     Note: NeuProcess is not executed directly. The NeuProcessExec class will be responsible
     for execution-related functionality.
@@ -42,11 +42,8 @@ class NeuProcess(BaseModel):
     process_id: str = Field(default_factory=generate_process_id, 
                           description="Unique identifier for the process")
     
-    # Input sources (mutually exclusive)
-    process_dir: Optional[NeuProcessDir] = Field(default=None, 
-                                               description="NeuProcessDir instance")
-    process_dir_path: Optional[Path] = Field(default=None, 
-                                           description="Path to the process directory")
+    # Input source
+    process_dir: NeuProcessDir = Field(description="NeuProcessDir instance")
     
     # Execution requirements
     bind_paths: List[str] = Field(default_factory=list,
@@ -57,29 +54,8 @@ class NeuProcess(BaseModel):
     # Class variables
     _paths: ClassVar[NeuroAnalystPaths] = NeuroAnalystPaths()
     
-    # Model validators
-    @model_validator(mode="before")
-    def check_input_sources(cls, values):
-        """Validate that at least one input source is provided."""
-        process_dir = values.get('process_dir')
-        process_dir_path = values.get('process_dir_path')
-        process_id = values.get('process_id')
-        
-        if process_dir is None and process_dir_path is None and process_id is None:
-            raise ValueError("Either 'process_dir', 'process_dir_path', or 'process_id' must be provided")
-            
-        # If process_id is provided but not process_dir_path, construct the path
-        if process_id is not None and process_dir_path is None and process_dir is None:
-            values['process_dir_path'] = cls._paths.get_process_workdir(process_id)
-            
-        return values
-    
     def model_post_init(self, __context):
         """Post-initialization processing."""
-        # If process_dir_path is provided but not process_dir, load the NeuProcessDir from the path
-        if self.process_dir is None and self.process_dir_path is not None:
-            self._load_process_dir()
-            
         # Initialize bind_paths and environment_variables from process_dir if not provided
         if self.process_dir and self.process_dir.config:
             # Only copy if the user hasn't explicitly set them
@@ -88,13 +64,42 @@ class NeuProcess(BaseModel):
                 
             if not self.environment_variables and self.process_dir.config.environment_variables:
                 self.environment_variables = self.process_dir.config.environment_variables.copy()
-    
-    def _load_process_dir(self) -> None:
-        """Load NeuProcessDir from process_dir_path."""
-        if self.process_dir_path is None:
-            raise ValueError("process_dir_path must be provided")
             
-        model_json_path = self.process_dir_path / "model.json"
+            # Update process_id if not explicitly set
+            if self.process_id == generate_process_id():  # If it's a default generated ID
+                self.process_id = self.process_dir.process_id
+    
+    @classmethod
+    def from_process_dir(cls, process_dir: NeuProcessDir, **kwargs):
+        """
+        Create a NeuProcess from a NeuProcessDir instance.
+        
+        Args:
+            process_dir: NeuProcessDir instance
+            **kwargs: Additional arguments to pass to the NeuProcess constructor
+            
+        Returns:
+            NeuProcess instance
+        """
+        return cls(process_dir=process_dir, **kwargs)
+    
+    @classmethod
+    def from_dir_path(cls, dir_path: Path, **kwargs):
+        """
+        Create a NeuProcess from a path to a process directory.
+        
+        Args:
+            dir_path: Path to the process directory
+            **kwargs: Additional arguments to pass to the NeuProcess constructor
+            
+        Returns:
+            NeuProcess instance
+            
+        Raises:
+            FileNotFoundError: If model.json is not found in the directory
+            ValueError: If the model.json file cannot be parsed
+        """
+        model_json_path = dir_path / "model.json"
         if not model_json_path.exists():
             raise FileNotFoundError(f"model.json not found at {model_json_path}")
             
@@ -102,29 +107,58 @@ class NeuProcess(BaseModel):
             with open(model_json_path, "r") as f:
                 model_data = json.load(f)
             
-            self.process_dir = NeuProcessDir.model_validate(model_data)
+            # If script_paths exists but is null in the JSON, set it to None
+            if "script_paths" in model_data and model_data["script_paths"] is None:
+                del model_data["script_paths"]  # Remove the key to use the default
             
-            # Update process_id if not explicitly set
-            if self.process_id == generate_process_id():  # If it's a default generated ID
-                self.process_id = self.process_dir.process_id
+            # Convert string paths back to Path objects in script_paths if present
+            if "script_paths" in model_data and model_data["script_paths"]:
+                script_paths = model_data["script_paths"]
+                for key, path_str in script_paths.items():
+                    if isinstance(path_str, str):
+                        script_paths[key] = Path(path_str)
+            
+            # Create and validate the process_dir
+            process_dir = NeuProcessDir.model_validate(model_data)
+            
+            # Set the working_dir since it was excluded in the JSON
+            process_dir.working_dir = dir_path
+            
+            return cls(process_dir=process_dir, **kwargs)
                 
         except (json.JSONDecodeError, ValueError) as e:
             raise ValueError(f"Failed to load NeuProcessDir from {model_json_path}: {e}")
     
+    @classmethod
+    def from_process_id(cls, process_id: str, **kwargs):
+        """
+        Create a NeuProcess from a process ID.
+        
+        Args:
+            process_id: Process ID
+            **kwargs: Additional arguments to pass to the NeuProcess constructor
+            
+        Returns:
+            NeuProcess instance
+            
+        Raises:
+            FileNotFoundError: If the process directory is not found
+            ValueError: If the model.json file cannot be parsed
+        """
+        paths = NeuroAnalystPaths()
+        dir_path = paths.get_process_workdir(process_id)
+        return cls.from_dir_path(dir_path, process_id=process_id, **kwargs)
+    
     # Properties to access NeuProcessDir attributes
     @property
-    def working_dir(self) -> Optional[Path]:
+    def working_dir(self) -> Path:
         """Get the working directory."""
-        if self.process_dir:
-            return self.process_dir.working_dir
-        return None
+        return self.process_dir.working_dir
     
     @property
     def config(self) -> Any:
         """Get the process configuration."""
-        if self.process_dir:
-            return self.process_dir.config
-        return None
+        return self.process_dir.config
     
     # Note: bind_paths and environment_variables are now explicit fields, so we don't need property methods for them.
     # The properties below are kept for backwards compatibility and are now deprecated.
@@ -132,44 +166,32 @@ class NeuProcess(BaseModel):
     @property
     def process_bind_paths(self) -> List[str]:
         """Get the bind paths from the underlying process_dir. Deprecated, use bind_paths field directly."""
-        if self.process_dir and self.process_dir.config:
-            return self.process_dir.config.bind_paths
-        return []
+        return self.process_dir.config.bind_paths if self.process_dir.config else []
     
     @property
     def process_environment_variables(self) -> List[str]:
         """Get the environment variables from the underlying process_dir. Deprecated, use environment_variables field directly."""
-        if self.process_dir and self.process_dir.config:
-            return self.process_dir.config.environment_variables
-        return []
+        return self.process_dir.config.environment_variables if self.process_dir.config else []
     
     @property
     def process_name(self) -> str:
         """Get the process name."""
-        if self.process_dir:
-            return self.process_dir.process_name
-        return self.process_id
+        return self.process_dir.process_name
     
     @property
     def description(self) -> str:
         """Get the process description."""
-        if self.process_dir:
-            return self.process_dir.description
-        return f"Process {self.process_id}"
+        return self.process_dir.description
     
     @property
     def version(self) -> str:
         """Get the process version."""
-        if self.process_dir:
-            return self.process_dir.version
-        return "1.0.0"
+        return self.process_dir.version
     
     @property
     def author(self) -> str:
         """Get the author of the process."""
-        if self.process_dir:
-            return self.process_dir.author
-        return "NeuroAnalyst User"
+        return self.process_dir.author
     
     @property
     def image_path(self) -> Path:
@@ -190,15 +212,8 @@ class NeuProcess(BaseModel):
             Path to the built image
         
         Raises:
-            ValueError: If process_dir is not available
             RuntimeError: If image build fails
         """
-        if self.process_dir is None:
-            self._load_process_dir()
-            
-        if self.process_dir is None:
-            raise ValueError("Cannot build image: process_dir is not available")
-            
         return self.process_dir.build_singularity_image()
     
     def image_exists(self) -> bool:
@@ -219,15 +234,8 @@ class NeuProcess(BaseModel):
             Path to the created virtual environment
             
         Raises:
-            ValueError: If process_dir is not available
             RuntimeError: If virtual environment creation fails
         """
-        if self.process_dir is None:
-            self._load_process_dir()
-            
-        if self.process_dir is None:
-            raise ValueError("Cannot create virtual environment: process_dir is not available")
-            
         return self.process_dir.create_virtual_env()
     
     def venv_exists(self) -> bool:

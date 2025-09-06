@@ -1,5 +1,9 @@
 # Run the main script with all arguments passed to this script
 echo "Running script with arguments: ${MAIN_SCRIPT_ARGS[@]}"
+
+# Echo the command that will be executed
+echo "Executing: python \"$PROCESS_DIR/$MAIN_SCRIPT\" ${MAIN_SCRIPT_ARGS[@]}"
+
 python "$PROCESS_DIR/$MAIN_SCRIPT" "${MAIN_SCRIPT_ARGS[@]}"
 
 exit_code=$?

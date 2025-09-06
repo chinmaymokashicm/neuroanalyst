@@ -26,6 +26,7 @@ logger = logging.getLogger('${process_id}')
 # Get pipeline information from environment variables
 pipeline_id = os.environ.get('PIPELINE_ID', 'default_pipeline')
 pipeline_name = os.environ.get('PIPELINE_NAME', 'Default Pipeline')
+process_exec_id = os.environ.get('PROCESS_EXEC_ID', 'Default Process Exec ID')
 
 # Log pipeline information
 if 'PIPELINE_ID' in os.environ:
@@ -38,11 +39,17 @@ if 'PIPELINE_NAME' in os.environ:
 else:
     logger.warning(f"PIPELINE_NAME not found in environment, using default: {pipeline_name}")
 
+if 'PROCESS_EXEC_ID' in os.environ:
+    logger.info(f"Using pipeline name from environment: {process_exec_id}")
+else:
+    logger.warning(f"PIPELINE_NAME not found in environment, using default: {process_exec_id}")
+
 # Configure the wrapper with the process-specific settings
 wrapper_config_params = {
     "process_id": "${process_id}",
     "pipeline_id": pipeline_id,
     "pipeline_name": pipeline_name,
+    "process_exec_id: process_exec_id,
     "bids_root": "/data",
 }
 wrapper_config: NeuProcessDecoratorConfig = NeuProcessDecoratorConfig(**wrapper_config_params)

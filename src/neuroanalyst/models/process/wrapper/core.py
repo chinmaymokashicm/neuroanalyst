@@ -48,6 +48,7 @@ class NeuProcessDecoratorConfig(BaseModel):
     process_id: str = Field(..., description="ID of the NeuProcess")
     pipeline_id: str = Field(..., description="ID of the NeuPipeline")
     pipeline_name: str = Field(..., description="Name of the pipeline")
+    process_exec_id: str = Field(..., description="ID of the NeuProcessExec instance")
     bids_root: Union[str, Path] = Field(..., description="BIDS root directory path")
     overwrite: bool = Field(default=False, description="Whether to overwrite existing files")
     create_sidecar: bool = Field(default=True, description="Whether to create sidecar JSON files")
@@ -199,6 +200,7 @@ def neuprocess_decorator(config: NeuProcessDecoratorConfig):
                     'ProcessID': config.process_id,
                     'PipelineID': config.pipeline_id,
                     'ProcessingPipeline': config.pipeline_name,
+                    'ProcessExecID': config.process_exec_id,
                     'InputFile': str(input_path),
                     'OutputFile': str(output_filepath),
                     'ProcessingTime': round(execution_time, 3),
@@ -222,16 +224,18 @@ def neuprocess_decorator(config: NeuProcessDecoratorConfig):
                 # Create sidecar JSON file if enabled
                 sidecar_filepath = None
                 if config.create_sidecar:
-                    # # Handle sidecar filename to avoid overwriting output file
-                    # if output_filepath.suffix.lower() == CONFIG.JSON_EXTENSION:
-                    #     # If output is already JSON, create sidecar with different name
-                    #     sidecar_filepath = output_filepath.with_name(
+                    # Handle sidecar filename to avoid overwriting output file
+                    if output_filepath.suffix.lower() == CONFIG.JSON_EXTENSION:
+                        # If output is already JSON, create sidecar with different name
+                        sidecar_filepath = output_filepath.with_name(
+                            output_filepath.stem + f'_sidecar{CONFIG.JSON_EXTENSION}'
+                        )
+                    else:
+                        # Standard case: add .json extension
+                        sidecar_filepath = output_filepath.with_suffix(CONFIG.BIDS_SIDECAR_SUFFIX)
+                    # sidecar_filepath = output_filepath.with_name(
                     #         output_filepath.stem + f'_sidecar{CONFIG.JSON_EXTENSION}'
-                    #     )
-                    # else:
-                    #     # Standard case: add .json extension
-                    #     sidecar_filepath = output_filepath.with_suffix(CONFIG.BIDS_SIDECAR_SUFFIX)
-                    sidecar_filepath = output_filepath.with_suffix(CONFIG.BIDS_SIDECAR_SUFFIX)
+                    # )
                     
                     with open(sidecar_filepath, 'w') as f:
                         json.dump(metadata, f, indent=2)
@@ -256,6 +260,7 @@ def neuprocess_decorator(config: NeuProcessDecoratorConfig):
                     'ProcessID': config.process_id,
                     'PipelineID': config.pipeline_id,
                     'ProcessingPipeline': config.pipeline_name,
+                    'ProcessExecID': config.process_exec_id,
                     'InputFile': str(input_filepath),
                     'ProcessingTime': round(execution_time, 3),
                     'ProcessingDate': datetime.now().isoformat(),

@@ -190,7 +190,7 @@ This document outlines how jobs are submitted and managed for NeuroAnalyst on th
     - Singularity definition file - PR-XXXXXX.def - This file will be used to build the Singularity image. The name of the file should be the same as the process id of the NeuProcessDir instance.
     - The following build scripts should also be available within sub-dir `build`-
         - image.sh - This script will build the Singularity image from the Singularity definition file. The image will be stored in the neuroanalyst images/ sub-dir. The name of the image should be the same as the process id of the NeuProcessDir instance, i.e. PR-XXXXXX.sif.
-        - venv.sh - This script will create a virtual environment in the neuroanalyst workdir/venvs/ sub-dir if it does not already exist. The name of the venv should be the same as the process id of the NeuProcessDir instance. It will install all the necessary dependencies within this venv.
+        - venv.sh - This script will create a virtual environment in the neuroanalyst workdir/venvs/ sub-dir if it does not already exist. The name of the venv should be the same as the process id of the NeuProcessDir instance. It will install all the necessary dependencies within this venv.neuro
     - The following execution scripts should also be available within sub-dir `execute`-
         - sub-dir `hpc` - contains scripts that are compatible with HPC environments, currently for SLURM, PBS, and LSF schedulers. For each scheduler, there should be two scripts - one to execute the process as a container, and one to create a virtual environment and execute the process as a script, i.e. `execute/hpc/lsf/run_container.sh`, `execute/hpc/lsf/run_venv.sh`, etc.
         - sub-dir `local` - contains scripts that are compatible with local environments. Same as above, there should be two scripts - one to execute the process as a container, and one to create a virtual environment and execute the process as a script.
@@ -213,19 +213,37 @@ This document outlines how jobs are submitted and managed for NeuroAnalyst on th
 ### Create NeuProcess
 - The code for the NeuProcess class is located in `app/models/process/process` directory. The main file is `core.py`.
 - NeuProcess takes a NeuProcessDir object, or path to a process directory, or simply the process ID (which can be used to construct the path). If directory path or process ID is provided, use the model.json file to construct the NeuProcessDir from it.
-<!-- - The user also needs to mention if NeuProcess is going to be a Singularity image or as a script (within a virtual environment). -->
 - NeuProcess loads the binds and environment variables from the NeuProcessDir instance.
 - NeuProcess needs to have a method that will build the Singularity image from the Singularity definition file in the process directory. The image will be stored in the neuroanalyst images/ directory. The name of the image should be the same as the process id of the NeuProcess instance, i.e. PR-XXXXXX.sif.
 - NeuProcess also needs a method that will generate the virtual environment in the NEUROANALYST_VENVS directory if it does not already exist. The name of the venv should be the same as the process id of the NeuProcess instance.
 
-### Create NeuPipeline
-1. Choose NeuProcesses in a sequence
-   - Identify the individual NeuProcesses that will be part of the pipeline and their order of execution.
-   - Create NeuProcessExec instances for each NeuProcess. This will involve providing the necessary configuration and dependencies for each process in this particular pipeline.
+### Create NeuProcessExec
+- The code for the NeuProcessExec class is located in `app/models/process/exec` directory. The main file is `core.py`.
+- NeuProcessExec takes the following mandatory args-
+    - NeuProcess instance, or a process ID, or a path to the process directory.
+    - Key-value pairs of bind paths that need to be mounted onto the container or symlinked within the process dir if executing as a script. The keys should match the bind names defined in the NeuProcessDir instance.
+    - Key-value pairs of environment variables that need to be set when executing the process. The keys should match the environment variable names defined in the NeuProcessDir instance.
+    - A method to generate the execution command for the process. The command will be generated based on the following conditions-
+        - Whether to execute as a container or as a script (default is container).
+        - If executing as a container, whether to execute on HPC or local (default is HPC).
+        - If executing on HPC, which scheduler to use (default is LSF).
+    - The command will be generated using the relevant script from the process directory. Before generating the command, check if the image/venv exists, and if the key-value pairs of bind paths and environment variables provided match the ones defined in the NeuProcessDir instance.
+    - A method to execute the generated command. The command will be executed using subprocess module.
 
-3. Create NeuPipeline
-   - Create a NeuPipeline instance that encapsulates the sequence of NeuProcesses (+NeuProcessExecs).
+### Create NeuPipeline
+1. Choose NeuProcesses
+   - Prepare a sequence of NeuProcesses (and their corresponding NeuProcessExec instances) that form the steps (NeuPipelineStep) of the pipeline.
+   - Each NeuPipelineStep can contain multiple NeuProcessExec instances to be executed in parallel.
+   - The order of NeuPipelineSteps defines the execution order of the processes. A step is executed only after all processes in the previous step have completed.
+
+2. Create NeuPipeline
+   - The code for the NeuPipeline class is located in `app/models/pipeline` directory. The main file is `core.py`.
+   - Create a NeuPipeline instance that encapsulates the sequence of NeuProcessExecs.
    - Define the overall configuration for the pipeline, including metadata, author information, and versioning.
+   - The user chooses the scheduler that will be applied to all the process execs in the pipeline. This cannot be changed at the process level.
+   - The user also chooses whether to execute the processes as containers or scripts, but on a process level. For example, process 1 can be executed as a container while process 2 can be executed as a script.
+   - Based on the process execution plan and the scheduler, the pipeline generates a singular execution script that will execute all the processes in the correct order with the correct dependencies. The script will be generated using template files and will be stored in the neuroanalyst `NEUROANALYST_PIPELINES` sub-dir. The name of the script will be the same as the pipeline id, i.e. PL-XXXXXX.sh. The pydantic model dump of the NeuPipeline instance will also be stored in the same dir as model.json for reproducibility.
+   - The user can then execute this script on the HPC or local environment to execute the entire pipeline.
 
 ### NeuProcess - Stewards
 - These NeuProcesses will also be Singularity images and will be executed as NeuProcessExec instances (containers).

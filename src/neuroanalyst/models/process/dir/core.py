@@ -33,9 +33,8 @@ from ..logic.code.python.encoder import PythonEncoder
 
 class ExecutionMode(str, Enum):
     """Enum for execution modes."""
-    SCRIPT = "script"
+    venv = "venv"
     CONTAINER = "container"
-    AUTO = "auto"  # Choose automatically based on environment
 
 
 class NeuProcessDirConfig(BaseModel):
@@ -90,7 +89,7 @@ class NeuProcessDir(BaseModel):
     # Input sources (mutually exclusive)
     logic: Optional[NeuProcessLogic] = Field(default=None, 
                                            description="NeuProcessLogic used to generate the directory")
-    script_paths: Optional[Dict[str, Path]] = Field(default=None, 
+    script_paths: Optional[Dict[str, Any]] = Field(default=None, 
                                                   description="Paths to custom scripts")
     
     # Configuration
@@ -152,8 +151,6 @@ class NeuProcessDir(BaseModel):
         bind_lines.append("\nUse the `--bind {path}={target}` format in execution commands to set these path bindings.")
         
         return "\n".join(bind_lines)
-        
-        return "\n".join(bind_lines)
     
     def _load_template(self, template_name: str) -> string.Template:
         """Load a template file and return a string.Template object."""
@@ -212,19 +209,34 @@ class NeuProcessDir(BaseModel):
         return ProgrammingLanguage.PYTHON.value  # Default to Python
     
     # Model validators
-    @model_validator(mode="before")
-    def check_input_sources(cls, values):
-        """Validate that exactly one input source is provided."""
-        logic = values.get('logic')
-        script_paths = values.get('script_paths')
-        
-        if logic is None and script_paths is None:
-            raise ValueError("Either 'logic' or 'script_paths' must be provided")
-        
-        if logic is not None and script_paths is not None:
-            raise ValueError("Only one of 'logic' or 'script_paths' can be provided")
+    @field_validator('script_paths')
+    def convert_script_paths(cls, v, info):
+        """Convert string paths to Path objects in script_paths."""
+        if v is None:
+            return v
             
-        return values
+        # If it's a dictionary with string paths, convert them to Path objects
+        result = {}
+        for key, path in v.items():
+            if isinstance(path, str):
+                result[key] = Path(path)
+            else:
+                result[key] = path
+        return result
+    
+    # @model_validator(mode="before")
+    # def check_input_sources(cls, values):
+    #     """Validate that exactly one input source is provided."""
+    #     logic = values.get('logic')
+    #     script_paths = values.get('script_paths')
+        
+    #     if logic is None and script_paths is None:
+    #         raise ValueError("Either 'logic' or 'script_paths' must be provided")
+        
+    #     if logic is not None and script_paths is not None:
+    #         raise ValueError("Only one of 'logic' or 'script_paths' can be provided")
+            
+    #     return values
     
     # Class methods for creation
     @classmethod
@@ -249,7 +261,7 @@ class NeuProcessDir(BaseModel):
         new_envs: List[str] = config.environment_variables.copy()
         if logic.kind == NeuProcessKind.FILE:
             # Include the mandatory envs to set for file-based processing. 
-            mandatory_envs: List[str] = ["BIDS_FILTERS", "PROCESS_ID", "PIPELINE_ID", "PIPELINE_NAME"]
+            mandatory_envs: List[str] = ["BIDS_FILTERS", "PROCESS_ID", "PIPELINE_ID", "PIPELINE_NAME", "PROCESS_EXEC_ID"]
             new_envs: List[str] = list(set(mandatory_envs + new_envs))
             
         config: NeuProcessDirConfig = config.model_copy(update={"bind_paths": new_binds, "environment_variables": new_envs})
@@ -318,6 +330,13 @@ class NeuProcessDir(BaseModel):
             self._generate_from_logic(process_dir)
         elif self.script_paths:
             self._generate_from_scripts(process_dir)
+            
+        # Initialize script_paths dictionary if it doesn't exist
+        if self.script_paths is None:
+            self.script_paths = {}
+            
+        # Populate script_paths with all generated scripts
+        self._populate_script_paths(process_dir)
             
         # Save model JSON for reproducibility
         self._save_model_json(process_dir)
@@ -686,6 +705,13 @@ class NeuProcessDir(BaseModel):
         if self.config.bind_paths:
             bind_paths_comment = "\n    ".join(f"{path}" for path in self.config.bind_paths)
         
+        # Generate example usage command
+        try:
+            usage_command = self.generate_singularity_execution_command()
+        except Exception as e:
+            # Fall back to a simple example if the command generation fails
+            usage_command = f"singularity run {self.process_id}.sif [arguments]"
+        
         # Prepare extra files section
         extra_files = ""
         
@@ -702,7 +728,8 @@ class NeuProcessDir(BaseModel):
             "environment_variables_comment": env_vars_comment,
             "environment_variables_export": env_vars_export,
             "bind_paths_comment": bind_paths_comment,
-            "extra_files": extra_files
+            "extra_files": extra_files,
+            "usage_command": usage_command
         }
         
         # Render template and write to file
@@ -855,7 +882,13 @@ echo "Virtual environment created and requirements installed successfully at: ${
         if self.config.environment_variables:
             env_vars_export = "\n".join([f"export {var}=\"${{{var}:-}}\"" for var in self.config.environment_variables])
         
-        # Prepare bind options for container
+        # Generate singularity command with runtime variables
+        try:
+            singularity_command = self.generate_singularity_execution_command(use_runtime_vars=True)
+        except Exception as e:
+            singularity_command = "echo \"Error generating Singularity command: $e\" && exit 1"
+        
+        # Prepare bind options for container (for backward compatibility)
         bind_options = ""
         if self.config.bind_paths:
             bind_opts = []
@@ -906,7 +939,7 @@ echo "Virtual environment created and requirements installed successfully at: ${
         except (ValueError, FileNotFoundError):
             singularity_build_command = f"echo \"Error: Failed to generate Singularity build command\" && exit 1"
             
-        # Container script - using components
+        # Container script - using simplified component template
         container_components = [
             {
                 'template': str(components_dir / "script_header.sh.template"),
@@ -947,23 +980,9 @@ echo "Virtual environment created and requirements installed successfully at: ${
                 }
             },
             {
-                'template': str(components_dir / "container_validation.sh.template"),
-                'context': {}
-            },
-            {
-                'template': str(components_dir / "env_var_processing.sh.template"),
-                'context': {}
-            },
-            {
-                'template': str(components_dir / "container_bind_paths.sh.template"),
+                'template': str(components_dir / "simplified_container_execution.sh.template"),
                 'context': {
-                    'bind_options': bind_options
-                }
-            },
-            {
-                'template': str(components_dir / "container_execution.sh.template"),
-                'context': {
-                    'environment_variables_export': env_vars_export
+                    'singularity_command': singularity_command
                 }
             }
         ]
@@ -974,7 +993,7 @@ echo "Virtual environment created and requirements installed successfully at: ${
             f.write(container_script)
         os.chmod(container_path, 0o755)
         
-        # Virtual environment script - using components
+        # Virtual environment script - using components (unchanged)
         try:
             venv_creation_command = self.generate_venv_creation_command()
         except (ValueError, FileNotFoundError):
@@ -1071,7 +1090,13 @@ echo "Virtual environment created and requirements installed successfully at: ${
         if self.config.environment_variables:
             env_vars_export = "\n".join([f"export {var}=\"${{{var}:-}}\"" for var in self.config.environment_variables])
         
-        # Prepare bind options for container
+        # Generate singularity command with runtime variables
+        try:
+            singularity_command = self.generate_singularity_execution_command(use_runtime_vars=True)
+        except Exception as e:
+            singularity_command = "echo \"Error generating Singularity command: $e\" && exit 1"
+            
+        # For backward compatibility and venv script
         bind_options = ""
         if self.config.bind_paths:
             bind_opts = []
@@ -1117,16 +1142,6 @@ echo "Virtual environment created and requirements installed successfully at: ${
             symbolic_links_setup = "\n".join(symlink_setup_lines)
             symbolic_links_cleanup = "\n".join(symlink_cleanup_lines)
         
-        try:
-            singularity_build_command = self.generate_singularity_build_command()
-        except (ValueError, FileNotFoundError):
-            singularity_build_command = f"echo \"Error: Failed to generate Singularity build command\" && exit 1"
-            
-        try:
-            venv_creation_command = self.generate_venv_creation_command()
-        except (ValueError, FileNotFoundError):
-            venv_creation_command = f"echo \"Error: Failed to generate virtual environment creation command\" && exit 1"
-        
         # Get scheduler-specific components
         scheduler_setup_component = ""
         if scheduler == "pbs":
@@ -1135,14 +1150,17 @@ echo "Virtual environment created and requirements installed successfully at: ${
             scheduler_setup_component = str(components_dir / "lsf_setup.sh.template")
         # No special setup needed for SLURM
             
-        # Container script - using components
+        # Container script - using simplified components
         container_components = [
             {
                 'template': str(components_dir / f"{scheduler}_directives.sh.template"),
                 'context': {
                     'process_id': self.process_id,
                     'process_name': self.process_name,
-                    'execution_mode': 'container'
+                    'execution_mode': 'container',
+                    'max_workers': self.config.max_workers,
+                    'pbs_time': '12:00:00',
+                    'pbs_mem': '8gb'
                 }
             },
             {
@@ -1196,23 +1214,9 @@ echo "Virtual environment created and requirements installed successfully at: ${
                 }
             },
             {
-                'template': str(components_dir / "container_validation.sh.template"),
-                'context': {}
-            },
-            {
-                'template': str(components_dir / "env_var_processing.sh.template"),
-                'context': {}
-            },
-            {
-                'template': str(components_dir / "container_bind_paths.sh.template"),
+                'template': str(components_dir / "simplified_container_execution.sh.template"),
                 'context': {
-                    'bind_options': bind_options
-                }
-            },
-            {
-                'template': str(components_dir / "container_execution.sh.template"),
-                'context': {
-                    'environment_variables_export': env_vars_export
+                    'singularity_command': singularity_command
                 }
             }
         ])
@@ -1223,14 +1227,17 @@ echo "Virtual environment created and requirements installed successfully at: ${
             f.write(container_script)
         os.chmod(container_path, 0o755)
         
-        # Virtual environment script - using components
+        # Virtual environment script - using components (unchanged)
         venv_components = [
             {
                 'template': str(components_dir / f"{scheduler}_directives.sh.template"),
                 'context': {
                     'process_id': self.process_id,
                     'process_name': self.process_name,
-                    'execution_mode': 'venv'
+                    'execution_mode': 'venv',
+                    'max_workers': self.config.max_workers,
+                    'pbs_time': '12:00:00',
+                    'pbs_mem': '8gb'
                 }
             },
             {
@@ -1310,31 +1317,170 @@ echo "Virtual environment created and requirements installed successfully at: ${
         with open(venv_path, "w") as f:
             f.write(venv_script)
         os.chmod(venv_path, 0o755)
-        
-        # No longer generating submit scripts
-        # The user will directly use the appropriate scheduler command with the execution script
     
+    def _populate_script_paths(self, process_dir: Path) -> None:
+        """
+        Populate the script_paths dictionary with paths to all generated scripts.
+        
+        Args:
+            process_dir: Path to the process directory
+        """
+        # Initialize script_paths if it doesn't exist
+        if self.script_paths is None or self.script_paths == {}:
+            self.script_paths = {
+                "main": None,
+                "udf": None,
+                "wrapper": None,
+                "install": None,
+                "singularity_def": None,
+                "build": {
+                    "image": None,
+                    "venv": None
+                },
+                "execute": {
+                    "local": {
+                        "container": None,
+                        "venv": None
+                    },
+                    "hpc": {
+                        "slurm": {
+                            "container": None,
+                            "venv": None
+                        },
+                        "pbs": {
+                            "container": None,
+                            "venv": None
+                        },
+                        "lsf": {
+                            "container": None,
+                            "venv": None
+                        }
+                    }
+                }
+            }
+            
+        # Populate main script if it exists
+        main_script = process_dir / "main.py"
+        if main_script.exists():
+            self.script_paths["main"] = main_script
+            
+        # Populate udf script if it exists
+        udf_script = process_dir / "udf.py"
+        if udf_script.exists():
+            self.script_paths["udf"] = udf_script
+            
+        # Populate wrapper script if it exists
+        wrapper_script = process_dir / "wrapper.py"
+        if wrapper_script.exists():
+            self.script_paths["wrapper"] = wrapper_script
+            
+        # Populate install script if it exists
+        install_script = process_dir / "install_requirements.sh"
+        if install_script.exists():
+            self.script_paths["install"] = install_script
+            
+        # Populate Singularity definition file if it exists
+        singularity_def = process_dir / f"{self.process_id}.def"
+        if singularity_def.exists():
+            self.script_paths["singularity_def"] = singularity_def
+            
+        # Populate build scripts
+        build_dir = process_dir / "build"
+        if build_dir.exists():
+            # Image build script
+            image_script = build_dir / "image.sh"
+            if image_script.exists():
+                self.script_paths["build"]["image"] = image_script
+
+            # Virtual environment build script
+            venv_script = build_dir / "venv.sh"
+            if venv_script.exists():
+                self.script_paths["build"]["venv"] = venv_script
+                
+        # Populate execution scripts
+        execute_dir = process_dir / "execute"
+        if execute_dir.exists():
+            # Local execution scripts
+            local_dir = execute_dir / "local"
+            if local_dir.exists():
+                container_script = local_dir / "run_container.sh"
+                if container_script.exists():
+                    self.script_paths["execute"]["local"]["container"] = container_script
+
+                script_script = local_dir / "run_venv.sh"
+                if script_script.exists():
+                    self.script_paths["execute"]["local"]["venv"] = script_script
+
+            # HPC execution scripts for different schedulers
+            hpc_dir = execute_dir / "hpc"
+            if hpc_dir.exists():
+                # SLURM
+                slurm_dir = hpc_dir / "slurm"
+                if slurm_dir.exists():
+                    slurm_container = slurm_dir / "run_container.sh"
+                    if slurm_container.exists():
+                        self.script_paths["execute"]["hpc"]["slurm"]["container"] = slurm_container
+
+                    slurm_script = slurm_dir / "run_venv.sh"
+                    if slurm_script.exists():
+                        self.script_paths["execute"]["hpc"]["slurm"]["venv"] = slurm_script
+
+                # PBS
+                pbs_dir = hpc_dir / "pbs"
+                if pbs_dir.exists():
+                    pbs_container = pbs_dir / "run_container.sh"
+                    if pbs_container.exists():
+                        self.script_paths["execute"]["hpc"]["pbs"]["container"] = pbs_container
+
+                    pbs_script = pbs_dir / "run_venv.sh"
+                    if pbs_script.exists():
+                        self.script_paths["execute"]["hpc"]["pbs"]["venv"] = pbs_script
+
+                # LSF
+                lsf_dir = hpc_dir / "lsf"
+                if lsf_dir.exists():
+                    lsf_container = lsf_dir / "run_container.sh"
+                    if lsf_container.exists():
+                        self.script_paths["execute"]["hpc"]["lsf"]["container"] = lsf_container
+
+                    lsf_script = lsf_dir / "run_venv.sh"
+                    if lsf_script.exists():
+                        self.script_paths["execute"]["hpc"]["lsf"]["venv"] = lsf_script
+
     def _save_model_json(self, process_dir: Path) -> None:
         """Save the complete model JSON for reproducibility."""
-        model_data = self.model_dump(exclude={"working_dir"})
+        # # Get model data excluding working_dir
+        # model_data = self.model_dump(exclude={"working_dir"})
+        # model_data = self.model_dump()
         
-        # Convert any Path objects to strings
-        def convert_paths_to_strings(obj):
-            if isinstance(obj, dict):
-                return {k: convert_paths_to_strings(v) for k, v in obj.items()}
-            elif isinstance(obj, list):
-                return [convert_paths_to_strings(item) for item in obj]
-            elif isinstance(obj, Path):
-                return str(obj)
-            else:
-                return obj
         
-        model_data = convert_paths_to_strings(model_data)
+        # # Convert Path objects to strings
+        # def convert_paths_to_strings(obj):
+        #     if isinstance(obj, dict):
+        #         return {k: convert_paths_to_strings(v) for k, v in obj.items()}
+        #     elif isinstance(obj, list):
+        #         return [convert_paths_to_strings(item) for item in obj]
+        #     elif isinstance(obj, Path):
+        #         return str(obj)
+        #     else:
+        #         return obj
         
-        model_path = process_dir / "model.json"
-        with open(model_path, "w") as f:
-            json.dump(model_data, f, indent=2)
-    
+        # model_data = convert_paths_to_strings(model_data)
+        
+        # # Ensure script_paths is properly serialized if it exists
+        # if self.script_paths is not None:
+        #     model_data["script_paths"] = {
+        #         k: str(v) for k, v in self.script_paths.items()
+        #     }
+        
+        # model_path = process_dir / "model.json"
+        # with open(model_path, "w") as f:
+        #     json.dump(model_data, f, indent=2)
+        
+        json_str: str = self.model_dump_json(indent=2)
+        with open(process_dir / "model.json", "w") as f:
+            f.write(json_str)
+
     # Utility methods
     def build_singularity_image(self) -> Path:
         """
@@ -1394,6 +1540,80 @@ echo "Virtual environment created and requirements installed successfully at: ${
         except subprocess.CalledProcessError as e:
             raise RuntimeError(f"Failed to create virtual environment: {e}")
             
+    def generate_singularity_execution_command(self, use_runtime_vars: bool = False) -> str:
+        """
+        Generate a standalone Singularity execution command with appropriate bind paths and environment variables.
+        
+        Args:
+            use_runtime_vars: If True, use script variables like ${VAR} instead of placeholders like <var_value>
+                             This is useful when generating commands to be embedded in shell scripts.
+        
+        Returns:
+            String containing the Singularity execution command
+        """
+        # Start with the basic command
+        image_path = self._paths.get_process_image_path(self.process_id)
+        command_parts = [f"singularity run {image_path}"]
+        
+        # Add environment variables with --env
+        if self.config.environment_variables:
+            env_args = []
+            for var in self.config.environment_variables:
+                if use_runtime_vars:
+                    # Use script variables that will be set at runtime
+                    env_args.append(f"--env {var}=\"${{{var}}}\"")
+                else:
+                    # Use placeholders for documentation
+                    env_args.append(f"--env {var}=<{var.lower()}_value>")
+            
+            command_parts.append(" ".join(env_args))
+                
+        # Add bind paths with --bind
+        if self.config.bind_paths:
+            bind_args = []
+            for path in self.config.bind_paths:
+                # Normalize path to ensure consistent handling
+                norm_path = path if path.startswith('/') else f"/{path}"
+                # Strip trailing slash if present for consistency
+                norm_path = norm_path.rstrip('/')
+                
+                if use_runtime_vars:
+                    # Use the BIND_PATHS associative array that will be set at runtime
+                    bind_args.append(f"--bind \"${{BIND_PATHS[{norm_path}]}}\":{norm_path}")
+                else:
+                    # Use placeholders for documentation
+                    bind_args.append(f"--bind <path_to{norm_path}>:{norm_path}")
+            
+            command_parts.append(" ".join(bind_args))
+        
+        # Add example for actual command arguments (based on logic arguments if available)
+        if self.logic and self.logic.arguments:
+            arg_examples = []
+            for arg in self.logic.arguments:
+                if arg.is_optional:
+                    continue  # Skip optional arguments in the example
+                
+                if use_runtime_vars:
+                    # Pass through script arguments from $@
+                    # We don't add specific arguments here as they'll be passed through from the shell script
+                    pass
+                else:
+                    # Create a placeholder example for each required argument for documentation
+                    arg_examples.append(f"--{arg.name} <{arg.name.lower()}_value>")
+            
+            if arg_examples and not use_runtime_vars:
+                command_parts.append(" ".join(arg_examples))
+            
+            # When using runtime vars, always add the arguments passthrough
+            if use_runtime_vars:
+                command_parts.append("\"$@\"")
+        elif use_runtime_vars:
+            # Even without specific logic arguments, pass through any script arguments
+            command_parts.append("\"$@\"")
+        
+        # Return the final command
+        return " ".join(command_parts)
+    
     def generate_singularity_build_command(self) -> str:
         """
         Generate the command to build a Singularity image for this process.

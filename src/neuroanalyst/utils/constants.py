@@ -38,6 +38,8 @@ class NeuroAnalystPaths:
                               os.path.join(self._home, 'apptainer', 'docs'))
         self._workdir = os.getenv('NEUROANALYST_WORKDIR', 
                                  os.path.join(self._home, 'working_dirs'))
+        self._pipelines = os.getenv('NEUROANALYST_PIPELINES',
+                                   os.path.join(self._home, 'pipelines'))
         self._reports = os.getenv('NEUROANALYST_REPORTS', 
                                  os.path.join(self._home, 'reports'))
         self._logs = os.getenv('NEUROANALYST_LOGS', 
@@ -63,16 +65,6 @@ class NeuroAnalystPaths:
         return self.images / 'base'
     
     @property
-    def process_images(self) -> Path:
-        """Directory for NeuProcess Singularity images."""
-        return self.images / 'processes'
-    
-    @property
-    def pipeline_images(self) -> Path:
-        """Directory for NeuPipeline Singularity images."""
-        return self.images / 'pipelines'
-    
-    @property
     def docs(self) -> Path:
         """Directory for Apptainer/Singularity documentation and def files."""
         return Path(self._docs)
@@ -81,6 +73,11 @@ class NeuroAnalystPaths:
     def workdir(self) -> Path:
         """Working directory for temporary files during processing."""
         return Path(self._workdir)
+    
+    @property
+    def pipelines(self) -> Path:
+        """Directory for storing pipeline scripts and related files."""
+        return Path(self._pipelines)
     
     @property
     def reports(self) -> Path:
@@ -113,8 +110,7 @@ class NeuroAnalystPaths:
             self.home,
             self.images,
             self.base_images,
-            self.process_images,
-            self.pipeline_images,
+            # self.images,
             self.docs,
             self.workdir,
             self.reports,
@@ -165,7 +161,7 @@ class NeuroAnalystPaths:
             filename = f"{process_name}_v{version}.sif"
         else:
             filename = f"{process_name}.sif"
-        return self.process_images / filename
+        return self.images / filename
     
     def get_base_image_path(self, base_image_name: str) -> Path:
         """

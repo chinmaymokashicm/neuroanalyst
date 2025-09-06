@@ -135,3 +135,21 @@ def generate_available_process_id(base_path: Optional[Path] = None, max_attempts
         from .constants import PATHS
         base_path = PATHS.workdir
     return generate_available_id("process_id", base_path, max_attempts)
+
+
+def generate_process_exec_id() -> str:
+    """Generate a process execution ID."""
+    return generate_id("process_exec_id")
+
+
+def generate_unique_process_exec_id(existing_ids: Set[str] = None, max_attempts: int = 1000) -> str:
+    """Generate a unique process execution ID."""
+    return generate_unique_id("process_exec_id", existing_ids, max_attempts)
+
+
+def generate_available_process_exec_id(base_path: Optional[Path] = None, max_attempts: int = 1000) -> str:
+    """Generate an available process execution ID."""
+    if base_path is None:
+        from .constants import PATHS
+        base_path = PATHS.workdir
+    return generate_available_id("process_exec_id", base_path, max_attempts)
