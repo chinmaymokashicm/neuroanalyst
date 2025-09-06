@@ -257,6 +257,11 @@ This document outlines how jobs are submitted and managed for NeuroAnalyst on th
   - **NeuStateManager**: Maintains the state of the pipeline execution, including tracking progress and managing dependencies between processes.
   - **NeuSyncManager**: Synchronizes data between the HPCs and the other nodes, such as DB and App nodes.
 
+
+## Web API
+
+
+
 ```markdown
 Additional Notes-
 - Components to be created - NeuProcessLogic, NeuProcessDir, NeuProcess, NeuProcessExec, [wrapper on NeuProcessLogic].

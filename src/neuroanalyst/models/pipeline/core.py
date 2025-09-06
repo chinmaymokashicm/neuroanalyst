@@ -88,6 +88,12 @@ class NeuPipeline(BaseModel):
         description="HPC scheduler to use for all processes in the pipeline"
     )
     
+    # Execution command
+    execution_command: Optional[str] = Field(
+        default=None,
+        description="The generated execution command for the pipeline"
+    )
+    
     # Cache paths for easy access
     _paths: ClassVar[NeuroAnalystPaths] = NeuroAnalystPaths()
     
@@ -115,21 +121,40 @@ class NeuPipeline(BaseModel):
         """Get the path to the pipeline execution script."""
         return self.pipeline_dir_path / f"{self.pipeline_id}.sh"
     
+    @property
+    def command(self) -> str:
+        """Get the execution command for the pipeline.
+        
+        Returns:
+            str: The command to execute the pipeline
+        
+        Raises:
+            ValueError: If the execution command is not yet generated
+        """
+        if not self.execution_command:
+            if self.script_path.exists():
+                # If the script exists but execution_command is not set, generate it
+                self.execution_command = f"bash {self.script_path}"
+            else:
+                raise ValueError("Pipeline execution script has not been generated yet. "
+                                "Call create_pipeline_dir() first.")
+        return self.execution_command
+    
     def create_pipeline_dir(self) -> Path:
         """Create the pipeline directory structure."""
         # Create the main pipeline directory
         pipeline_dir = self.pipeline_dir_path
         pipeline_dir.mkdir(parents=True, exist_ok=True)
         
-        # Save the model file for reproducibility
-        with open(self.model_path, "w") as f:
-            f.write(self.model_dump_json(indent=2))
-        
         # Create the execution script
         self._generate_execution_script()
         
         # Create README.md with pipeline information
         self._generate_readme()
+        
+        # Save the model file for reproducibility
+        with open(self.model_path, "w") as f:
+            f.write(self.model_dump_json(indent=2))
         
         return pipeline_dir
     
@@ -142,6 +167,9 @@ class NeuPipeline(BaseModel):
         
         # Make script executable
         os.chmod(self.script_path, 0o755)
+        
+        # Save the execution command
+        self.execution_command = f"bash {self.script_path}"
         
         return self.script_path
     
@@ -521,7 +549,10 @@ class NeuPipeline(BaseModel):
         lines.append("To execute this pipeline, run the following command:")
         lines.append("")
         lines.append("```bash")
-        lines.append(f"bash {self.script_path}")
+        if self.execution_command:
+            lines.append(self.execution_command)
+        else:
+            lines.append(f"bash {self.script_path}")
         lines.append("```")
         
         # Write to file
@@ -535,6 +566,10 @@ class NeuPipeline(BaseModel):
         # Ensure pipeline directory and script exist
         if not self.script_path.exists():
             self.create_pipeline_dir()
+        
+        # Ensure execution_command is set
+        if not self.execution_command:
+            self.execution_command = f"bash {self.script_path}"
         
         # Execute the script
         try:
