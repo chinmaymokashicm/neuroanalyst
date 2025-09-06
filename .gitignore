@@ -10,7 +10,7 @@ debug_*
 *.pyc
 *.log
 
-*.png
+# *.png
 *.svg
 *.jpg
 package-lock.json
