@@ -150,7 +150,7 @@ class NeuPipeline(BaseModel):
                                 "Call create_pipeline_dir() first.")
         return self.execution_command
     
-    def apply_standard_exec_params(self) -> 'NeuPipeline':
+    def apply_standard_exec_params(self):
         """Apply standard execution parameters to all processes in the pipeline."""
         for step in self.steps:
             for proc_exec in step.process_execs:
@@ -163,12 +163,13 @@ class NeuPipeline(BaseModel):
                 proc_exec.set_env_var_value("PROCESS_ID", proc_exec.process.process_id)
                 proc_exec.set_env_var_value("PROCESS_EXEC_ID", proc_exec.exec_id)
                 
+                # Generate the command to ensure it's ready
+                proc_exec.generate_command()
+                
                 # Check if all the required configuration is set
                 if not proc_exec.check_configuration_complete():
                     print(f"WARNING: ProcessExec {proc_exec.exec_id} in step '{step.name}' is missing configuration.")
                     print(proc_exec.print_configuration_status())
-
-        return self
     
     def create_pipeline_dir(self) -> Path:
         """Create the pipeline directory structure."""

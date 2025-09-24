@@ -469,7 +469,7 @@ for ((step_idx=0; step_idx<TOTAL_STEPS; step_idx++)); do
     fi
     
     # Get process command
-    PROC_CMD=$(jq -r ".steps[$step_idx].process_execs[$proc_idx].command" "$MODEL_FILE")
+    PROC_CMD=$(jq -r ".steps[$step_idx].process_execs[$proc_idx].exec_command" "$MODEL_FILE")
     if [ "$PROC_CMD" = "null" ]; then
       # If command is not in model.json, log an error
       log "ERROR: Process command not found in model.json for $PROC_NAME"

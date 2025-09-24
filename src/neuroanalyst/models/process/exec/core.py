@@ -72,6 +72,10 @@ class NeuProcessExec(BaseModel):
     scheduler: HPCScheduler = Field(default=HPCScheduler.LSF,
                                   description="HPC scheduler to use (lsf, slurm, pbs, none)")
     
+    # Command storage
+    exec_command: Optional[str] = Field(default=None,
+                                      description="Generated execution command")
+    
     # Class variables
     _paths: ClassVar[NeuroAnalystPaths] = NeuroAnalystPaths()
     
@@ -230,12 +234,13 @@ class NeuProcessExec(BaseModel):
             # Don't raise an exception if saving fails - just continue
             print(f"Warning: Failed to save execution model after updating environment variable: {e}")
     
-    def get_configuration_status(self) -> Dict[str, Dict[str, List[str]]]:
+    def get_configuration_status(self) -> Dict[str, Dict[str, List[str]] | Dict[str, Any]]:
         """
         Get the status of required bind paths and environment variables.
         
         Returns:
-            Dict with information about provided and missing bind paths and environment variables
+            Dict with information about provided and missing bind paths and environment variables,
+            as well as execution command status
             
         Note:
             This method handles path normalization, treating paths with or without
@@ -266,13 +271,18 @@ class NeuProcessExec(BaseModel):
                 "required": self.process.environment_variables,
                 "provided": list(self.env_var_values.keys()),
                 "missing": missing_env_vars
+            },
+            "command": {
+                "is_set": self.exec_command is not None,
+                "value": self.exec_command if self.exec_command is not None else None
             }
         }
         return status
     
     def print_configuration_status(self) -> None:
         """
-        Print a report of the required, provided, and missing bind paths and environment variables.
+        Print a report of the required, provided, and missing bind paths and environment variables,
+        as well as the execution command status.
         """
         status = self.get_configuration_status()
         
@@ -298,11 +308,20 @@ class NeuProcessExec(BaseModel):
         else:
             print("  Missing (0): None")
         
-        # Overall status
-        if not status['bind_paths']['missing'] and not status['environment_variables']['missing']:
-            print("\nStatus: ✅ All required configuration values are provided")
+        # Command status section
+        print("\nExecution Command:")
+        if status['command']['is_set']:
+            print(f"  Status: ✅ Command is set")
+            print(f"  Command: {status['command']['value']}")
         else:
-            print("\nStatus: ❌ Missing required configuration values")
+            print(f"  Status: ❌ Command is not set")
+        
+        # Overall status
+        print("\nOverall Status:")
+        if not status['bind_paths']['missing'] and not status['environment_variables']['missing']:
+            print("  Configuration: ✅ All required configuration values are provided")
+        else:
+            print("  Configuration: ❌ Missing required configuration values")
         
         print(f"=== End of Configuration Status ===\n")
     
@@ -322,6 +341,7 @@ class NeuProcessExec(BaseModel):
         
         This method will generate the appropriate command based on the execution mode
         and scheduler, using the scripts available in the process directory.
+        The generated command is stored in the exec_command field.
         
         Returns:
             str: The generated command
@@ -395,6 +415,16 @@ class NeuProcessExec(BaseModel):
         for env_var, value in self.env_var_values.items():
             cmd += f" --env {env_var}={value}"
         
+        # Store the generated command in the exec_command field
+        self.exec_command = cmd
+        
+        # Try to save the updated model to disk
+        try:
+            self.save_to_disk()
+        except Exception as e:
+            # Don't raise an exception if saving fails - just continue
+            print(f"Warning: Failed to save execution model after generating command: {e}")
+        
         return cmd
     
     def execute(self) -> subprocess.CompletedProcess:
@@ -408,8 +438,8 @@ class NeuProcessExec(BaseModel):
             ValueError: If any required bind path or environment variable is missing
             RuntimeError: If the command execution fails
         """
-        # Generate the command (this will check configuration completeness)
-        cmd = self.generate_command()
+        # Use the stored command if available, or generate a new one
+        cmd = self.exec_command if self.exec_command else self.generate_command()
         
         # Execute the command
         try:
@@ -476,7 +506,8 @@ class NeuProcessExec(BaseModel):
                 "values": self.env_var_values,
                 "missing": config_status["environment_variables"]["missing"]
             },
-            "configuration_complete": config_complete
+            "configuration_complete": config_complete,
+            "exec_command": self.exec_command
         }
         
         # Try to generate command if configuration is complete
