@@ -10,10 +10,19 @@ ${resource_path_var}="${resource_path}"
 ${script_var}="${script_path}"
 ${other_vars}
 
+# Ensure NEUROANALYST_LOGS is set if not already in environment
+if [ -z "${NEUROANALYST_LOGS}" ]; then
+    export NEUROANALYST_LOGS="${HOME}/neuroanalyst/logs"
+    echo "NEUROANALYST_LOGS not found in environment, setting to default: $NEUROANALYST_LOGS"
+    # Create logs directory if it doesn't exist
+    mkdir -p "$NEUROANALYST_LOGS"
+fi
+
 echo "============================================================="
 echo "${script_header}: Executing $PROCESS_ID ($PROCESS_NAME) ${execution_mode_desc}"
 ${scheduler_echo}
 echo "Process Directory: $PROCESS_DIR"
+echo "Logs Directory: $NEUROANALYST_LOGS"
 echo "============================================================="
 
 # Set environment variables
