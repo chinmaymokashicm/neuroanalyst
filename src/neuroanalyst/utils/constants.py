@@ -203,17 +203,17 @@ class NeuroAnalystPaths:
         """
         return self.base_images / f"{base_image_name}.sif"
     
-    def get_venv_path(self, process_exec_id: str) -> Path:
+    def get_venv_path(self, process_id: str) -> Path:
         """
         Get the path for a process execution virtual environment.
         
         Args:
-            process_exec_id: Unique identifier for the process execution
+            process_id: Unique identifier for the process
             
         Returns:
             Path to the virtual environment directory
         """
-        return self.venvs / process_exec_id
+        return self.venvs / process_id
     
     def get_process_exec_path(self, exec_id: str) -> Path:
         """
