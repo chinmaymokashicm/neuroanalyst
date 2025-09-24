@@ -1,4 +1,11 @@
 #!/bin/bash
+# ===== PIPELINE SCRIPT =====
+# This script executes a pipeline of NeuProcess executions.
+# It uses pre-generated execution commands stored in the model.json file,
+# eliminating the need to reconstruct complex commands with bind paths and env vars.
+# The script uses scheduler information from model.json to determine the appropriate
+# scheduler commands and job status checking methods for each process.
+
 # ===== ENVIRONMENT SETUP =====
 # Load environment variables if they exist
 [ -f "${HOME}/.neuroanalyst/env.sh" ] && source "${HOME}/.neuroanalyst/env.sh"
@@ -8,7 +15,6 @@ PIPELINE_ID="PL_ID_PLACEHOLDER"
 PIPELINE_DIR="PL_DIR_PLACEHOLDER"
 MODEL_FILE="${PIPELINE_DIR}/model.json"
 STATUS_FILE="${PIPELINE_DIR}/status.json"
-SCHEDULER="SCHEDULER_PLACEHOLDER"
 
 # ===== LOG DIRECTORY SETUP =====
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
@@ -72,9 +78,18 @@ update_process_status() {
     # Prepare job_id and error_msg fields
     local job_id_str=""
     local error_msg_str=""
+    local scheduler_str=""
     
     if [ -n "$job_id" ]; then
       job_id_str=", \"scheduler_job_id\": \"$job_id\""
+      
+      # If job ID is provided, also get scheduler type from model.json
+      if [ -f "$MODEL_FILE" ]; then
+        local scheduler=$(jq -r ".steps[$step_idx].process_execs[$proc_idx].scheduler" "$MODEL_FILE" 2>/dev/null)
+        if [ -n "$scheduler" ] && [ "$scheduler" != "null" ]; then
+          scheduler_str=", \"scheduler\": \"$scheduler\""
+        fi
+      fi
     fi
     
     if [ -n "$error_msg" ]; then
@@ -86,7 +101,7 @@ update_process_status() {
     # Update the status
     jq ".steps[$step_idx].process_execs[$proc_idx].status = \"$status\" | 
         .steps[$step_idx].process_execs[$proc_idx].last_updated = \"$(date -u +"%Y-%m-%dT%H:%M:%SZ")\"
-        $job_id_str $error_msg_str" "$STATUS_FILE" > "${STATUS_FILE}.tmp"
+        $job_id_str $scheduler_str $error_msg_str" "$STATUS_FILE" > "${STATUS_FILE}.tmp"
     mv "${STATUS_FILE}.tmp" "$STATUS_FILE"
     
     # Check if all processes in this step are complete or failed
@@ -140,15 +155,13 @@ check_process_status() {
 
 # ===== SCHEDULER FUNCTIONS =====
 
-# Function to execute a command with the appropriate scheduler
-execute_with_scheduler() {
-  local scheduler="$1"
-  local cmd="$2"
-  local step_idx="$3"
-  local proc_idx="$4"
-  local step_name="$5"
-  local proc_name="$6"
-  local depends="$7"
+# Function to execute a command
+execute_process() {
+  local cmd="$1"
+  local step_idx="$2"
+  local proc_idx="$3"
+  local step_name="$4"
+  local proc_name="$5"
   
   # Check if this process is already completed
   local status=$(check_process_status "$step_idx" "$proc_idx")
@@ -162,171 +175,122 @@ execute_with_scheduler() {
   local stdout_file="${LOG_DIR}/step${step_idx}_proc${proc_idx}_${proc_name}.out"
   local stderr_file="${LOG_DIR}/step${step_idx}_proc${proc_idx}_${proc_name}.err"
   
-  # Based on scheduler, use the appropriate submit command
-  case "$scheduler" in
-    "LSF")
-      # Prepare dependency string if needed
-      local depend_str=""
-      if [ -n "$depends" ]; then
-        depend_str="-w \"$depends\""
-      fi
-      
-      # Submit job
-      log "Submitting LSF job for process $proc_name in step $step_name"
-      local JOB_ID=$(bsub -J "${PIPELINE_ID}_${step_name}_${proc_name}" $depend_str -o "$stdout_file" -e "$stderr_file" "$cmd" | awk '{print $2}' | tr -d '<>')
-      ;;
-      
-    "SLURM")
-      # Prepare dependency string if needed
-      local depend_str=""
-      if [ -n "$depends" ]; then
-        depend_str="--dependency=afterok:$depends"
-      fi
-      
-      # Submit job
-      log "Submitting SLURM job for process $proc_name in step $step_name"
-      local JOB_ID=$(sbatch --parsable -J "${PIPELINE_ID}_${step_name}_${proc_name}" $depend_str -o "$stdout_file" -e "$stderr_file" --wrap="$cmd")
-      ;;
-      
-    "PBS")
-      # Prepare dependency string if needed
-      local depend_str=""
-      if [ -n "$depends" ]; then
-        depend_str="-W depend=afterok:$depends"
-      fi
-      
-      # PBS needs a script file
+  # Get scheduler type from model.json if available
+  local model_scheduler=$(jq -r ".steps[$step_idx].process_execs[$proc_idx].scheduler" "$MODEL_FILE" 2>/dev/null)
+  if [ -z "$model_scheduler" ] || [ "$model_scheduler" = "null" ]; then
+    model_scheduler=""
+  fi
+  
+  # Convert to uppercase for consistency
+  model_scheduler=$(echo "$model_scheduler" | tr '[:lower:]' '[:upper:]')
+  
+  # Check if this is a local (direct) command or a scheduler command
+  if [[ "$cmd" == "source "* || "$cmd" == "./"* || "$cmd" == "bash "* || "$cmd" == "sh "* ]] || [[ "$model_scheduler" == "LOCAL" ]]; then
+    # This is a local command
+    log "Running local process $proc_name in step $step_name"
+    
+    # Update status to running
+    update_process_status "$step_idx" "$proc_idx" "RUNNING"
+    
+    # Execute command directly
+    if eval "$cmd" > "$stdout_file" 2> "$stderr_file"; then
+      update_process_status "$step_idx" "$proc_idx" "COMPLETE"
+      log "Process $proc_name in step $step_name completed successfully"
+      echo "COMPLETED"
+      return 0
+    else
+      local exit_code=$?
+      local error_msg=$(extract_error "$stderr_file")
+      update_process_status "$step_idx" "$proc_idx" "FAILED" "" "$error_msg"
+      log "ERROR: Process $proc_name in step $step_name failed with exit code $exit_code"
+      echo "FAILED"
+      return $exit_code
+    fi
+  else
+    # This is a scheduler command (bsub, sbatch, qsub)
+    local scheduler_type=""
+    local job_cmd=""
+    
+    # Determine scheduler type from model.json or command
+    if [ -n "$model_scheduler" ]; then
+      scheduler_type="$model_scheduler"
+    elif [[ "$cmd" == bsub* ]]; then
+      scheduler_type="LSF"
+    elif [[ "$cmd" == sbatch* ]]; then
+      scheduler_type="SLURM"
+    elif [[ "$cmd" == qsub* ]]; then
+      scheduler_type="PBS"
+    else
+      log "ERROR: Unknown scheduler command and no scheduler specified in model.json: $cmd"
+      echo "FAILED"
+      return 1
+    fi
+    
+    # Prepare job command based on scheduler
+    if [[ "$scheduler_type" == "LSF" ]]; then
+      # Add job name and output redirection to bsub command
+      job_cmd="$cmd -J \"${PIPELINE_ID}_${step_name}_${proc_name}\" -o \"$stdout_file\" -e \"$stderr_file\""
+    elif [[ "$scheduler_type" == "SLURM" ]]; then
+      # Add job name and output redirection to sbatch command
+      job_cmd="$cmd -J \"${PIPELINE_ID}_${step_name}_${proc_name}\" -o \"$stdout_file\" -e \"$stderr_file\""
+    elif [[ "$scheduler_type" == "PBS" ]]; then
+      # For PBS, we need to create a script wrapper
       local script_file="${LOG_DIR}/step${step_idx}_proc${proc_idx}_${proc_name}.pbs"
       echo "#!/bin/bash" > "$script_file"
       echo "#PBS -N ${PIPELINE_ID}_${step_name}_${proc_name}" >> "$script_file"
       echo "#PBS -o $stdout_file" >> "$script_file"
       echo "#PBS -e $stderr_file" >> "$script_file"
-      echo "$cmd" >> "$script_file"
+      # Extract the actual command after qsub and its options
+      local actual_cmd=$(echo "$cmd" | sed 's/^qsub\s*\([^;]*\)\s*;\s*\(.*\)/\2/')
+      echo "$actual_cmd" >> "$script_file"
       chmod +x "$script_file"
       
-      # Submit job
-      log "Submitting PBS job for process $proc_name in step $step_name"
-      local JOB_ID=$(qsub $depend_str "$script_file")
-      ;;
-      
-    "LOCAL")
-      # Run locally
-      log "Running local process $proc_name in step $step_name"
-      
-      # Update status to running
-      update_process_status "$step_idx" "$proc_idx" "RUNNING"
-      
-      # Execute command
-      if eval "$cmd" > "$stdout_file" 2> "$stderr_file"; then
-        update_process_status "$step_idx" "$proc_idx" "COMPLETE"
-        log "Process $proc_name in step $step_name completed successfully"
-        echo "COMPLETED"
-        return 0
-      else
-        local exit_code=$?
-        local error_msg=$(extract_error "$stderr_file")
-        update_process_status "$step_idx" "$proc_idx" "FAILED" "" "$error_msg"
-        log "ERROR: Process $proc_name in step $step_name failed with exit code $exit_code"
-        echo "FAILED"
-        return $exit_code
-      fi
-      ;;
-      
-    *)
-      log "ERROR: Unknown scheduler type: $scheduler"
+      # Replace original command with qsub to our script file
+      job_cmd="qsub $script_file"
+    else
+      log "ERROR: Unsupported scheduler type: $scheduler_type"
+      echo "FAILED"
       return 1
-      ;;
-  esac
-  
-  # For schedulers (not LOCAL which already handles status updates)
-  if [ "$scheduler" != "LOCAL" ]; then
-    # Update status to running with job ID
-    update_process_status "$step_idx" "$proc_idx" "RUNNING" "$JOB_ID"
+    fi
+    
+    # Submit the job
+    log "Submitting $scheduler_type job for process $proc_name in step $step_name"
+    local JOB_ID=""
+    
+    if [[ "$scheduler_type" == "LSF" ]]; then
+      JOB_ID=$(eval "$job_cmd" | awk '{print $2}' | tr -d '<>')
+    elif [[ "$scheduler_type" == "SLURM" ]]; then
+      JOB_ID=$(eval "$job_cmd")
+    else
+      JOB_ID=$(eval "$job_cmd")
+    fi
+    
+    # Get scheduler from model.json
+    local scheduler=$(jq -r ".steps[$step_idx].process_execs[$proc_idx].scheduler" "$MODEL_FILE" 2>/dev/null)
+    
+    # Update status to running with job ID and scheduler
+    if [ -n "$scheduler" ] && [ "$scheduler" != "null" ]; then
+      # Update status file with scheduler information
+      jq ".steps[$step_idx].process_execs[$proc_idx].status = \"RUNNING\" | 
+          .steps[$step_idx].process_execs[$proc_idx].last_updated = \"$(date -u +"%Y-%m-%dT%H:%M:%SZ")\" |
+          .steps[$step_idx].process_execs[$proc_idx].scheduler_job_id = \"$JOB_ID\" |
+          .steps[$step_idx].process_execs[$proc_idx].scheduler = \"$scheduler\"" "$STATUS_FILE" > "${STATUS_FILE}.tmp"
+      mv "${STATUS_FILE}.tmp" "$STATUS_FILE"
+    else
+      update_process_status "$step_idx" "$proc_idx" "RUNNING" "$JOB_ID"
+    fi
+    
     echo "$JOB_ID"
   fi
 }
 
-# Function to check job status based on scheduler
-check_job_status() {
-  local scheduler="$1"
-  local job_id="$2"
-  
-  case "$scheduler" in
-    "LSF")
-      # Check if job exists in bjobs output
-      if bjobs -a "$job_id" 2>/dev/null | grep -q "$job_id"; then
-        # Get job status
-        local status=$(bjobs -noheader -o stat "$job_id" 2>/dev/null)
-        case "$status" in
-          "DONE")
-            echo "COMPLETE"
-            ;;
-          "EXIT"|"ZOMBI")
-            echo "FAILED"
-            ;;
-          *)
-            echo "RUNNING"
-            ;;
-        esac
-      else
-        # Job not found, assume completed
-        echo "COMPLETE"
-      fi
-      ;;
-      
-    "SLURM")
-      # Check if job exists
-      if squeue -j "$job_id" -h 2>/dev/null | grep -q "$job_id"; then
-        # Job exists, still running
-        echo "RUNNING"
-      else
-        # Job not in queue, check if it completed successfully
-        if sacct -j "$job_id" -n -o State | grep -q "COMPLETED"; then
-          echo "COMPLETE"
-        else
-          echo "FAILED"
-        fi
-      fi
-      ;;
-      
-    "PBS")
-      # Check if job exists
-      if qstat "$job_id" 2>/dev/null | grep -q "$job_id"; then
-        # Job exists, still running
-        echo "RUNNING"
-      else
-        # Job not in queue, check exit status if possible
-        if [ -f "${LOG_DIR}/${job_id}.exit_status" ]; then
-          if [ "$(cat "${LOG_DIR}/${job_id}.exit_status")" = "0" ]; then
-            echo "COMPLETE"
-          else
-            echo "FAILED"
-          fi
-        else
-          # No exit status file, assume completed
-          echo "COMPLETE"
-        fi
-      fi
-      ;;
-      
-    "LOCAL")
-      # For local execution, this isn't used as status is updated directly
-      echo "UNKNOWN"
-      ;;
-      
-    *)
-      log "ERROR: Unknown scheduler type: $scheduler"
-      echo "UNKNOWN"
-      ;;
-  esac
-}
+# Job status checking is now handled directly within the wait_for_jobs function
 
 # Function to wait for jobs to complete
 wait_for_jobs() {
-  local scheduler="$1"
-  local job_ids="$2"
-  local step_idx="$3"
-  local timeout="$4"  # Optional timeout in seconds
+  local job_ids="$1"
+  local step_idx="$2"
+  local timeout="$3"  # Optional timeout in seconds
   
   # If no jobs, return immediately
   if [ -z "$job_ids" ]; then
@@ -348,30 +312,116 @@ wait_for_jobs() {
     local all_done=true
     
     for job_id in "${JOB_ID_ARRAY[@]}"; do
-      # Find process ID for this job
-      if [ "$scheduler" != "LOCAL" ]; then
-        local proc_info=$(jq -r ".steps[$step_idx].process_execs[] | select(.scheduler_job_id==\"$job_id\") | .process_id" "$STATUS_FILE" 2>/dev/null)
-        local proc_idx=$(jq -r ".steps[$step_idx].process_execs[] | select(.scheduler_job_id==\"$job_id\") | .process_id" "$STATUS_FILE" 2>/dev/null)
-        
-        # If not found, skip this job
-        if [ -z "$proc_info" ]; then
-          continue
+      # Find process information for this job
+      local proc_info=$(jq -r ".steps[$step_idx].process_execs[] | select(.scheduler_job_id==\"$job_id\")" "$STATUS_FILE" 2>/dev/null)
+      local proc_idx=$(jq -r ".steps[$step_idx].process_execs[] | select(.scheduler_job_id==\"$job_id\") | .process_id" "$STATUS_FILE" 2>/dev/null)
+      
+      # If not found, skip this job
+      if [ -z "$proc_info" ]; then
+        continue
+      fi
+      
+      # Get scheduler type from status file (which we populated from model.json)
+      local scheduler=$(jq -r ".steps[$step_idx].process_execs[] | select(.scheduler_job_id==\"$job_id\") | .scheduler" "$STATUS_FILE" 2>/dev/null)
+      
+      # If scheduler not found in status file, try model.json
+      if [ -z "$scheduler" ] || [ "$scheduler" = "null" ]; then
+        scheduler=$(jq -r ".steps[$step_idx].process_execs[] | select(.scheduler_job_id==\"$job_id\") | .scheduler" "$MODEL_FILE" 2>/dev/null)
+      fi
+      
+      # If still not found, try to determine from job ID format as fallback
+      if [ -z "$scheduler" ] || [ "$scheduler" = "null" ]; then
+        if [[ "$job_id" =~ ^[0-9]+$ ]]; then
+          # Simple numeric job ID - most likely LSF
+          scheduler="LSF"
+        elif [[ "$job_id" =~ ^[0-9]+\.[a-zA-Z0-9]+$ ]]; then
+          # Format like "12345.server" - most likely PBS
+          scheduler="PBS"
+        else
+          # Default to SLURM for everything else
+          scheduler="SLURM"
         fi
-        
-        # Check job status
-        local status=$(check_job_status "$scheduler" "$job_id")
-        
-        # Update status based on job status
-        if [ "$status" = "COMPLETE" ]; then
-          log "Job $job_id completed successfully"
-          update_process_status "$step_idx" "$proc_idx" "COMPLETE"
-        elif [ "$status" = "FAILED" ]; then
-          log "Job $job_id failed"
-          local error_msg="Job failed in scheduler"
-          update_process_status "$step_idx" "$proc_idx" "FAILED" "$job_id" "$error_msg"
-        elif [ "$status" = "RUNNING" ]; then
-          all_done=false
-        fi
+      fi
+      
+      # Convert scheduler to uppercase for consistency
+      scheduler=$(echo "$scheduler" | tr '[:lower:]' '[:upper:]')
+      
+      # Check job status
+      local status=""
+      case "$scheduler" in
+        "LSF")
+          # Check if job exists in bjobs output
+          if bjobs -a "$job_id" 2>/dev/null | grep -q "$job_id"; then
+            # Get job status
+            local lsf_status=$(bjobs -noheader -o stat "$job_id" 2>/dev/null)
+            case "$lsf_status" in
+              "DONE")
+                status="COMPLETE"
+                ;;
+              "EXIT"|"ZOMBI")
+                status="FAILED"
+                ;;
+              *)
+                status="RUNNING"
+                ;;
+            esac
+          else
+            # Job not found, assume completed
+            status="COMPLETE"
+          fi
+          ;;
+          
+        "SLURM")
+          # Check if job exists
+          if squeue -j "$job_id" -h 2>/dev/null | grep -q "$job_id"; then
+            # Job exists, still running
+            status="RUNNING"
+          else
+            # Job not in queue, check if it completed successfully
+            if sacct -j "$job_id" -n -o State | grep -q "COMPLETED"; then
+              status="COMPLETE"
+            else
+              status="FAILED"
+            fi
+          fi
+          ;;
+          
+        "PBS")
+          # Check if job exists
+          if qstat "$job_id" 2>/dev/null | grep -q "$job_id"; then
+            # Job exists, still running
+            status="RUNNING"
+          else
+            # Job not in queue, check exit status if possible
+            if [ -f "${LOG_DIR}/${job_id}.exit_status" ]; then
+              if [ "$(cat "${LOG_DIR}/${job_id}.exit_status")" = "0" ]; then
+                status="COMPLETE"
+              else
+                status="FAILED"
+              fi
+            else
+              # No exit status file, assume completed
+              status="COMPLETE"
+            fi
+          fi
+          ;;
+          
+        *)
+          log "ERROR: Could not determine scheduler type for job $job_id"
+          status="UNKNOWN"
+          ;;
+      esac
+      
+      # Update status based on job status
+      if [ "$status" = "COMPLETE" ]; then
+        log "Job $job_id completed successfully"
+        update_process_status "$step_idx" "$proc_idx" "COMPLETE"
+      elif [ "$status" = "FAILED" ]; then
+        log "Job $job_id failed"
+        local error_msg="Job failed in scheduler"
+        update_process_status "$step_idx" "$proc_idx" "FAILED" "$job_id" "$error_msg"
+      elif [ "$status" = "RUNNING" ]; then
+        all_done=false
       fi
     done
     
@@ -468,7 +518,8 @@ for ((step_idx=0; step_idx<TOTAL_STEPS; step_idx++)); do
       continue
     fi
     
-    # Get process command
+    # Get the pre-generated execution command from model.json
+    # This eliminates the need to reconstruct complex commands with bind paths and env vars
     PROC_CMD=$(jq -r ".steps[$step_idx].process_execs[$proc_idx].exec_command" "$MODEL_FILE")
     if [ "$PROC_CMD" = "null" ]; then
       # If command is not in model.json, log an error
@@ -476,8 +527,9 @@ for ((step_idx=0; step_idx<TOTAL_STEPS; step_idx++)); do
       PROC_CMD="echo 'Command not found for $PROC_NAME'"
     fi
     
-    # Execute the process using the appropriate scheduler
-    JOB_ID=$(execute_with_scheduler "$SCHEDULER" "$PROC_CMD" "$step_idx" "$proc_idx" "$STEP_NAME" "$PROC_NAME" "")
+    # Execute the process using the pre-generated command
+    # No need to specify scheduler as it's already part of the command
+    JOB_ID=$(execute_process "$PROC_CMD" "$step_idx" "$proc_idx" "$STEP_NAME" "$PROC_NAME")
     
     # If not already completed, add to job IDs
     if [ "$JOB_ID" != "COMPLETED" ] && [ "$JOB_ID" != "FAILED" ]; then
@@ -493,7 +545,7 @@ for ((step_idx=0; step_idx<TOTAL_STEPS; step_idx++)); do
     log "Waiting for step $((step_idx+1)) jobs to complete: $STEP_JOB_IDS_STR"
     
     # Wait for jobs to complete
-    wait_for_jobs "$SCHEDULER" "$STEP_JOB_IDS_STR" "$step_idx"
+    wait_for_jobs "$STEP_JOB_IDS_STR" "$step_idx"
     
     # Check if step completed successfully
     STEP_STATUS=$(jq -r ".steps[$step_idx].status" "$STATUS_FILE")
