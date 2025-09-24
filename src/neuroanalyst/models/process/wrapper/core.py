@@ -140,6 +140,7 @@ def neuprocess_decorator(config: NeuProcessDecoratorConfig):
                 if not error_in_func:
                     if isinstance(raw_result, dict):
                         validated_result = NeuProcessOutput(**raw_result)
+                        forced_outputs = validated_result.metadata.get("forced_output_filepaths", None)
                     elif isinstance(raw_result, tuple) and len(raw_result) >= 3:
                         # Handle legacy tuple format
                         output_data, metrics, output_entities = raw_result[:3]
@@ -162,6 +163,9 @@ def neuprocess_decorator(config: NeuProcessDecoratorConfig):
                             f"or a tuple (output_data, metrics, output_entities[, forced_outputs]). "
                             f"Got: {type(raw_result)}"
                         )
+                else:
+                    forced_outputs = None
+
                 if error_in_func:
                     # Prepare error metadata
                     validated_result = NeuProcessOutput(
@@ -174,6 +178,7 @@ def neuprocess_decorator(config: NeuProcessDecoratorConfig):
                             "input_filepath": str(input_filepath)
                         }
                     )
+                    forced_outputs = None
                 
                 # Construct output filepath using PyBIDS
                 output_entities = validated_result.metadata.get('output_bids_entities', {})
@@ -192,6 +197,16 @@ def neuprocess_decorator(config: NeuProcessDecoratorConfig):
                 
                 # Write output data
                 _write_output_data(validated_result.data, output_filepath)
+                
+                # Delete files under forced_outputs if specified
+                if forced_outputs:
+                    for fpath in forced_outputs:
+                        try:
+                            f = Path(fpath)
+                            if f.exists():
+                                f.unlink()
+                        except Exception:
+                            pass  # Ignore errors during forced file deletion
                 
                 # Prepare comprehensive metadata
                 execution_time = time.time() - start_time
@@ -233,9 +248,6 @@ def neuprocess_decorator(config: NeuProcessDecoratorConfig):
                     else:
                         # Standard case: add .json extension
                         sidecar_filepath = output_filepath.with_suffix(CONFIG.BIDS_SIDECAR_SUFFIX)
-                    # sidecar_filepath = output_filepath.with_name(
-                    #         output_filepath.stem + f'_sidecar{CONFIG.JSON_EXTENSION}'
-                    # )
                     
                     with open(sidecar_filepath, 'w') as f:
                         json.dump(metadata, f, indent=2)

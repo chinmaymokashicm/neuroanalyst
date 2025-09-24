@@ -48,6 +48,13 @@ class NeuroAnalystPaths:
                                   os.path.join(self._home, 'datasets'))
         self._venvs = os.getenv('NEUROANALYST_VENVS', 
                                os.path.join(self._home, 'virtual_environments'))
+        self._process_execs = os.getenv('NEUROANALYST_PROCESS_EXECS',
+                                      os.path.join(self._home, 'process_execs'))
+        
+        # MongoDB configuration
+        self._db_host = os.getenv('NEUROANALYST_DB_HOST', 'localhost')
+        self._db_port = int(os.getenv('NEUROANALYST_DB_PORT', '27017'))
+        self._db_name = os.getenv('NEUROANALYST_DB_NAME', 'neuroanalyst')
     
     @property
     def home(self) -> Path:
@@ -99,6 +106,26 @@ class NeuroAnalystPaths:
         """Directory for virtual environments."""
         return Path(self._venvs)
     
+    @property
+    def process_execs(self) -> Path:
+        """Directory for process execution instances."""
+        return Path(self._process_execs)
+    
+    @property
+    def db_host(self) -> str:
+        """MongoDB host."""
+        return self._db_host
+    
+    @property
+    def db_port(self) -> int:
+        """MongoDB port."""
+        return self._db_port
+    
+    @property
+    def db_name(self) -> str:
+        """MongoDB database name."""
+        return self._db_name
+    
     def create_directories(self) -> None:
         """
         Create all necessary directories if they don't exist.
@@ -116,7 +143,8 @@ class NeuroAnalystPaths:
             self.reports,
             self.logs,
             self.datasets,
-            self.venvs
+            self.venvs,
+            self.process_execs
         ]
         
         for directory in directories:
@@ -186,6 +214,18 @@ class NeuroAnalystPaths:
             Path to the virtual environment directory
         """
         return self.venvs / process_exec_id
+    
+    def get_process_exec_path(self, exec_id: str) -> Path:
+        """
+        Get the path for a process execution instance.
+        
+        Args:
+            exec_id: Unique identifier for the execution instance
+            
+        Returns:
+            Path to the process execution directory
+        """
+        return self.process_execs / exec_id
     
     def get_log_file_path(self, component: str, process_id: Optional[str] = None) -> Path:
         """
@@ -300,7 +340,11 @@ def validate_environment() -> bool:
         'NEUROANALYST_WORKDIR',
         'NEUROANALYST_REPORTS',
         'NEUROANALYST_LOGS',
-        'NEUROANALYST_DATASETS'
+        'NEUROANALYST_DATASETS',
+        'NEUROANALYST_PROCESS_EXECS',
+        'NEUROANALYST_DB_HOST',
+        'NEUROANALYST_DB_PORT',
+        'NEUROANALYST_DB_NAME'
     ]
     
     missing_vars = []

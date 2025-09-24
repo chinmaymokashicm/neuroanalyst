@@ -26,23 +26,41 @@ class PythonFunctionExtractor(ast.NodeVisitor):
     def visit_Import(self, node):
         """Extract import statements."""
         for alias in node.names:
-            self.imports.append(f"import {alias.name}")
+            if alias.asname:
+                self.imports.append(f"import {alias.name} as {alias.asname}")
+            else:
+                self.imports.append(f"import {alias.name}")
         self.generic_visit(node)
     
     def visit_ImportFrom(self, node):
         """Extract from-import statements."""
         module = node.module or ""
-        names = [alias.name for alias in node.names]
+        names = []
+        for alias in node.names:
+            if alias.asname:
+                names.append(f"{alias.name} as {alias.asname}")
+            else:
+                names.append(alias.name)
         self.imports.append(f"from {module} import {', '.join(names)}")
         self.generic_visit(node)
     
     def visit_FunctionDef(self, node):
         """Extract function definitions and their metadata."""
+        # Get source code from the source being parsed
+        # This approach uses the node's line number information to preserve the original formatting
+        source_lines = None
+        if hasattr(node, 'lineno') and hasattr(node, 'end_lineno'):
+            # Get the source code from the root
+            try:
+                source_lines = ast.unparse(node)  # Default fallback
+            except Exception:
+                pass  # Will use ast.unparse(node) as fallback
+                
         func_info = {
             'name': node.name,
             'docstring': ast.get_docstring(node),
             'args': self._extract_arguments(node.args),
-            'body': ast.unparse(node),
+            'body': source_lines if source_lines else ast.unparse(node),
             'decorators': [ast.unparse(dec) for dec in node.decorator_list],
             'returns': ast.unparse(node.returns) if node.returns else None,
             'lineno': node.lineno
@@ -113,7 +131,7 @@ class PythonDecoder(BaseDecoder):
                 raise ValueError("Invalid Python code")
         
         try:
-            tree = ast.parse(code)
+            tree = ast.parse(code, type_comments=True)
             extractor = PythonFunctionExtractor()
             extractor.visit(tree)
             
@@ -132,7 +150,47 @@ class PythonDecoder(BaseDecoder):
             else:
                 target_function = extractor.functions[0]  # Use first function
             
-            return self._convert_to_logic(target_function, extractor.imports)
+            # Extract the original function code from the source
+            # Find the function in the original code to preserve formatting
+            func_name = target_function['name']
+            lines = code.split('\n')
+            
+            func_start = -1
+            func_end = len(lines)
+            bracket_level = 0
+            in_func = False
+            
+            for i, line in enumerate(lines):
+                if not in_func:
+                    # Look for function definition
+                    if re.match(r'^\s*def\s+' + re.escape(func_name) + r'\s*\(', line):
+                        func_start = i
+                        in_func = True
+                        bracket_level += line.count('(') - line.count(')')
+                else:
+                    # Count brackets to find end of function definition
+                    bracket_level += line.count('(') - line.count(')')
+                    
+                    # Check for end of function
+                    if i + 1 < len(lines) and not lines[i + 1].strip():
+                        # Next line is blank
+                        next_nonblank = i + 2
+                        while next_nonblank < len(lines) and not lines[next_nonblank].strip():
+                            next_nonblank += 1
+                        
+                        if next_nonblank < len(lines) and not lines[next_nonblank].startswith(' '):
+                            # Next non-blank line is not indented - end of function
+                            func_end = next_nonblank - 1
+                            break
+            
+            if func_start >= 0:
+                # Extract the function code with original formatting
+                original_func_code = '\n'.join(lines[func_start:func_end+1])
+                
+                # Update the target function with the original code
+                target_function['original_code'] = original_func_code
+            
+            return self._convert_to_logic(target_function, extractor.imports, original_code=code)
             
         except SyntaxError as e:
             if self.config.strict_parsing:
@@ -241,7 +299,7 @@ class PythonDecoder(BaseDecoder):
         except SyntaxError:
             return False
     
-    def _convert_to_logic(self, func_info: Dict[str, Any], imports: List[str]) -> NeuProcessLogic:
+    def _convert_to_logic(self, func_info: Dict[str, Any], imports: List[str], original_code: str = None) -> NeuProcessLogic:
         """Convert extracted function info to NeuProcessLogic object."""
         # Create arguments
         arguments = []
@@ -253,6 +311,12 @@ class PythonDecoder(BaseDecoder):
                 is_optional=arg_info['is_optional'],
                 description=description
             ))
+
+        # Infer logic kind
+        if len(arguments) == 1 and arguments[0].name == "input_filepath":
+            logic_kind = "file"
+        else:
+            logic_kind = "bulk"
         
         # Parse metadata from docstring if available and enabled
         name = func_info['name']
@@ -272,18 +336,62 @@ class PythonDecoder(BaseDecoder):
             version=version
         )
         
-        # Remove imports from function body since we store them separately
-        if self.config.preserve_original_formatting:
+        # Use original function code if available to preserve formatting
+        if 'original_code' in func_info:
+            clean_code = func_info['original_code']
+        elif self.config.preserve_original_formatting:
             clean_code = func_info['body']
         else:
-            clean_code = self._remove_imports_from_function_body(func_info['body'])
+            # Find the function in the original code to preserve its formatting
+            if original_code and name in original_code:
+                lines = original_code.split('\n')
+                func_pattern = re.compile(r'^\s*def\s+' + re.escape(name) + r'\s*\(')
+                
+                # Find function start
+                start_idx = -1
+                for i, line in enumerate(lines):
+                    if func_pattern.match(line):
+                        start_idx = i
+                        break
+                
+                if start_idx >= 0:
+                    # Extract function definition and body with proper indentation
+                    func_lines = []
+                    func_lines.append(lines[start_idx])  # Function signature
+                    
+                    # Add function body with proper indentation
+                    i = start_idx + 1
+                    while i < len(lines):
+                        if not lines[i].strip() and i + 1 < len(lines):
+                            # Check if next non-blank line is not indented
+                            next_idx = i + 1
+                            while next_idx < len(lines) and not lines[next_idx].strip():
+                                next_idx += 1
+                            if next_idx < len(lines) and not lines[next_idx].startswith(' '):
+                                break  # End of function
+                        
+                        if i >= len(lines) or (i > start_idx + 1 and lines[i].strip() and not lines[i].startswith(' ')):
+                            # Unindented line after function start means end of function
+                            break
+                        
+                        func_lines.append(lines[i])
+                        i += 1
+                    
+                    clean_code = '\n'.join(func_lines)
+                else:
+                    # Fallback to standard import removal
+                    clean_code = self._remove_imports_from_function_body(func_info['body'])
+            else:
+                # Fallback to standard import removal
+                clean_code = self._remove_imports_from_function_body(func_info['body'])
         
         return NeuProcessLogic(
             about=about,
             language=ProgrammingLanguage.PYTHON,
             code=clean_code,
             import_statements=imports,
-            arguments=arguments
+            arguments=arguments,
+            logic_kind=logic_kind
         )
     
     def _fallback_decode(self, code: str, function_name: Optional[str] = None) -> NeuProcessLogic:
@@ -332,7 +440,7 @@ class PythonDecoder(BaseDecoder):
             return extractor.imports
         except SyntaxError:
             # If code can't be parsed, try to extract imports with regex
-            import_pattern = r'^(import\s+\S+|from\s+\S+\s+import\s+.+)$'
+            import_pattern = r'^(import\s+.+|from\s+.+\s+import\s+.+)$'
             imports = []
             for line in code.split('\n'):
                 line = line.strip()
@@ -373,44 +481,64 @@ class PythonDecoder(BaseDecoder):
     
     def _remove_imports_from_function_body(self, function_code: str) -> str:
         """Remove import statements from a function body, keeping only the function logic."""
+        # If the function already starts with 'def', just return it as is
+        if function_code.strip().startswith('def '):
+            return function_code
+            
         try:
-            # Parse the function
+            # Parse the function to extract its structure
             tree = ast.parse(function_code)
-            if tree.body and isinstance(tree.body[0], ast.FunctionDef):
-                func_node = tree.body[0]
+            
+            # Find the function definition node
+            function_node = None
+            for node in ast.walk(tree):
+                if isinstance(node, ast.FunctionDef):
+                    function_node = node
+                    break
+            
+            if not function_node:
+                return function_code  # No function found, return original code
                 
-                # Extract only the function body (without imports at module level)
-                func_body_lines = []
-                for stmt in func_node.body:
-                    if not (isinstance(stmt, ast.Import) or isinstance(stmt, ast.ImportFrom)):
-                        func_body_lines.append(ast.unparse(stmt))
+            # Get the function's name and line numbers
+            func_name = function_node.name
+            start_line = function_node.lineno
+            end_line = function_node.end_lineno if hasattr(function_node, 'end_lineno') else None
+            
+            # Split the code into lines
+            lines = function_code.split('\n')
+            
+            # Find the function definition line
+            def_line_idx = -1
+            for i, line in enumerate(lines):
+                if f"def {func_name}" in line and ":" in line:
+                    def_line_idx = i
+                    break
+                    
+            if def_line_idx == -1:
+                return function_code  # Function definition not found
                 
-                # Reconstruct the function without imports
-                signature_line = f"def {func_node.name}({', '.join([ast.unparse(arg) for arg in func_node.args.args])}):"
-                if func_node.returns:
-                    signature_line = signature_line.replace("):", f") -> {ast.unparse(func_node.returns)}:")
+            # Extract the function body, preserving all formatting
+            function_lines = lines[def_line_idx:]
+            
+            # Filter out import statements from the function body while preserving structure
+            filtered_lines = [function_lines[0]]  # Keep function signature
+            
+            # Process the body, keeping all lines except imports
+            in_body = False
+            for i in range(1, len(function_lines)):
+                line = function_lines[i]
+                stripped = line.strip()
                 
-                # Add docstring if present
-                body_parts = []
-                if func_node.body and isinstance(func_node.body[0], ast.Expr) and isinstance(func_node.body[0].value, ast.Constant):
-                    # Has docstring
-                    docstring = func_node.body[0].value.value
-                    body_parts.append(f'    """{docstring}"""')
-                    # Get statements after docstring
-                    for stmt in func_node.body[1:]:
-                        if not (isinstance(stmt, ast.Import) or isinstance(stmt, ast.ImportFrom)):
-                            body_parts.append(f"    {ast.unparse(stmt)}")
-                else:
-                    # No docstring, process all statements
-                    for stmt in func_node.body:
-                        if not (isinstance(stmt, ast.Import) or isinstance(stmt, ast.ImportFrom)):
-                            body_parts.append(f"    {ast.unparse(stmt)}")
+                # Once we see indented code, we're in the body
+                if not in_body and stripped:
+                    in_body = True
                 
-                if not body_parts:
-                    body_parts.append("    pass")
-                
-                return signature_line + "\n" + "\n".join(body_parts)
-            else:
-                return function_code
+                # Skip import statements in the body but keep everything else including blank lines
+                if not in_body or not (stripped.startswith('import ') or 
+                                      (stripped.startswith('from ') and ' import ' in stripped)):
+                    filtered_lines.append(line)
+            
+            return '\n'.join(filtered_lines)
         except SyntaxError:
+            # If parsing fails, return the original code
             return function_code

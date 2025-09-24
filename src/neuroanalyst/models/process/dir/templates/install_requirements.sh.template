@@ -23,7 +23,7 @@ ${system_packages_section}
 pip install pydantic pybids
 
 # Install neuroanalyst package (required for neuprocess_wrapper)
-pip install -U neuroanalyst
+pip install git+https://github.com/chinmaymokashicm/neuroanalyst.git@mda
 
 # Language-specific packages
 ${language_packages_section}

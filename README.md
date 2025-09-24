@@ -28,6 +28,11 @@ NeuroAnalyst is organized into several key components:
 
 ## Enhanced Features ✨
 
+- **MongoDB Integration**: Store and manage process metadata and results in MongoDB
+- **Sync Framework**: Synchronize processes, executions, pipelines, and logs between HPC storage and database
+- **Bidirectional Sync**: Transfer data from HPC to DB or DB to HPC with difference tracking
+- **Comprehensive Logging**: Automatic log collection and centralized storage
+
 ### 1. **Auto-inference of Execution Mode**
 - **Simplified API**: Single `process` parameter automatically detects container vs script execution
 - **Type-based Detection**: `NeuProcess` → container mode, `NeuProcessDir` → script mode
@@ -357,41 +362,54 @@ For detailed documentation on each component, see:
 - [Pipeline Documentation](docs/pipeline.md)
 
 ## Advanced Features
-        MaxRetries -->|Yes| TransferFailed[Failed]
-        
-        TransferValid -->|Yes| RouteData[Route Data]
-        RouteData --> MongoDB[(MongoDB)]
-        RouteData --> ELK[(ELK Stack)]
-        RouteData --> FileStorage[(File Storage)]
-        
-        MongoDB --> UpdateStatus[Update Status]
-        ELK --> UpdateStatus
-        FileStorage --> UpdateStatus
-        UpdateStatus --> CleanupTemp[Cleanup]
-        CleanupTemp --> SyncComplete([Complete])
+
+```mermaid
+flowchart TD
+    %% Phase 1: Job Execution (Compute Node)
+    subgraph "Phase 1: Job Execution"
+        Start([Start Job])
+        CreateJobDir[Create Job Directory]
+        ProcessLoop[Process Data Loop]
+        WriteData[Write Data]
+        JobDone([Job Done])
+        Start --> CreateJobDir --> ProcessLoop --> WriteData --> JobDone
     end
-    
-    subgraph "Monitoring"
-        MonitorQueue[Queue Monitor] -.->|Status| TransferQueue
-        HealthCheck[Health Check] -.->|Validate| MongoDB
-        HealthCheck -.->|Validate| ELK
-        HealthCheck -.->|Validate| FileStorage
-        ErrorRecovery[Error Recovery] -.->|Handle| RetryLogic
+
+    %% Phase 2: Data Packaging (Compute Node)
+    subgraph "Phase 2: Data Packaging"
+        CompileResults[Compile Results]
+        GenerateMetadata[Generate Metadata]
+        CompressData[Compress Data]
+        QueueImmediate[Queue Immediate Transfer]
+        QueueScheduled[Queue Scheduled Transfer]
+        JobDone --> CompileResults --> GenerateMetadata --> CompressData
+        CompressData --> QueueImmediate
+        CompressData --> QueueScheduled
     end
-    
-    classDef phase1 fill:#dbeafe,stroke:#1e40af,stroke-width:2px
-    classDef phase2 fill:#fef3c7,stroke:#b45309,stroke-width:2px
-    classDef phase3 fill:#dcfce7,stroke:#15803d,stroke-width:2px
-    classDef decision fill:#f3e8ff,stroke:#7c3aed,stroke-width:2px
-    classDef storage fill:#fff7ed,stroke:#ea580c,stroke-width:2px
-    classDef monitoring fill:#f1f5f9,stroke:#475569,stroke-width:2px
-    
-    class Start,CreateJobDir,ProcessLoop,WriteData,JobDone phase1
-    class CompileResults,GenerateMetadata,CompressData,QueueImmediate,QueueScheduled phase2
-    class StartTransfer,ValidateTransfer,RouteData,UpdateStatus,CleanupTemp,SyncComplete,WaitWindow phase3
-    class SyncStrategy,SyncTrigger,TransferValid,MaxRetries decision
-    class TransferQueue,MongoDB,ELK,FileStorage storage
-    class MonitorQueue,HealthCheck,ErrorRecovery,RetryLogic,TransferFailed monitoring
+
+    %% Phase 3: Database Sync (Database Node)
+    subgraph "Phase 3: Database Sync"
+        StartTransfer[Start Transfer]
+        ValidateTransfer[Validate Transfer]
+        SyncStrategy{Sync Strategy}
+        SyncTrigger{Sync Trigger}
+        TransferValid{Transfer Valid?}
+        MaxRetries{Max Retries?}
+        WaitWindow[Wait Window]
+        TransferQueue[Transfer Queue]
+        TransferFailed[Failed]
+        RouteData[Route Data]
+        MongoDB[(MongoDB)]
+        ELK[(ELK Stack)]
+        FileStorage[(File Storage)]
+        UpdateStatus[Update Status]
+        CleanupTemp[Cleanup]
+        SyncComplete([Complete])
+
+        QueueImmediate --> StartTransfer
+        QueueScheduled --> WaitWindow --> StartTransfer
+        StartTransfer --> ValidateTransfer --> SyncStrategy
+    end
 ```
 
 ### Data Flow Phases

@@ -8,6 +8,7 @@ NeuPipeline is responsible for:
 1. Managing a sequence of pipeline steps (each with one or more NeuProcessExec instances)
 2. Generating execution scripts for the entire pipeline with dependencies
 3. Storing pipeline metadata for reproducibility
+4. Tracking status of each process and enabling resumable execution
 """
 
 import os
@@ -15,7 +16,8 @@ import json
 import subprocess
 from enum import Enum
 from pathlib import Path
-from typing import Optional, List, Dict, Any, Union, Set, ClassVar
+from datetime import datetime
+from typing import Optional, List, Dict, Any, Union, Set, ClassVar, Literal
 
 from pydantic import BaseModel, Field, model_validator
 
@@ -24,6 +26,14 @@ from ...utils.id_generators import generate_id
 from ..about import About
 from ..process.exec.core import NeuProcessExec, HPCScheduler
 from ..process.process.core import NeuProcess
+
+
+class ProcessStatus(str, Enum):
+    """Status of a process execution in a pipeline."""
+    NOT_STARTED = "NOT_STARTED"  # Process has not been started yet
+    RUNNING = "RUNNING"          # Process is currently running
+    COMPLETE = "COMPLETE"        # Process completed successfully
+    FAILED = "FAILED"            # Process failed with an error
 
 
 class NeuPipelineStep(BaseModel):
@@ -146,6 +156,9 @@ class NeuPipeline(BaseModel):
         pipeline_dir = self.pipeline_dir_path
         pipeline_dir.mkdir(parents=True, exist_ok=True)
         
+        # Initialize status tracking
+        self._initialize_status_tracking()
+        
         # Create the execution script
         self._generate_execution_script()
         
@@ -158,9 +171,72 @@ class NeuPipeline(BaseModel):
         
         return pipeline_dir
     
+    def _build_script_content(self, script_lines: List[str]) -> List[str]:
+        """
+        Build script content for the pipeline execution that:
+        1. Loads relevant variables
+        2. Creates a timestamped log directory
+        3. Loads model.json and iterates through steps
+        4. Handles different schedulers dynamically
+        5. Maintains logs and updates status.json
+        6. Supports resuming functionality
+        
+        Args:
+            script_lines: The base script lines to build upon
+            
+        Returns:
+            List[str]: The completed script content as a list of strings
+        """
+        # Path to template file
+        template_dir = Path(__file__).parent / "templates"
+        template_path = template_dir / "pipeline_script_template.sh"
+        
+        if not template_path.exists():
+            raise FileNotFoundError(f"Pipeline script template not found at {template_path}")
+        
+        # Read the template file
+        with open(template_path, "r") as f:
+            template_content = f.read()
+        
+        # Replace placeholders with actual values
+        script_content = template_content.replace("PL_ID_PLACEHOLDER", self.pipeline_id)
+        script_content = script_content.replace("PL_DIR_PLACEHOLDER", str(self.pipeline_dir_path))
+        script_content = script_content.replace("SCHEDULER_PLACEHOLDER", self.scheduler.value.upper())
+        
+        # Add the script content to the script_lines
+        script_lines.append(script_content)
+        
+        return script_lines
+    
     def _generate_execution_script(self) -> Path:
         """Generate the execution script for the pipeline."""
-        script_content = self._build_script_content()
+        # Common script components
+        script_lines = []
+        
+        # Add shebang and header comment
+        # script_lines.append("#!/bin/bash")
+        # script_lines.append("")
+        script_lines.append(f"# NeuPipeline Execution Script: {self.about.name}")
+        script_lines.append(f"# Pipeline ID: {self.pipeline_id}")
+        script_lines.append(f"# Version: {self.about.version}")
+        script_lines.append(f"# Author: {self.about.author}")
+        if hasattr(self.about, 'contact') and self.about.contact:
+            script_lines.append(f"# Contact: {self.about.contact}")
+        script_lines.append(f"# Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        script_lines.append("")
+        
+        # Add description
+        if self.about.description:
+            script_lines.append("# Description:")
+            for line in self.about.description.split("\n"):
+                script_lines.append(f"# {line}")
+            script_lines.append("")
+        
+        # Use the improved script generator to build the script content
+        script_lines = self._build_script_content(script_lines)
+        
+        # Convert script_lines list to a string
+        script_content = "\n".join(script_lines)
         
         with open(self.script_path, "w") as f:
             f.write(script_content)
@@ -172,339 +248,6 @@ class NeuPipeline(BaseModel):
         self.execution_command = f"bash {self.script_path}"
         
         return self.script_path
-    
-    def _build_script_content(self) -> str:
-        """Build the content for the pipeline execution script based on scheduler."""
-        script_lines = []
-        
-        # Add shebang
-        script_lines.append("#!/bin/bash")
-        script_lines.append("")
-        
-        # Add header comment
-        script_lines.append(f"# NeuPipeline Execution Script: {self.about.name}")
-        script_lines.append(f"# Pipeline ID: {self.pipeline_id}")
-        script_lines.append(f"# Version: {self.about.version}")
-        script_lines.append(f"# Author: {self.about.author}")
-        if self.about.author:
-            script_lines.append(f"# Contact: {self.about.author}")
-        script_lines.append(f"# Generated: $(date)")
-        script_lines.append("")
-        
-        # Add description
-        if self.about.description:
-            script_lines.append("# Description:")
-            for line in self.about.description.split("\n"):
-                script_lines.append(f"# {line}")
-            script_lines.append("")
-        
-        # Add error handling
-        script_lines.append("# Error handling")
-        script_lines.append("set -e")
-        script_lines.append("")
-        
-        # Add global variables
-        script_lines.append("# Global variables")
-        script_lines.append(f"PIPELINE_ID=\"{self.pipeline_id}\"")
-        script_lines.append(f"PIPELINE_DIR=\"{self.pipeline_dir_path}\"")
-        script_lines.append("LOG_DIR=\"${PIPELINE_DIR}/logs\"")
-        script_lines.append("")
-        
-        # Create log directory
-        script_lines.append("# Create log directory")
-        script_lines.append("mkdir -p \"${LOG_DIR}\"")
-        script_lines.append("")
-        
-        # Create utility functions
-        script_lines.append("# Utility functions")
-        script_lines.append("log() {")
-        script_lines.append("  echo \"[$(date '+%Y-%m-%d %H:%M:%S')] $1\" | tee -a \"${LOG_DIR}/pipeline.log\"")
-        script_lines.append("}")
-        script_lines.append("")
-        
-        # Add pipeline start log
-        script_lines.append("log \"Starting pipeline: ${PIPELINE_ID}\"")
-        script_lines.append("")
-        
-        # Generate script based on scheduler
-        if self.scheduler == HPCScheduler.LSF:
-            script_content = self._build_lsf_script(script_lines)
-        elif self.scheduler == HPCScheduler.SLURM:
-            script_content = self._build_slurm_script(script_lines)
-        elif self.scheduler == HPCScheduler.PBS:
-            script_content = self._build_pbs_script(script_lines)
-        else:  # LOCAL
-            script_content = self._build_local_script(script_lines)
-        
-        # Add pipeline end log
-        script_content.append("log \"Pipeline completed: ${PIPELINE_ID}\"")
-        
-        return "\n".join(script_content)
-    
-    def _build_lsf_script(self, script_lines: List[str]) -> List[str]:
-        """Build LSF-specific script content."""
-        # Add LSF-specific variables and functions
-        script_lines.append("# LSF-specific variables and functions")
-        script_lines.append("LSF_JOB_IDS=()  # Array to store job IDs")
-        script_lines.append("")
-        
-        script_lines.append("# Function to submit LSF job with dependencies")
-        script_lines.append("submit_job() {")
-        script_lines.append("  local cmd=\"$1\"")
-        script_lines.append("  local step_name=\"$2\"")
-        script_lines.append("  local depends=\"$3\"")
-        script_lines.append("")
-        script_lines.append("  # Prepare dependency string if needed")
-        script_lines.append("  local depend_str=\"\"")
-        script_lines.append("  if [ -n \"$depends\" ]; then")
-        script_lines.append("    depend_str=\"-w \\\"$depends\\\"\";")
-        script_lines.append("  fi")
-        script_lines.append("")
-        script_lines.append("  # Submit job")
-        script_lines.append("  log \"Submitting job for step: $step_name\"")
-        script_lines.append("  JOB_ID=$(bsub -J \"${PIPELINE_ID}_${step_name}\" $depend_str $cmd | awk '{print $2}' | tr -d '<>')")
-        script_lines.append("  echo $JOB_ID")
-        script_lines.append("}")
-        script_lines.append("")
-        
-        # Process each step
-        for i, step in enumerate(self.steps):
-            script_lines.append(f"# Step {i+1}: {step.name}")
-            if step.description:
-                script_lines.append(f"# {step.description}")
-            script_lines.append("")
-            
-            # Track job IDs for this step
-            script_lines.append(f"STEP{i+1}_JOB_IDS=()")
-            script_lines.append("")
-            
-            # Define dependency on previous step
-            depend_str = ""
-            if i > 0:
-                depend_str = f"done(${{{i}}}_*)"
-            
-            # Process each exec in this step
-            for j, proc_exec in enumerate(step.process_execs):
-                script_lines.append(f"# Process {j+1}: {proc_exec.exec_id}")
-                
-                # Generate the command for this process exec
-                script_lines.append(f"CMD_{i}_{j}=$(cat << 'EOF'")
-                script_lines.append(proc_exec.generate_command())
-                script_lines.append("EOF")
-                script_lines.append(")")
-                script_lines.append("")
-                
-                # Submit job
-                script_lines.append(f"JOB_ID_{i}_{j}=$(submit_job \"$CMD_{i}_{j}\" \"step{i+1}_proc{j+1}\" \"{depend_str}\")")
-                script_lines.append(f"STEP{i+1}_JOB_IDS+=(\"$JOB_ID_{i}_{j}\")")
-                script_lines.append(f"log \"Submitted job {proc_exec.exec_id} with ID: $JOB_ID_{i}_{j}\"")
-                script_lines.append("")
-            
-            # Store all job IDs for this step
-            script_lines.append(f"# Store step {i+1} job IDs")
-            script_lines.append(f"STEP{i+1}_JOB_IDS_STR=$(IFS=,; echo \"${{STEP{i+1}_JOB_IDS[*]}}\")")
-            script_lines.append(f"log \"Step {i+1} job IDs: $STEP{i+1}_JOB_IDS_STR\"")
-            script_lines.append("")
-        
-        return script_lines
-    
-    def _build_slurm_script(self, script_lines: List[str]) -> List[str]:
-        """Build SLURM-specific script content."""
-        # Add SLURM-specific variables and functions
-        script_lines.append("# SLURM-specific variables and functions")
-        script_lines.append("SLURM_JOB_IDS=()  # Array to store job IDs")
-        script_lines.append("")
-        
-        script_lines.append("# Function to submit SLURM job with dependencies")
-        script_lines.append("submit_job() {")
-        script_lines.append("  local cmd=\"$1\"")
-        script_lines.append("  local step_name=\"$2\"")
-        script_lines.append("  local depends=\"$3\"")
-        script_lines.append("")
-        script_lines.append("  # Prepare dependency string if needed")
-        script_lines.append("  local depend_str=\"\"")
-        script_lines.append("  if [ -n \"$depends\" ]; then")
-        script_lines.append("    depend_str=\"--dependency=afterok:$depends\";")
-        script_lines.append("  fi")
-        script_lines.append("")
-        script_lines.append("  # Submit job")
-        script_lines.append("  log \"Submitting job for step: $step_name\"")
-        script_lines.append("  JOB_ID=$(sbatch --parsable -J \"${PIPELINE_ID}_${step_name}\" $depend_str --wrap=\"$cmd\")")
-        script_lines.append("  echo $JOB_ID")
-        script_lines.append("}")
-        script_lines.append("")
-        
-        # Process each step
-        for i, step in enumerate(self.steps):
-            script_lines.append(f"# Step {i+1}: {step.name}")
-            if step.description:
-                script_lines.append(f"# {step.description}")
-            script_lines.append("")
-            
-            # Track job IDs for this step
-            script_lines.append(f"STEP{i+1}_JOB_IDS=()")
-            script_lines.append("")
-            
-            # Define dependency on previous step
-            depend_str = ""
-            if i > 0:
-                depend_str = f"$STEP{i}_JOB_IDS_STR"
-            
-            # Process each exec in this step
-            for j, proc_exec in enumerate(step.process_execs):
-                script_lines.append(f"# Process {j+1}: {proc_exec.exec_id}")
-                
-                # Generate the command for this process exec
-                script_lines.append(f"CMD_{i}_{j}=$(cat << 'EOF'")
-                script_lines.append(proc_exec.generate_command())
-                script_lines.append("EOF")
-                script_lines.append(")")
-                script_lines.append("")
-                
-                # Submit job
-                script_lines.append(f"JOB_ID_{i}_{j}=$(submit_job \"$CMD_{i}_{j}\" \"step{i+1}_proc{j+1}\" \"{depend_str}\")")
-                script_lines.append(f"STEP{i+1}_JOB_IDS+=(\"$JOB_ID_{i}_{j}\")")
-                script_lines.append(f"log \"Submitted job {proc_exec.exec_id} with ID: $JOB_ID_{i}_{j}\"")
-                script_lines.append("")
-            
-            # Store all job IDs for this step
-            script_lines.append(f"# Store step {i+1} job IDs")
-            script_lines.append(f"STEP{i+1}_JOB_IDS_STR=$(IFS=,; echo \"${{STEP{i+1}_JOB_IDS[*]}}\")")
-            script_lines.append(f"log \"Step {i+1} job IDs: $STEP{i+1}_JOB_IDS_STR\"")
-            script_lines.append("")
-        
-        return script_lines
-    
-    def _build_pbs_script(self, script_lines: List[str]) -> List[str]:
-        """Build PBS-specific script content."""
-        # Add PBS-specific variables and functions
-        script_lines.append("# PBS-specific variables and functions")
-        script_lines.append("PBS_JOB_IDS=()  # Array to store job IDs")
-        script_lines.append("")
-        
-        script_lines.append("# Function to submit PBS job with dependencies")
-        script_lines.append("submit_job() {")
-        script_lines.append("  local cmd=\"$1\"")
-        script_lines.append("  local step_name=\"$2\"")
-        script_lines.append("  local depends=\"$3\"")
-        script_lines.append("")
-        script_lines.append("  # Prepare dependency string if needed")
-        script_lines.append("  local depend_str=\"\"")
-        script_lines.append("  if [ -n \"$depends\" ]; then")
-        script_lines.append("    depend_str=\"-W depend=afterok:$depends\";")
-        script_lines.append("  fi")
-        script_lines.append("")
-        script_lines.append("  # Submit job")
-        script_lines.append("  log \"Submitting job for step: $step_name\"")
-        script_lines.append("  JOB_ID=$(echo \"$cmd\" | qsub -N \"${PIPELINE_ID}_${step_name}\" $depend_str)")
-        script_lines.append("  echo $JOB_ID")
-        script_lines.append("}")
-        script_lines.append("")
-        
-        # Process each step
-        for i, step in enumerate(self.steps):
-            script_lines.append(f"# Step {i+1}: {step.name}")
-            if step.description:
-                script_lines.append(f"# {step.description}")
-            script_lines.append("")
-            
-            # Track job IDs for this step
-            script_lines.append(f"STEP{i+1}_JOB_IDS=()")
-            script_lines.append("")
-            
-            # Define dependency on previous step
-            depend_str = ""
-            if i > 0:
-                depend_str = f"$STEP{i}_JOB_IDS_STR"
-            
-            # Process each exec in this step
-            for j, proc_exec in enumerate(step.process_execs):
-                script_lines.append(f"# Process {j+1}: {proc_exec.exec_id}")
-                
-                # Generate the command for this process exec
-                script_lines.append(f"CMD_{i}_{j}=$(cat << 'EOF'")
-                script_lines.append(proc_exec.generate_command())
-                script_lines.append("EOF")
-                script_lines.append(")")
-                script_lines.append("")
-                
-                # Submit job
-                script_lines.append(f"JOB_ID_{i}_{j}=$(submit_job \"$CMD_{i}_{j}\" \"step{i+1}_proc{j+1}\" \"{depend_str}\")")
-                script_lines.append(f"STEP{i+1}_JOB_IDS+=(\"$JOB_ID_{i}_{j}\")")
-                script_lines.append(f"log \"Submitted job {proc_exec.exec_id} with ID: $JOB_ID_{i}_{j}\"")
-                script_lines.append("")
-            
-            # Store all job IDs for this step
-            script_lines.append(f"# Store step {i+1} job IDs")
-            script_lines.append(f"STEP{i+1}_JOB_IDS_STR=$(IFS=,; echo \"${{STEP{i+1}_JOB_IDS[*]}}\")")
-            script_lines.append(f"log \"Step {i+1} job IDs: $STEP{i+1}_JOB_IDS_STR\"")
-            script_lines.append("")
-        
-        return script_lines
-    
-    def _build_local_script(self, script_lines: List[str]) -> List[str]:
-        """Build script content for local execution (no scheduler)."""
-        # Add local execution functions
-        script_lines.append("# Local execution functions")
-        script_lines.append("run_command() {")
-        script_lines.append("  local cmd=\"$1\"")
-        script_lines.append("  local step_name=\"$2\"")
-        script_lines.append("")
-        script_lines.append("  # Create log file for this command")
-        script_lines.append("  local log_file=\"${LOG_DIR}/${step_name}.log\"")
-        script_lines.append("")
-        script_lines.append("  # Run command")
-        script_lines.append("  log \"Running step: $step_name\"")
-        script_lines.append("  if eval \"$cmd\" > \"$log_file\" 2>&1; then")
-        script_lines.append("    log \"Step $step_name completed successfully\"")
-        script_lines.append("    return 0")
-        script_lines.append("  else")
-        script_lines.append("    local exit_code=$?")
-        script_lines.append("    log \"ERROR: Step $step_name failed with exit code $exit_code\"")
-        script_lines.append("    cat \"$log_file\"")
-        script_lines.append("    exit $exit_code")
-        script_lines.append("  fi")
-        script_lines.append("}")
-        script_lines.append("")
-        
-        # Process each step sequentially
-        for i, step in enumerate(self.steps):
-            script_lines.append(f"# Step {i+1}: {step.name}")
-            if step.description:
-                script_lines.append(f"# {step.description}")
-            script_lines.append("")
-            
-            # Process each exec in this step (potentially in parallel for local)
-            for j, proc_exec in enumerate(step.process_execs):
-                script_lines.append(f"# Process {j+1}: {proc_exec.exec_id}")
-                
-                # Generate the command for this process exec
-                script_lines.append(f"CMD_{i}_{j}=$(cat << 'EOF'")
-                script_lines.append(proc_exec.generate_command())
-                script_lines.append("EOF")
-                script_lines.append(")")
-                script_lines.append("")
-                
-                # For local execution, we might want to run in parallel with &
-                if len(step.process_execs) > 1:
-                    script_lines.append(f"log \"Running process {j+1} in step {i+1} in background\"")
-                    script_lines.append(f"run_command \"$CMD_{i}_{j}\" \"step{i+1}_proc{j+1}\" &")
-                    script_lines.append(f"PID_{i}_{j}=$!")
-                    script_lines.append("")
-                else:
-                    script_lines.append(f"log \"Running process {j+1} in step {i+1}\"")
-                    script_lines.append(f"run_command \"$CMD_{i}_{j}\" \"step{i+1}_proc{j+1}\"")
-                    script_lines.append("")
-            
-            # If we have parallel processes, wait for all to complete
-            if len(step.process_execs) > 1:
-                script_lines.append(f"# Wait for all processes in step {i+1} to complete")
-                script_lines.append("log \"Waiting for all processes in step to complete...\"")
-                script_lines.append("wait")
-                script_lines.append("log \"All processes in step completed\"")
-                script_lines.append("")
-        
-        return script_lines
     
     def _generate_readme(self) -> Path:
         """Generate a README.md file with pipeline information."""
@@ -561,11 +304,168 @@ class NeuPipeline(BaseModel):
         
         return readme_path
     
-    def execute(self) -> str:
-        """Execute the pipeline by running the generated script."""
+    def _initialize_status_tracking(self) -> Path:
+        """Initialize the status tracking file for the pipeline."""
+        # Create the status file in the pipeline directory
+        status_path = self.pipeline_dir_path / "status.json"
+        
+        # Initialize pipeline status
+        current_time = datetime.now().isoformat()
+        pipeline_status = {
+            "pipeline_id": self.pipeline_id,
+            "created_at": current_time,
+            "last_updated": current_time,
+            "status": "initialized",
+            "steps": []
+        }
+        
+        # Initialize status for each step and process
+        for i, step in enumerate(self.steps):
+            step_status = {
+                "step_id": i,
+                "name": step.name,
+                "status": ProcessStatus.NOT_STARTED.value,
+                "started_at": None,
+                "completed_at": None,
+                "error": None,
+                "processes": []
+            }
+            
+            # Initialize status for each process in the step
+            for j, proc_exec in enumerate(step.process_execs):
+                proc_status = {
+                    "process_id": j,
+                    "exec_id": proc_exec.exec_id,
+                    "status": ProcessStatus.NOT_STARTED.value,
+                    "started_at": None,
+                    "completed_at": None,
+                    "error": None,
+                    "scheduler_job_id": None
+                }
+                
+                # Add process status to step
+                step_status["processes"].append(proc_status)
+            
+            # Add step status to pipeline
+            pipeline_status["steps"].append(step_status)
+        
+        # Save the pipeline status file
+        with open(status_path, "w") as f:
+            json.dump(pipeline_status, f, indent=2)
+        
+        return status_path
+    
+    def get_pipeline_status(self) -> Dict[str, Any]:
+        """Get the current status of the pipeline.
+        
+        Returns:
+            Dict[str, Any]: A dictionary containing the pipeline status
+        
+        Raises:
+            FileNotFoundError: If the status file does not exist
+        """
+        status_path = self.pipeline_dir_path / "status.json"
+        
+        if not status_path.exists():
+            raise FileNotFoundError(f"Status file not found at {status_path}")
+        
+        with open(status_path, "r") as f:
+            status_data = json.load(f)
+        
+        return status_data
+    
+    def print_pipeline_status(self) -> None:
+        """Print a formatted report of the current pipeline status."""
+        try:
+            status_data = self.get_pipeline_status()
+            
+            print(f"\n{'='*80}")
+            print(f"Pipeline Status: {status_data['pipeline_id']}")
+            print(f"{'='*80}")
+            print(f"Created: {status_data['created_at']}")
+            print(f"Last Updated: {status_data['last_updated']}")
+            print(f"Overall Status: {status_data['status']}")
+            print(f"{'-'*80}")
+            
+            for step in status_data["steps"]:
+                print(f"\nStep {step['step_id'] + 1}: {step['name']} - {step['status']}")
+                
+                if step["status"] == ProcessStatus.RUNNING.value and step["started_at"]:
+                    print(f"  Started: {step['started_at']}")
+                
+                if step["status"] == ProcessStatus.COMPLETE.value:
+                    print(f"  Completed: {step['completed_at']}")
+                
+                if step["status"] == ProcessStatus.FAILED.value:
+                    print(f"  Failed: {step['completed_at']}")
+                    print(f"  Error: {step['error']}")
+                
+                print("  Processes:")
+                for proc in step["processes"]:
+                    status_indicator = {
+                        ProcessStatus.NOT_STARTED.value: "⬜",
+                        ProcessStatus.RUNNING.value: "🔄",
+                        ProcessStatus.COMPLETE.value: "✅",
+                        ProcessStatus.FAILED.value: "❌"
+                    }.get(proc["status"], "?")
+                    
+                    print(f"  {status_indicator} Process {proc['process_id'] + 1}: {proc['name']} - {proc['status']}")
+                    
+                    if proc["status"] == ProcessStatus.RUNNING.value and proc["started_at"]:
+                        print(f"    Started: {proc['started_at']}")
+                    
+                    if proc["status"] == ProcessStatus.COMPLETE.value:
+                        print(f"    Completed: {proc['completed_at']}")
+                    
+                    if proc["status"] == ProcessStatus.FAILED.value:
+                        print(f"    Failed: {proc['completed_at']}")
+                        print(f"    Error: {proc['error']}")
+                    
+                    if proc["scheduler_job_id"]:
+                        print(f"    Job ID: {proc['scheduler_job_id']}")
+            
+            print(f"\n{'='*80}\n")
+            
+        except FileNotFoundError:
+            print(f"No status information available for pipeline {self.pipeline_id}")
+    
+    def execute(self, resume: bool = False) -> str:
+        """Execute the pipeline by running the generated script.
+        
+        Args:
+            resume: If True, resume execution from the last successful step
+        
+        Returns:
+            str: A message indicating the result of the execution
+            
+        Raises:
+            FileNotFoundError: If resume=True and the status file does not exist
+        """
         # Ensure pipeline directory and script exist
         if not self.script_path.exists():
             self.create_pipeline_dir()
+        
+        # If resuming, update the status
+        if resume:
+            status_path = self.pipeline_dir_path / "status.json"
+            
+            if not status_path.exists():
+                raise FileNotFoundError(f"Status file not found at {status_path}")
+            
+            # Get current status
+            with open(status_path, "r") as f:
+                status_data = json.load(f)
+            
+            # Check if pipeline already completed
+            if status_data["status"] == "complete":
+                return f"Pipeline {self.pipeline_id} already completed. Nothing to resume."
+            
+            # Update status to indicate resuming
+            status_data["status"] = "resuming"
+            status_data["last_updated"] = datetime.now().isoformat()
+            
+            with open(status_path, "w") as f:
+                json.dump(status_data, f, indent=2)
         
         # Ensure execution_command is set
         if not self.execution_command:
@@ -582,6 +482,19 @@ class NeuPipeline(BaseModel):
             return f"Pipeline {self.pipeline_id} executed successfully. Output:\n{result.stdout}"
         except subprocess.CalledProcessError as e:
             return f"Pipeline {self.pipeline_id} execution failed. Error:\n{e.stderr}"
+            
+    def resume(self) -> str:
+        """Resume pipeline execution from the last successful step.
+        
+        This is a convenience method that calls execute(resume=True).
+        
+        Returns:
+            str: A message indicating the result of the resume operation
+            
+        Raises:
+            FileNotFoundError: If the status file does not exist
+        """
+        return self.execute(resume=True)
     
     @classmethod
     def from_model_file(cls, model_path: Union[str, Path]) -> 'NeuPipeline':

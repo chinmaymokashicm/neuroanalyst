@@ -39,8 +39,8 @@ From: ${base_image}
 
 %post
     # Install basic dependencies
-    apt-get update -y
-    apt-get install -y python3 python3-pip
+    # apt-get update -y
+    # apt-get install -y python3 python3-pip
 
     # Make installation script executable and run it
     chmod +x /opt/install_requirements.sh

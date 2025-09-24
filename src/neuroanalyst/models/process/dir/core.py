@@ -33,7 +33,7 @@ from ..logic.code.python.encoder import PythonEncoder
 
 class ExecutionMode(str, Enum):
     """Enum for execution modes."""
-    venv = "venv"
+    VENV = "venv"
     CONTAINER = "container"
 
 
@@ -103,6 +103,169 @@ class NeuProcessDir(BaseModel):
     # Class variables
     _paths: ClassVar[NeuroAnalystPaths] = NeuroAnalystPaths()
     _template_dir: ClassVar[Path] = Path(__file__).parent / "templates"
+    
+    # Configuration modification methods
+    def add_environment_variables(self, variables: Union[str, List[str]]) -> None:
+        """
+        Add environment variables to the configuration.
+        
+        Args:
+            variables: A single environment variable name or list of names to add
+        """
+        # Convert single string to list for consistent handling
+        var_list = [variables] if isinstance(variables, str) else variables
+        
+        for variable in var_list:
+            if variable not in self.config.environment_variables:
+                self.config.environment_variables.append(variable)
+    
+    def remove_environment_variables(self, variables: Union[str, List[str]]) -> List[str]:
+        """
+        Remove environment variables from the configuration.
+        
+        Args:
+            variables: A single environment variable name or list of names to remove
+            
+        Returns:
+            List of variables that were successfully removed
+        """
+        # Convert single string to list for consistent handling
+        var_list = [variables] if isinstance(variables, str) else variables
+        
+        removed = []
+        for variable in var_list:
+            if variable in self.config.environment_variables:
+                self.config.environment_variables.remove(variable)
+                removed.append(variable)
+        
+        return removed
+    
+    def add_bind_paths(self, paths: Union[str, List[str]]) -> None:
+        """
+        Add bind paths to the configuration.
+        
+        Args:
+            paths: A single bind path or list of paths to add
+        """
+        # Convert single string to list for consistent handling
+        path_list = [paths] if isinstance(paths, str) else paths
+        
+        for path in path_list:
+            # Normalize path to ensure consistent handling
+            norm_path = path if path.startswith('/') else f"/{path}"
+            # Strip trailing slash if present for consistency
+            norm_path = norm_path.rstrip('/')
+            
+            if norm_path not in self.config.bind_paths:
+                self.config.bind_paths.append(norm_path)
+    
+    def remove_bind_paths(self, paths: Union[str, List[str]]) -> List[str]:
+        """
+        Remove bind paths from the configuration.
+        
+        Args:
+            paths: A single bind path or list of paths to remove
+            
+        Returns:
+            List of paths that were successfully removed
+        """
+        # Convert single string to list for consistent handling
+        path_list = [paths] if isinstance(paths, str) else paths
+        
+        removed = []
+        for path in path_list:
+            # Normalize path to ensure consistent handling
+            norm_path = path if path.startswith('/') else f"/{path}"
+            # Strip trailing slash if present for consistency
+            norm_path = norm_path.rstrip('/')
+            
+            if norm_path in self.config.bind_paths:
+                self.config.bind_paths.remove(norm_path)
+                removed.append(norm_path)
+        
+        return removed
+    
+    def add_language_packages(self, language: str, packages: Union[str, List[str]]) -> None:
+        """
+        Add packages for a specific language to the configuration.
+        
+        Args:
+            language: The programming language (e.g., 'python', 'R')
+            packages: A single package name or list of package names to add
+        """
+        language = language.lower()
+        
+        # Initialize the language entry if it doesn't exist
+        if language not in self.config.language_packages:
+            self.config.language_packages[language] = []
+        
+        # Convert single string to list for consistent handling
+        pkg_list = [packages] if isinstance(packages, str) else packages
+            
+        # Add packages if they're not already in the list
+        for package in pkg_list:
+            if package not in self.config.language_packages[language]:
+                self.config.language_packages[language].append(package)
+    
+    def remove_language_packages(self, language: str, packages: Union[str, List[str]]) -> List[str]:
+        """
+        Remove packages for a specific language from the configuration.
+        
+        Args:
+            language: The programming language (e.g., 'python', 'R')
+            packages: A single package name or list of package names to remove
+            
+        Returns:
+            List of packages that were successfully removed
+        """
+        language = language.lower()
+        
+        # Convert single string to list for consistent handling
+        pkg_list = [packages] if isinstance(packages, str) else packages
+        
+        removed = []
+        if language in self.config.language_packages:
+            for package in pkg_list:
+                if package in self.config.language_packages[language]:
+                    self.config.language_packages[language].remove(package)
+                    removed.append(package)
+        
+        return removed
+    
+    def add_system_packages(self, packages: Union[str, List[str]]) -> None:
+        """
+        Add system packages to the configuration.
+        
+        Args:
+            packages: A single system package name or list of package names to add
+        """
+        # Convert single string to list for consistent handling
+        pkg_list = [packages] if isinstance(packages, str) else packages
+        
+        for package in pkg_list:
+            if package not in self.config.system_packages:
+                self.config.system_packages.append(package)
+    
+    def remove_system_packages(self, packages: Union[str, List[str]]) -> List[str]:
+        """
+        Remove system packages from the configuration.
+        
+        Args:
+            packages: A single system package name or list of package names to remove
+            
+        Returns:
+            List of packages that were successfully removed
+        """
+        # Convert single string to list for consistent handling
+        pkg_list = [packages] if isinstance(packages, str) else packages
+        
+        removed = []
+        for package in pkg_list:
+            if package in self.config.system_packages:
+                self.config.system_packages.remove(package)
+                removed.append(package)
+        
+        return removed
     
     # Helper methods to format output
     def _format_language_packages_for_readme(self) -> str:
@@ -259,13 +422,19 @@ class NeuProcessDir(BaseModel):
         new_binds: List[str] = list(set(mandatory_binds + config.bind_paths))
         
         new_envs: List[str] = config.environment_variables.copy()
+        mandatory_envs: List[str] = ["PROCESS_ID", "PIPELINE_ID", "PIPELINE_NAME", "PROCESS_EXEC_ID"]
         if logic.kind == NeuProcessKind.FILE:
             # Include the mandatory envs to set for file-based processing. 
-            mandatory_envs: List[str] = ["BIDS_FILTERS", "PROCESS_ID", "PIPELINE_ID", "PIPELINE_NAME", "PROCESS_EXEC_ID"]
-            new_envs: List[str] = list(set(mandatory_envs + new_envs))
+            mandatory_envs += ["BIDS_FILTERS"]
+            
+            # Check if input_filepath is the only argument and not optional
+            if not any(arg.name == "input_filepath" and not arg.is_optional for arg in logic.arguments):
+                raise ValueError("For file-based processing, 'input_filepath' argument must be defined and not optional.")
+            
+        new_envs: List[str] = list(set(mandatory_envs + new_envs))
             
         config: NeuProcessDirConfig = config.model_copy(update={"bind_paths": new_binds, "environment_variables": new_envs})
-            
+        
         return cls(logic=logic, config=config)
     
     @classmethod
@@ -654,6 +823,7 @@ class NeuProcessDir(BaseModel):
             "func_name": self.logic.about.name,
             "func_args": ", ".join([arg.name for arg in self.logic.arguments]),
             "udf_code": self.logic.code,
+            # For wrapper.py, use PythonEncoder
             "func": PythonEncoder().encode(self.logic).code,
             "arg_parser_section": "\n".join(arg_parser_lines),
             "func_args_section": "\n".join([f"        '{arg.name}': args.{arg.name}," for arg in self.logic.arguments]),
@@ -1156,6 +1326,7 @@ echo "Virtual environment created and requirements installed successfully at: ${
                 'template': str(components_dir / f"{scheduler}_directives.sh.template"),
                 'context': {
                     'process_id': self.process_id,
+                    'exec_id': '${PROCESS_EXEC_ID}',
                     'process_name': self.process_name,
                     'execution_mode': 'container',
                     'max_workers': self.config.max_workers,
@@ -1233,6 +1404,7 @@ echo "Virtual environment created and requirements installed successfully at: ${
                 'template': str(components_dir / f"{scheduler}_directives.sh.template"),
                 'context': {
                     'process_id': self.process_id,
+                    'exec_id': '${PROCESS_EXEC_ID}',
                     'process_name': self.process_name,
                     'execution_mode': 'venv',
                     'max_workers': self.config.max_workers,
@@ -1586,30 +1758,30 @@ echo "Virtual environment created and requirements installed successfully at: ${
             
             command_parts.append(" ".join(bind_args))
         
-        # Add example for actual command arguments (based on logic arguments if available)
-        if self.logic and self.logic.arguments:
-            arg_examples = []
-            for arg in self.logic.arguments:
-                if arg.is_optional:
-                    continue  # Skip optional arguments in the example
+        # # Add example for actual command arguments (based on logic arguments if available)
+        # if self.logic and self.logic.arguments:
+        #     arg_examples = []
+        #     for arg in self.logic.arguments:
+        #         if arg.is_optional:
+        #             continue  # Skip optional arguments in the example
                 
-                if use_runtime_vars:
-                    # Pass through script arguments from $@
-                    # We don't add specific arguments here as they'll be passed through from the shell script
-                    pass
-                else:
-                    # Create a placeholder example for each required argument for documentation
-                    arg_examples.append(f"--{arg.name} <{arg.name.lower()}_value>")
+        #         if use_runtime_vars:
+        #             # Pass through script arguments from $@
+        #             # We don't add specific arguments here as they'll be passed through from the shell script
+        #             pass
+        #         else:
+        #             # Create a placeholder example for each required argument for documentation
+        #             arg_examples.append(f"--{arg.name} <{arg.name.lower()}_value>")
             
-            if arg_examples and not use_runtime_vars:
-                command_parts.append(" ".join(arg_examples))
+        #     if arg_examples and not use_runtime_vars:
+        #         command_parts.append(" ".join(arg_examples))
             
-            # When using runtime vars, always add the arguments passthrough
-            if use_runtime_vars:
-                command_parts.append("\"$@\"")
-        elif use_runtime_vars:
-            # Even without specific logic arguments, pass through any script arguments
-            command_parts.append("\"$@\"")
+        #     # When using runtime vars, always add the arguments passthrough
+        #     if use_runtime_vars:
+        #         command_parts.append("\"$@\"")
+        # elif use_runtime_vars:
+        #     # Even without specific logic arguments, pass through any script arguments
+        #     command_parts.append("\"$@\"")
         
         # Return the final command
         return " ".join(command_parts)

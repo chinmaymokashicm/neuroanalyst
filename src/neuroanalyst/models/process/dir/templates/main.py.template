@@ -45,7 +45,7 @@ def main():
     """Main function to parse arguments and execute the process."""
     parser = argparse.ArgumentParser(description='${description}')
     
-# ${arg_parser_section}
+    # ${arg_parser_section}
     
     args = parser.parse_args()
     
@@ -53,9 +53,9 @@ def main():
     logger.info(f"Starting execution of ${process_id} - ${process_name}")
     
     # Convert arguments to dictionary for the function
-#     func_args = {
-# ${func_args_section}
-#     }
+    #     func_args = {
+    # ${func_args_section}
+    #       }
     
     # Process based on the kind of NeuProcessLogic
     kind = "${kind}"  # Get the string value here

@@ -92,14 +92,23 @@ This document outlines how jobs are submitted and managed for NeuroAnalyst on th
 
 ---
 
-### Tracking & Stewards
+<!-- ### Tracking & Stewards
 - **Pipeline Stewards** created at pipeline launch:
   - Monitor job status via HPC scheduler (e.g., `bjobs`).
   - Update DB with progress states (`Waiting → Running → Complete/Failed`).
   - Collect and sync logs/results to DB or designated storage.
 - **Logs**:
   - First written to HPC storage (scratch or project dir).
-  - Synced periodically/ad-hoc with DB.
+  - Synced periodically/ad-hoc with DB. -->
+
+---
+### Syncing Strategy
+- There are two sources of truth for logs and results:
+  1. **HPC project storage**: Immediate access during/after job execution.
+  2. **DB node**: Centralized, structured access for querying and long-term storage.
+- There can be two syncing directions - from HPC to DB, and from DB to HPC.
+- For every Neu component (process, pipeline, etc.), there should be a method each to sync logs/results to DB, and to sync logs/results from DB.
+- There need to be two more methods that simply load logs/results from HPC project storage, and from DB. Then the user can choose to load from either source, or sync from one source to the other.
 
 ---
 
@@ -245,8 +254,11 @@ This document outlines how jobs are submitted and managed for NeuroAnalyst on th
    - Based on the process execution plan and the scheduler, the pipeline generates a singular execution script that will execute all the processes in the correct order with the correct dependencies. The script will be generated using template files and will be stored in the neuroanalyst `NEUROANALYST_PIPELINES` sub-dir. The name of the script will be the same as the pipeline id, i.e. PL-XXXXXX.sh. The pydantic model dump of the NeuPipeline instance will also be stored in the same dir as model.json for reproducibility.
    - The user can then execute this script on the HPC or local environment to execute the entire pipeline.
 
-### NeuProcess - Stewards
-- These NeuProcesses will also be Singularity images and will be executed as NeuProcessExec instances (containers).
+<!-- ### NeuPipeline Stewards
+- These stewards are responsible for managing the execution of the pipeline and its processes. They ensure that the necessary resources are allocated, monitor the execution status, and handle any errors that may arise.
+-  -->
+
+<!-- - These NeuProcesses will also be Singularity images and will be executed as NeuProcessExec instances (containers).
 - The idea behind the stewards is to manage the overall workflow, ensuring that the necessary resources are available and that the processing is carried out smoothly. They handle tasks such as monitoring, logging, and error handling, allowing the operators to focus on the actual data processing.
 - Since the computation is performed on HPCs that are no-daemon environments, these images/containers can be executed ad-hoc or scheduled using a job scheduler without the need for a daemon process.
 - Some steward processes that could be created include:
@@ -255,11 +267,57 @@ This document outlines how jobs are submitted and managed for NeuroAnalyst on th
   - **NeuDataManager**: Handles data hygiene, syncing, and organization of input/output datasets across processes.
   - **NeuLogManager**: Manages logging and reporting of process execution, capturing metrics and performance data.
   - **NeuStateManager**: Maintains the state of the pipeline execution, including tracking progress and managing dependencies between processes.
-  - **NeuSyncManager**: Synchronizes data between the HPCs and the other nodes, such as DB and App nodes.
+  - **NeuSyncManager**: Synchronizes data between the HPCs and the other nodes, such as DB and App nodes. -->
 
 
 ## Web API
+- Use FastAPI to create a web API that will allow users to interact with the NeuroAnalyst framework.
+- The API will provide endpoints to create and manage NeuProcesses, NeuPipelines, and their executions.
+- The code for the API will be located in the `routes` directory.
+- Use routers to organize the endpoints based on functionality.
+- Use pydantic models to validate request and response data.
+- Use dependency injection to manage database connections and other shared resources.
+<!-- - Use authentication and authorization to secure the API endpoints. -->
+- Endpoints - 
+  * Logic Endpoints
+  - POST /logic/encode - Encode a user-defined function into a pydantic model. Takes a string of the function and returns the pydantic model in the form of a dict.
+  - POST /logic/decode - Decode a pydantic model into a user-defined function. Takes a pydantic model in the form of a dict and returns the function string.
+  
+  * NeuProcessDir Endpoints
+  - POST /dir/create/logic - Create a new NeuProcessDir from NeuProcessLogic.
+  - GET /dir/all - Get a list of all NeuProcessDirs.
+  - GET /dir/{process_dir_id} - Get details of a specific NeuProcessDir as a directory tree.
 
+  * File Endpoints
+  - GET /[$NEUROANALYST_ROOT_DIR]/relative_path - Get the contents of a specific file given its relative path from the relevant root directory (e.g. NEUROANALYST_DATASETS, NEUROANALYST_VENVS, etc.).
+  
+  * NeuProcess Endpoints
+  - GET /process/all - Get a list of all NeuProcesses.
+  - GET /process/{process_id} - Get details of a specific NeuProcess.
+  - POST /process/create - Create a new NeuProcess from a NeuProcessDir or from logic/scripts.
+  - POST /process/{process_id}/build_image - Build the Singularity image for a specific NeuProcess.
+  - POST /process/{process_id}/create_venv - Create the virtual environment for a specific NeuProcess.
+  - DELETE /process/{process_id} - Delete a specific NeuProcess and its associated image and venv.
+
+  * NeuProcessExec Endpoints
+  - POST /process/exec/create - Create a new NeuProcessExec instance.
+  - GET /process/exec/{exec_id} - Get details of a specific NeuProcessExec.
+  - POST /process/exec/{exec_id}/generate_command - Generate the execution command for a specific NeuProcessExec.
+  - DELETE /process/exec/{exec_id} - Delete a specific NeuProcessExec.
+
+  * NeuPipeline Endpoints
+  - POST /pipeline/create - Create a new NeuPipeline from a list of NeuProcessExec instances.
+  - GET /pipeline/{pipeline_id} - Get details of a specific NeuPipeline.
+  - GET /pipeline/all - Get a list of all NeuPipelines.
+  - DELETE /pipeline/{pipeline_id} - Delete a specific NeuPipeline and its associated directory.
+
+  * Dataset Endpoints
+  - GET /dataset/all - Get a list of all datasets.
+  - GET /dataset/{dataset_id} - Get details of a specific dataset. Returns directory tree structure, size, number of files, etc.
+  - GET /dataset/{dataset_id}/filter - Get a list of files in a specific dataset that match the provided BIDS filters.
+  
+  * BIDS Endpoints
+  - GET /bids/entities/file_name - Get the BIDS entities of a specific file given its name.
 
 
 ```markdown

@@ -24,6 +24,14 @@ from ..process.core import NeuProcess
 from ..dir.core import ExecutionMode
 
 
+# Custom JSON encoder that handles Path objects
+class PathEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, Path):
+            return str(obj)
+        return super().default(obj)
+
+
 class HPCScheduler(str, Enum):
     """Enum for HPC scheduler types."""
     LSF = "lsf"
@@ -120,6 +128,46 @@ class NeuProcessExec(BaseModel):
         process = NeuProcess.from_dir_path(dir_path)
         return cls(process=process, **kwargs)
     
+    @classmethod
+    def from_exec_id(cls, exec_id: str) -> "NeuProcessExec":
+        """
+        Create a NeuProcessExec from a saved execution ID.
+        
+        Args:
+            exec_id: Execution ID of a previously saved NeuProcessExec
+            
+        Returns:
+            NeuProcessExec instance
+            
+        Raises:
+            FileNotFoundError: If the execution directory or model.json file does not exist
+            ValueError: If the model.json file cannot be parsed
+        """
+        from ....utils.constants import PATHS
+        
+        # Get the path to the execution directory
+        exec_dir = PATHS.get_process_exec_path(exec_id)
+        if not exec_dir.exists():
+            raise FileNotFoundError(f"Execution directory not found: {exec_dir}")
+        
+        # Get the path to the model.json file
+        model_path = exec_dir / "model.json"
+        if not model_path.exists():
+            raise FileNotFoundError(f"Model file not found: {model_path}")
+        
+        # Load the model from the file
+        try:
+            with open(model_path, "r") as f:
+                model_data = json.load(f)
+            
+            # Create and return the NeuProcessExec instance
+            return cls.model_validate(model_data)
+            
+        except json.JSONDecodeError as e:
+            raise ValueError(f"Failed to parse model.json: {e}")
+        except Exception as e:
+            raise ValueError(f"Failed to load NeuProcessExec from disk: {e}")
+    
     def set_bind_path_value(self, bind_path: str, value: str) -> None:
         """
         Set the value for a bind path.
@@ -151,6 +199,13 @@ class NeuProcessExec(BaseModel):
         
         # Store the value using the original required path name from the process
         self.bind_path_values[matching_path] = value
+        
+        # Save the updated model to disk
+        try:
+            self.save_to_disk()
+        except Exception as e:
+            # Don't raise an exception if saving fails - just continue
+            print(f"Warning: Failed to save execution model after updating bind path: {e}")
     
     def set_env_var_value(self, env_var: str, value: str) -> None:
         """
@@ -167,6 +222,13 @@ class NeuProcessExec(BaseModel):
             raise ValueError(f"Environment variable '{env_var}' is not required by the process")
         
         self.env_var_values[env_var] = value
+        
+        # Save the updated model to disk
+        try:
+            self.save_to_disk()
+        except Exception as e:
+            # Don't raise an exception if saving fails - just continue
+            print(f"Warning: Failed to save execution model after updating environment variable: {e}")
     
     def get_configuration_status(self) -> Dict[str, Dict[str, List[str]]]:
         """
@@ -351,6 +413,9 @@ class NeuProcessExec(BaseModel):
         
         # Execute the command
         try:
+            # Save the execution to disk before running
+            self.save_to_disk()
+            
             # Run the command and capture output
             result = subprocess.run(
                 cmd,
@@ -399,7 +464,7 @@ class NeuProcessExec(BaseModel):
         result = {
             "exec_id": self.exec_id,
             "process_id": self.process.process_id,
-            "execution_mode": mode.value,
+            "execution_mode": self.execution_mode.value,
             "scheduler": self.scheduler.value,
             "script_key": script_key,
             "script_exists": script_exists,
@@ -424,3 +489,25 @@ class NeuProcessExec(BaseModel):
             result["command_error"] = "Cannot generate command: missing required configuration values"
         
         return result
+    
+    def save_to_disk(self) -> Path:
+        """
+        Save the NeuProcessExec instance to disk.
+        
+        This method saves the model to the process_execs directory with the exec_id as the folder name.
+        
+        Returns:
+            Path to the saved model.json file
+        """
+        from ....utils.constants import PATHS
+        
+        # Create process_execs directory if it doesn't exist
+        exec_dir = PATHS.get_process_exec_path(self.exec_id)
+        exec_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Save the model as JSON, using our custom encoder to handle Path objects
+        model_path = exec_dir / "model.json"
+        with open(model_path, "w") as f:
+            json.dump(self.model_dump(), f, indent=4, cls=PathEncoder)
+        
+        return model_path
