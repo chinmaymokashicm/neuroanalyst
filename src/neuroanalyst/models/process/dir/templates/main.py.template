@@ -20,7 +20,7 @@ from concurrent.futures import ProcessPoolExecutor
 from typing import Dict, Any, List, Optional, Union, Callable
 
 # Import the wrapped user-defined function
-from .wrapper import get_wrapped_udf
+from wrapper import get_wrapped_udf
 
 # Set up logging
 logging.basicConfig(
