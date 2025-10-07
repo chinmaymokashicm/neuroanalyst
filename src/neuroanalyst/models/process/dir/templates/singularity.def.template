@@ -39,7 +39,7 @@ From: ${base_image}
 
 %post
     # Install basic dependencies
-    # apt-get update -y
+    apt-get update && apt-get install -y git
     # apt-get install -y python3 python3-pip
 
     # Make installation script executable and run it
