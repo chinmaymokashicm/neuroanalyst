@@ -43,7 +43,7 @@ def process_file(file_path: Union[str, Path], **kwargs) -> Dict[str, Any]:
 
 def main():
     """Main function to parse arguments and execute the process."""
-    parser = argparse.ArgumentParser(description='${description}')
+    parser = argparse.ArgumentParser(description="""${description}""")
     
     # ${arg_parser_section}
     
