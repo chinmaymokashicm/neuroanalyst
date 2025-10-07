@@ -53,6 +53,29 @@ class NeuProcessExec(BaseModel):
     A NeuProcessExec can be created from a NeuProcess, a process ID, or a path to a process directory.
     """
     
+    def __str__(self) -> str:
+        """Return a human-readable string representation of the NeuProcessExec."""
+        if hasattr(self, 'process') and hasattr(self.process, 'process_id'):
+            process_id = self.process.process_id
+        else:
+            process_id = 'unknown'
+        
+        if hasattr(self, 'execution_id'):
+            exec_id = self.execution_id
+        else:
+            exec_id = 'unknown'
+            
+        return f"NeuProcessExec(id='{exec_id}', process_id='{process_id}')"
+    
+    def __repr__(self) -> str:
+        """Return a detailed string representation of the NeuProcessExec."""
+        scheduler = getattr(self, 'scheduler', 'unknown')
+        mode = getattr(self, 'execution_mode', 'unknown')
+        
+        return f"NeuProcessExec(id='{getattr(self, 'execution_id', 'unknown')}', "\
+               f"process_id='{getattr(self.process, 'process_id', 'unknown') if hasattr(self, 'process') else 'unknown'}', "\
+               f"mode='{mode}', scheduler='{scheduler}')"
+    
     # Basic information
     exec_id: str = Field(default_factory=generate_process_exec_id, 
                         description="Unique identifier for the execution instance")

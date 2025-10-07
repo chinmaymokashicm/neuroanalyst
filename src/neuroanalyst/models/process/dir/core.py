@@ -47,8 +47,18 @@ class NeuProcessDirConfig(BaseModel):
                                      description="System packages required for execution")
     parallel_execution: bool = Field(default=False, 
                                    description="Whether to enable parallel execution")
-    max_workers: int = Field(default=1, 
-                           description="Maximum number of parallel workers")
+    max_workers: int = Field(default=1, description="Maximum number of parallel workers")
+    
+    def __str__(self) -> str:
+        """Return a human-readable string representation of the NeuProcessDirConfig."""
+        languages = ', '.join(self.language_packages.keys()) if self.language_packages else 'none'
+        return f"NeuProcessDirConfig(languages=[{languages}], system_packages={len(self.system_packages)}, parallel={self.parallel_execution})"
+    
+    def __repr__(self) -> str:
+        """Return a detailed string representation of the NeuProcessDirConfig."""
+        return f"NeuProcessDirConfig(language_packages={self.language_packages}, "\
+               f"system_packages={self.system_packages}, "\
+               f"parallel_execution={self.parallel_execution}, max_workers={self.max_workers})"
     bids_validate: bool = Field(default=True, 
                               description="Whether to validate BIDS data")
     
@@ -81,6 +91,17 @@ class NeuProcessDir(BaseModel):
     3. Support for both script and container execution
     4. Metadata for downstream NeuProcess instances
     """
+    
+    def __str__(self) -> str:
+        """Return a human-readable string representation of the NeuProcessDir."""
+        return f"NeuProcessDir(name='{self.name}', id='{self.process_id}')"
+    
+    def __repr__(self) -> str:
+        """Return a detailed string representation of the NeuProcessDir."""
+        modes = self.get_available_execution_modes() if hasattr(self, 'get_available_execution_modes') else None
+        return f"NeuProcessDir(name='{self.name}', id='{self.process_id}', "\
+               f"path='{self.process_dir if hasattr(self, 'process_dir') else None}', "\
+               f"modes={modes})"
     
     # Basic information
     process_id: str = Field(default_factory=generate_process_id, 
@@ -757,16 +778,36 @@ class NeuProcessDir(BaseModel):
                 continue
                 
             if language.lower() == "python":
-                language_packages_section += f"echo \"Installing Python packages...\"\n"
-                language_packages_section += f"pip install --no-cache-dir {' '.join(packages)}\n\n"
+                language_packages_section += f"echo \"Checking and installing Python packages...\"\n"
+                for pkg in packages:
+                    # Extract base package name (handle package==version or package>=version formats)
+                    base_pkg = pkg.split('==')[0].split('>=')[0].split('<')[0].strip()
+                    language_packages_section += f"pip_check_install {base_pkg}\n"
+                language_packages_section += "\n"
             elif language.lower() == "r":
-                language_packages_section += f"echo \"Installing R packages...\"\n"
-                r_packages = ", ".join([f"'{pkg}'" for pkg in packages])
-                language_packages_section += f"Rscript -e \"install.packages(c({r_packages}), repos='https://cran.rstudio.com/')\"\n\n"
+                language_packages_section += f"echo \"Checking and installing R packages...\"\n"
+                # Add a helper function for R packages at the top of the section
+                language_packages_section += "# Helper function for R packages\n"
+                language_packages_section += "r_check_install() {\n"
+                language_packages_section += "    pkg=$1\n"
+                language_packages_section += "    Rscript -e \"if(!require($pkg, quietly=TRUE)) { install.packages('$pkg', repos='https://cran.rstudio.com/') }\"\n"
+                language_packages_section += "}\n\n"
+                
+                for pkg in packages:
+                    language_packages_section += f"r_check_install {pkg}\n"
+                language_packages_section += "\n"
             elif language.lower() == "julia":
-                language_packages_section += f"echo \"Installing Julia packages...\"\n"
-                julia_packages = ", ".join([f"\\\"{pkg}\\\"" for pkg in packages])
-                language_packages_section += f"julia -e \"using Pkg; Pkg.add([{julia_packages}])\"\n\n"
+                language_packages_section += f"echo \"Checking and installing Julia packages...\"\n"
+                # Add a helper function for Julia packages at the top of the section
+                language_packages_section += "# Helper function for Julia packages\n"
+                language_packages_section += "julia_check_install() {\n"
+                language_packages_section += "    pkg=$1\n"
+                language_packages_section += "    julia -e \"using Pkg; if !haskey(Pkg.project().dependencies, \\\"$pkg\\\") Pkg.add(\\\"$pkg\\\") end\"\n"
+                language_packages_section += "}\n\n"
+                
+                for pkg in packages:
+                    language_packages_section += f"julia_check_install {pkg}\n"
+                language_packages_section += "\n"
             else:
                 language_packages_section += f"echo \"Warning: Package installation for {language} not supported yet.\"\n\n"
         
@@ -1321,6 +1362,10 @@ echo "Virtual environment created and requirements installed successfully at: ${
         # No special setup needed for SLURM
             
         # Container script - using simplified components
+        
+        # Get path of logs directory from environment variable or default
+        logs_dir = os.getenv('NEUROANALYST_LOGS', '$HOME/neuroanalyst/logs')
+        
         container_components = [
             {
                 'template': str(components_dir / f"{scheduler}_directives.sh.template"),
@@ -1330,8 +1375,17 @@ echo "Virtual environment created and requirements installed successfully at: ${
                     'process_name': self.process_name,
                     'execution_mode': 'container',
                     'max_workers': self.config.max_workers,
+                    'logs_dir': logs_dir,
                     'pbs_time': '12:00:00',
-                    'pbs_mem': '8gb'
+                    'pbs_mem': '8gb',
+                    'slurm_time': '12:00:00',
+                    'slurm_mem': '8G',
+                    'slurm_partition': 'compute',
+                    'slurm_account': 'default',
+                    'slurm_qos': 'normal',
+                    'lsf_time': '12:00',
+                    'lsf_mem': '8000',
+                    'lsf_queue': 'short'
                 }
             },
             {
@@ -1408,8 +1462,17 @@ echo "Virtual environment created and requirements installed successfully at: ${
                     'process_name': self.process_name,
                     'execution_mode': 'venv',
                     'max_workers': self.config.max_workers,
+                    'logs_dir': '${NEUROANALYST_LOGS:-$HOME/neuroanalyst/logs}',
                     'pbs_time': '12:00:00',
-                    'pbs_mem': '8gb'
+                    'pbs_mem': '8gb',
+                    'slurm_time': '12:00:00',
+                    'slurm_mem': '8G',
+                    'slurm_partition': 'compute',
+                    'slurm_account': 'default',
+                    'slurm_qos': 'normal',
+                    'lsf_time': '12:00',
+                    'lsf_mem': '8000',
+                    'lsf_queue': 'normal'
                 }
             },
             {

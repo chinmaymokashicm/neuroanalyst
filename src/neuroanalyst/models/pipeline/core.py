@@ -49,6 +49,28 @@ class NeuPipelineStep(BaseModel):
     name: str = Field(description="Name of the pipeline step")
     description: Optional[str] = Field(default=None, description="Description of the step")
     
+    def __str__(self) -> str:
+        """Return a human-readable string representation of the NeuPipelineStep."""
+        processes = len(getattr(self, 'processes', [])) if hasattr(self, 'processes') else 0
+        # return f"NeuPipelineStep(name='{self.name}', processes={processes})"
+        detailed_info: str = f"""
+        Name: {self.name}
+        Description: {self.description if self.description else 'None'}
+        Processes: {processes}
+        Steps: {getattr(self, 'process_execs', []) if hasattr(self, 'process_execs') else 'None'}
+        Status: {getattr(self, 'status', 'None') if hasattr(self, 'status') else 'None'}
+        """
+        return detailed_info
+
+    def __repr__(self) -> str:
+        """Return a detailed string representation of the NeuPipelineStep."""
+        processes = getattr(self, 'processes', []) if hasattr(self, 'processes') else []
+        process_ids = [p.execution_id for p in processes] if processes else []
+        
+        return f"NeuPipelineStep(name='{self.name}', "\
+               f"description='{self.description if self.description else 'None'}', "\
+               f"processes={process_ids})"
+    
     # Process executions within this step
     process_execs: List[NeuProcessExec] = Field(
         default_factory=list,
@@ -78,6 +100,24 @@ class NeuPipeline(BaseModel):
     2. Generating execution scripts with proper dependencies
     3. Storing pipeline metadata for reproducibility
     """
+    
+    def __str__(self) -> str:
+        """Return a human-readable string representation of the NeuPipeline."""
+        steps_count = len(getattr(self, 'steps', [])) if hasattr(self, 'steps') else 0
+        name = getattr(self.about, 'name', 'unnamed') if hasattr(self, 'about') else 'unnamed'
+        return f"NeuPipeline(name='{name}', steps={steps_count})"
+    
+    def __repr__(self) -> str:
+        """Return a detailed string representation of the NeuPipeline."""
+        steps = getattr(self, 'steps', []) if hasattr(self, 'steps') else []
+        scheduler = getattr(self, 'scheduler', 'unknown') if hasattr(self, 'scheduler') else 'unknown'
+        pipeline_id = getattr(self, 'pipeline_id', 'unknown') if hasattr(self, 'pipeline_id') else 'unknown'
+        
+        step_names = [step.name for step in steps] if steps else []
+        
+        return f"NeuPipeline(id='{pipeline_id}', "\
+               f"name='{getattr(self.about, 'name', 'unnamed') if hasattr(self, 'about') else 'unnamed'}', "\
+               f"steps={step_names}, scheduler={scheduler})"
     
     # Basic information
     pipeline_id: str = Field(default_factory=lambda: generate_id("pipeline_id"), 

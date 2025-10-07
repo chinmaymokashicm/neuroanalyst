@@ -86,6 +86,22 @@ class NeuProcessLogic(BaseModel):
         default_factory=list, description="List of arguments for the process logic"
     )
     install_commands: str = Field(default='', description="Custom install commands for the process logic (semicolon & space separated)")
+    
+    def __str__(self) -> str:
+        """Return a human-readable string representation of the NeuProcessLogic."""
+        return f"NeuProcessLogic(name='{self.about.name}', language={self.language}, kind={self.kind})"
+    
+    def __repr__(self) -> str:
+        """Return a detailed string representation of the NeuProcessLogic."""
+        code_preview = self.code[:50] + '...' if len(self.code) > 50 else self.code
+        args = [arg.name for arg in self.arguments]
+        imports = len(self.import_statements)
+        
+        return f"NeuProcessLogic(name='{self.about.name}', "\
+               f"language={self.language}, kind={self.kind}, "\
+               f"arguments={args}, imports={imports}, "\
+               f"code='{code_preview}')"
+
 
     @field_validator("arguments")
     def validate_arguments(cls, v, info):

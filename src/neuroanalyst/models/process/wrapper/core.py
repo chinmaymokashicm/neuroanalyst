@@ -41,6 +41,20 @@ class NeuProcessOutput(BaseModel):
     data: Any = Field(..., description="The main output data from the process")
     description: str = Field(..., description="Description of the processing performed")
     metadata: Dict[str, Any] = Field(default_factory=dict, description="Additional metadata and parameters")
+    
+    def __str__(self) -> str:
+        """Return a human-readable string representation of the NeuProcessOutput."""
+        data_type = type(self.data).__name__
+        return f"NeuProcessOutput(data_type='{data_type}', description='{self.description[:30]}{'...' if len(self.description) > 30 else ''}')"
+    
+    def __repr__(self) -> str:
+        """Return a detailed string representation of the NeuProcessOutput."""
+        data_type = type(self.data).__name__
+        meta_keys = list(self.metadata.keys())
+        
+        return f"NeuProcessOutput(data_type='{data_type}', "\
+               f"description='{self.description[:50]}{'...' if len(self.description) > 50 else ''}', "\
+               f"metadata_keys={meta_keys})"
 
 
 class NeuProcessDecoratorConfig(BaseModel):
@@ -48,6 +62,16 @@ class NeuProcessDecoratorConfig(BaseModel):
     process_id: str = Field(..., description="ID of the NeuProcess")
     pipeline_id: str = Field(..., description="ID of the NeuPipeline")
     pipeline_name: str = Field(..., description="Name of the pipeline")
+    
+    def __str__(self) -> str:
+        """Return a human-readable string representation of the NeuProcessDecoratorConfig."""
+        return f"NeuProcessDecoratorConfig(pipeline='{self.pipeline_name}', process_id='{self.process_id}')"
+    
+    def __repr__(self) -> str:
+        """Return a detailed string representation of the NeuProcessDecoratorConfig."""
+        return f"NeuProcessDecoratorConfig(process_id='{self.process_id}', "\
+               f"pipeline_id='{self.pipeline_id}', "\
+               f"pipeline_name='{self.pipeline_name}')"
     process_exec_id: str = Field(..., description="ID of the NeuProcessExec instance")
     bids_root: Union[str, Path] = Field(..., description="BIDS root directory path")
     overwrite: bool = Field(default=False, description="Whether to overwrite existing files")
