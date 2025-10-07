@@ -33,8 +33,7 @@ From: ${base_image}
     # ${environment_variables_export}
 
 %files
-    ./install_requirements.sh /opt/install_requirements.sh
-    ./main.py /opt/main.py
+    ./ /opt/
     ${extra_files}
 
 %post
