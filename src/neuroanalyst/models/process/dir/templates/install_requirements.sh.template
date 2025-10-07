@@ -17,15 +17,29 @@ echo "==============================================================="
 echo "Installing requirements for ${process_id} - ${process_name}"
 echo "==============================================================="
 
+# Define a helper function to check and install Python packages
+pip_check_install() {
+    package=$1
+    if python -c "import $package" &>/dev/null; then
+        echo "Package $package is already installed"
+    else
+        echo "Installing $package..."
+        pip install "$package"
+    fi
+}
+
+# Install neuroanalyst package first (required for neuprocess_wrapper)
+echo "Installing neuroanalyst package..."
+pip install git+https://github.com/chinmaymokashicm/neuroanalyst.git@mda
+
 # System packages
 ${system_packages_section}
 
-pip install pydantic pybids
+# Install core dependencies if not already available
+pip_check_install pydantic
+pip_check_install pybids
 
-# Install neuroanalyst package (required for neuprocess_wrapper)
-pip install git+https://github.com/chinmaymokashicm/neuroanalyst.git@mda
-
-# Language-specific packages
+# Language-specific packages - only install what's not already available
 ${language_packages_section}
 
 ${other_installation_steps}

@@ -1,11 +1,11 @@
 #!/bin/bash
 #SBATCH --job-name=${exec_id}
-#SBATCH --output=${NEUROANALYST_LOGS:-$HOME/neuroanalyst/logs}/${exec_id}_%j.out
-#SBATCH --error=${NEUROANALYST_LOGS:-$HOME/neuroanalyst/logs}/${exec_id}_%j.err
-#SBATCH --time=${slurm_time:-12:00:00}
+#SBATCH --output=${logs_dir}/${exec_id}_%j.out
+#SBATCH --error=${logs_dir}/${exec_id}_%j.err
+#SBATCH --time=${slurm_time}
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=${max_workers}
-#SBATCH --mem=${slurm_mem:-8G}
-#SBATCH --partition=${slurm_partition:-compute}
-#SBATCH --account=${slurm_account:-default}
-#SBATCH --qos=${slurm_qos:-normal}
+#SBATCH --mem=${slurm_mem}
+#SBATCH --partition=${slurm_partition}
+#SBATCH --account=${slurm_account}
+#SBATCH --qos=${slurm_qos}

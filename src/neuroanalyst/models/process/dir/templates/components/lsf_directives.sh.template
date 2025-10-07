@@ -1,8 +1,8 @@
 #!/bin/bash
 #BSUB -J ${exec_id}
-#BSUB -o ${NEUROANALYST_LOGS:-$HOME/neuroanalyst/logs}/${exec_id}.o%J
-#BSUB -e ${NEUROANALYST_LOGS:-$HOME/neuroanalyst/logs}/${exec_id}.e%J
+#BSUB -o ${logs_dir}/${exec_id}.o%J
+#BSUB -e ${logs_dir}/${exec_id}.e%J
 #BSUB -n ${max_workers}
-#BSUB -W ${lsf_time:-12:00}
-#BSUB -M ${lsf_mem:-8000}
-#BSUB -q ${lsf_queue:-normal}
+#BSUB -W ${lsf_time}
+#BSUB -M ${lsf_mem}
+#BSUB -q ${lsf_queue}

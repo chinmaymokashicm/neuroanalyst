@@ -49,7 +49,7 @@ wrapper_config_params = {
     "process_id": "${process_id}",
     "pipeline_id": pipeline_id,
     "pipeline_name": pipeline_name,
-    "process_exec_id: process_exec_id,
+    "process_exec_id": process_exec_id,
     "bids_root": "/data",
 }
 wrapper_config: NeuProcessDecoratorConfig = NeuProcessDecoratorConfig(**wrapper_config_params)
