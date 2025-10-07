@@ -18,7 +18,7 @@ from pathlib import Path
 from neuroanalyst.models.process.wrapper import neuprocess, NeuProcessDecoratorConfig
 
 # Import the UDF from udf.py
-from .udf import ${func_name}
+from udf import ${func_name}
 
 # Set up logging
 logger = logging.getLogger('${process_id}')
