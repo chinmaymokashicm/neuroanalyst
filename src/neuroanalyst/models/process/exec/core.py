@@ -465,7 +465,7 @@ class NeuProcessExec(BaseModel):
         if self.scheduler == HPCScheduler.LOCAL:
             cmd = f"{cmd_prefix} {self.script_path}{script_args} > {self.log_path} 2> {self.error_path}"
         elif self.scheduler == HPCScheduler.LSF:
-            cmd = f"{cmd_prefix} -o {self.log_path} -e {self.error_path} < {self.script_path}{script_args}"
+            cmd = f"{cmd_prefix} -o {self.log_path} -e {self.error_path} -J {self.exec_id} bash {self.script_path}{script_args}"
         elif self.scheduler == HPCScheduler.SLURM:
             cmd = f"{cmd_prefix} --output={self.log_path} --error={self.error_path} {self.script_path}{script_args}"
         elif self.scheduler == HPCScheduler.PBS:
