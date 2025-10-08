@@ -1,5 +1,4 @@
 #!/bin/bash
-#BSUB -J ${exec_id}
 #BSUB -n ${max_workers}
 #BSUB -W ${lsf_time}
 #BSUB -M ${lsf_mem}

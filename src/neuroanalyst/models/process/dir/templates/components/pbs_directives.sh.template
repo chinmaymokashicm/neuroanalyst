@@ -1,5 +1,4 @@
 #!/bin/bash
-#PBS -N ${exec_id}
 #PBS -j oe
 #PBS -l nodes=1:ppn=${max_workers}
 #PBS -l walltime=${pbs_time}

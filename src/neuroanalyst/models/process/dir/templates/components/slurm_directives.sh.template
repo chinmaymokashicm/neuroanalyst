@@ -1,5 +1,4 @@
 #!/bin/bash
-#SBATCH --job-name=${exec_id}
 #SBATCH --time=${slurm_time}
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=${max_workers}
