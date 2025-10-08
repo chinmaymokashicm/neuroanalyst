@@ -34,6 +34,7 @@ import json
 BIDS_ROOT: str = "/rsrch5/home/csi/cmokashi/neuroanalyst/datasets/ds004884-1.0.2"
 BASE_IMAGE: str = "/rsrch5/home/csi/cmokashi/neuroanalyst/apptainer/images/python_3.12_slim_amd64_git.sif"
 FSL_IMG: str = "/risapps/apptainer/repo/fsl/3.16.8/fsl_3.16.8.sif"
+EXECUTION_MODE: str = "container"
 
 # %% [markdown]
 # ### Load NeuProcessLogic instances
@@ -133,7 +134,7 @@ fsl_img_path: str = FSL_IMG
 
 bet_exec: NeuProcessExec = NeuProcessExec(
     process=bet_process,
-    execution_mode="venv",
+    execution_mode=EXECUTION_MODE,
     env_var_values={"FSL_IMG": fsl_img_path, "BIDS_FILTERS": json.dumps({
         "suffix": "T1w",
         "extension": ".nii.gz"
@@ -144,7 +145,7 @@ bet_exec: NeuProcessExec = NeuProcessExec(
 fast_exec: NeuProcessExec = NeuProcessExec(
     # process=fast_process,
     process=bet_process,
-    execution_mode="venv",
+    execution_mode=EXECUTION_MODE,
     env_var_values={"FSL_IMG": fsl_img_path, "BIDS_FILTERS": json.dumps({
         "desc": "brain",
         "suffix": "T1w",
@@ -156,7 +157,7 @@ fast_exec: NeuProcessExec = NeuProcessExec(
 threshold_exec: NeuProcessExec = NeuProcessExec(
     # process=threshold_process,
     process=bet_process,
-    execution_mode="venv",
+    execution_mode=EXECUTION_MODE,
     env_var_values={"FSL_IMG": fsl_img_path, "BIDS_FILTERS": json.dumps({
         "desc": "seg",
         "suffix": "T1w",
