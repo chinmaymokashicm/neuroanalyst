@@ -258,15 +258,43 @@ execute_process() {
     local JOB_ID=""
     
     if [[ "$scheduler_type" == "LSF" ]]; then
-      JOB_ID=$(eval "$job_cmd" | awk '{print $2}' | tr -d '<>')
+      # Capture the output separately to avoid log message mixing
+      local job_output
+      job_output=$(eval "$job_cmd" 2>&1)
+      # Extract the job ID using more robust pattern matching
+      JOB_ID=$(echo "$job_output" | grep -o "Job <[0-9]*>" | grep -o "[0-9]*" || echo "")
+      if [ -z "$JOB_ID" ]; then
+        # Fallback: try to extract any number from output if the pattern didn't match
+        JOB_ID=$(echo "$job_output" | grep -o "[0-9]\+" | head -1 || echo "")
+      fi
     elif [[ "$scheduler_type" == "SLURM" ]]; then
-      JOB_ID=$(eval "$job_cmd")
+      # Capture SLURM output and extract job ID more reliably
+      local job_output
+      job_output=$(eval "$job_cmd" 2>&1)
+      # SLURM typically outputs format: "Submitted batch job 123456"
+      JOB_ID=$(echo "$job_output" | grep -o "Submitted batch job [0-9]*" | awk '{print $4}' || echo "")
+      if [ -z "$JOB_ID" ]; then
+        # Fallback: try to extract any number from output
+        JOB_ID=$(echo "$job_output" | grep -o "[0-9]\+" | head -1 || echo "")
+      fi
     else
-      JOB_ID=$(eval "$job_cmd")
+      # For PBS and other schedulers
+      local job_output
+      job_output=$(eval "$job_cmd" 2>&1)
+      # Try to extract any number which could be the job ID
+      JOB_ID=$(echo "$job_output" | grep -o "[0-9]\+" | head -1 || echo "")
     fi
     
     # Get scheduler from model.json
     local scheduler=$(jq -r ".steps[$step_idx].process_execs[$proc_idx].scheduler" "$MODEL_FILE" 2>/dev/null)
+    
+    # Log the extracted job ID for troubleshooting
+    if [ -n "$JOB_ID" ]; then
+      log "Successfully extracted job ID: $JOB_ID for $proc_name"
+    else
+      log "WARNING: Could not extract job ID for $proc_name, using empty string"
+      JOB_ID="unknown_${RANDOM}"  # Generate a random ID as fallback
+    fi
     
     # Update status to running with job ID and scheduler
     if [ -n "$scheduler" ] && [ "$scheduler" != "null" ]; then
@@ -540,12 +568,25 @@ for ((step_idx=0; step_idx<TOTAL_STEPS; step_idx++)); do
   
   # Wait for all processes in this step to complete before moving to next step
   if [ ${#STEP_JOB_IDS[@]} -gt 0 ]; then
-    # Convert array to comma-separated string
-    STEP_JOB_IDS_STR=$(IFS=,; echo "${STEP_JOB_IDS[*]}")
-    log "Waiting for step $((step_idx+1)) jobs to complete: $STEP_JOB_IDS_STR"
+    # Clean up job IDs array to ensure valid values
+    VALID_JOB_IDS=()
+    for JID in "${STEP_JOB_IDS[@]}"; do
+      # Only include non-empty job IDs that contain numbers
+      if [[ -n "$JID" && "$JID" =~ [0-9] ]]; then
+        VALID_JOB_IDS+=("$JID")
+      fi
+    done
     
-    # Wait for jobs to complete
-    wait_for_jobs "$STEP_JOB_IDS_STR" "$step_idx"
+    # Convert array to comma-separated string
+    if [ ${#VALID_JOB_IDS[@]} -gt 0 ]; then
+      STEP_JOB_IDS_STR=$(IFS=,; echo "${VALID_JOB_IDS[*]}")
+      log "Waiting for step $((step_idx+1)) jobs to complete: $STEP_JOB_IDS_STR"
+      
+      # Wait for jobs to complete
+      wait_for_jobs "$STEP_JOB_IDS_STR" "$step_idx"
+    else
+      log "No valid job IDs found for step $((step_idx+1)), continuing to next step"
+    fi
     
     # Check if step completed successfully
     STEP_STATUS=$(jq -r ".steps[$step_idx].status" "$STATUS_FILE")
