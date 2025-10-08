@@ -13,7 +13,9 @@ NeuPipeline is responsible for:
 
 import os
 import json
+import time
 import subprocess
+import logging
 from enum import Enum
 from pathlib import Path
 from datetime import datetime
@@ -26,15 +28,96 @@ from ...utils.id_generators import generate_id
 from ..about import About
 from ..process.exec.core import NeuProcessExec, HPCScheduler
 from ..process.process.core import NeuProcess
+from .executor import ProcessStatus, LSFExecutor, SLURMExecutor, PBSExecutor, LocalExecutor
 
+class NeuProcessExecStatus(BaseModel):
+    """
+    NeuProcessExecStatus - Class representing the status of a single process execution.
+    
+    This class tracks the status of a single NeuProcessExec instance, including timestamps
+    for when the process started and completed, as well as any error messages if it failed.
+    """
+    
+    # Basic information
+    process_id: str = Field(description="Unique identifier for the NeuProcess")
+    exec_id: str = Field(description="Unique identifier for the NeuProcessExec instance")
+    name: str = Field(description="Name of the process execution")
+    
+    # Status information
+    status: str = Field(description="Current status of the process execution (e.g., NOT_STARTED, RUNNING, COMPLETE, FAILED)")
+    started_at: Optional[str] = Field(default=None, description="Timestamp when the process execution started")
+    completed_at: Optional[str] = Field(default=None, description="Timestamp when the process execution completed")
+    last_updated: str = Field(description="Timestamp when the status was last updated")
+    error: Optional[str] = Field(default=None, description="Error message if the process execution failed")
+    
+    # Scheduler job ID (if applicable)
+    scheduler_job_id: Optional[str] = Field(default=None, description="Job ID assigned by the HPC scheduler")
 
-class ProcessStatus(str, Enum):
-    """Status of a process execution in a pipeline."""
-    NOT_STARTED = "NOT_STARTED"  # Process has not been started yet
-    RUNNING = "RUNNING"          # Process is currently running
-    COMPLETE = "COMPLETE"        # Process completed successfully
-    FAILED = "FAILED"            # Process failed with an error
+class NeuPipelineStepStatus(BaseModel):
+    """
+    NeuPipelineStepStatus - Class representing the status of a pipeline step execution.
 
+    This class tracks the status of a single step in the pipeline, including the status
+    of each individual process execution within the step.
+    """
+
+    # Step-level status
+    step_id: int = Field(description="Index of the step in the pipeline")
+    name: str = Field(description="Name of the pipeline step")
+    status: str = Field(description="Overall status of the step (e.g., NOT_STARTED, RUNNING, COMPLETE, FAILED)")
+    started_at: Optional[str] = Field(default=None, description="Timestamp when the step started")
+    completed_at: Optional[str] = Field(default=None, description="Timestamp when the step completed")
+    last_updated: str = Field(description="Timestamp when the step status was last updated")
+    error: Optional[str] = Field(default=None, description="Error message if the step failed")
+    
+    # Processes in the step
+    processes: List[NeuProcessExecStatus] = Field(default_factory=list, description="List of processes in the step with their statuses")
+    
+    def __iter__(self):
+        """Allow iteration over the processes in the step."""
+        return iter(self.processes)
+
+class NeuPipelineStatus(BaseModel):
+    """
+    NeuPipelineStatus - Class representing the status of a pipeline execution.
+    
+    This class tracks the overall status of the pipeline as well as the status of each
+    individual step and process execution within the pipeline.
+    """
+    
+    # Pipeline-level status
+    pipeline_id: str = Field(description="Unique identifier for the pipeline")
+    created_at: str = Field(description="Timestamp when the pipeline was created")
+    last_updated: str = Field(description="Timestamp when the pipeline status was last updated")
+    status: str = Field(description="Overall status of the pipeline (e.g., NOT_STARTED, RUNNING, COMPLETE, FAILED)")
+    scheduler: str = Field(description="HPC scheduler used for the pipeline (e.g., LSF, SLURM, PBS, LOCAL)")
+    
+    # Steps in the pipeline
+    steps: List[NeuPipelineStepStatus] = Field(default_factory=list, description="List of steps in the pipeline with their statuses")
+
+    def __iter__(self):
+        """Allow iteration over the steps in the pipeline."""
+        return iter(self.steps)
+
+    def get_status(self, step_idx: int, exec_id: Optional[str] = None) -> dict:
+        """Retrieve the status of a pipeline step or a specific process execution.
+        
+        Args:
+            step_idx: The index of the step in the pipeline
+            exec_id: Optional; The execution ID of the specific process to retrieve
+            
+        Returns:
+            dict: The status information of the step or process, or None if not found
+        """
+        if step_idx < 0 or step_idx >= len(self.steps):
+            return None
+        step_status = self.steps[step_idx]
+        if exec_id is None:
+            return step_status.model_dump()
+        for proc_status in step_status.processes:
+            if proc_status.exec_id == exec_id:
+                return proc_status.model_dump()
+        return None
 
 class NeuPipelineStep(BaseModel):
     """
@@ -100,25 +183,6 @@ class NeuPipeline(BaseModel):
     2. Generating execution scripts with proper dependencies
     3. Storing pipeline metadata for reproducibility
     """
-    
-    def __str__(self) -> str:
-        """Return a human-readable string representation of the NeuPipeline."""
-        steps_count = len(getattr(self, 'steps', [])) if hasattr(self, 'steps') else 0
-        name = getattr(self.about, 'name', 'unnamed') if hasattr(self, 'about') else 'unnamed'
-        return f"NeuPipeline(name='{name}', steps={steps_count})"
-    
-    def __repr__(self) -> str:
-        """Return a detailed string representation of the NeuPipeline."""
-        steps = getattr(self, 'steps', []) if hasattr(self, 'steps') else []
-        scheduler = getattr(self, 'scheduler', 'unknown') if hasattr(self, 'scheduler') else 'unknown'
-        pipeline_id = getattr(self, 'pipeline_id', 'unknown') if hasattr(self, 'pipeline_id') else 'unknown'
-        
-        step_names = [step.name for step in steps] if steps else []
-        
-        return f"NeuPipeline(id='{pipeline_id}', "\
-               f"name='{getattr(self.about, 'name', 'unnamed') if hasattr(self, 'about') else 'unnamed'}', "\
-               f"steps={step_names}, scheduler={scheduler})"
-    
     # Basic information
     pipeline_id: str = Field(default_factory=lambda: generate_id("pipeline_id"), 
                            description="Unique identifier for the pipeline")
@@ -189,6 +253,24 @@ class NeuPipeline(BaseModel):
                 raise ValueError("Pipeline execution script has not been generated yet. "
                                 "Call create_pipeline_dir() first.")
         return self.execution_command
+    
+    def __str__(self) -> str:
+        """Return a human-readable string representation of the NeuPipeline."""
+        steps_count = len(getattr(self, 'steps', [])) if hasattr(self, 'steps') else 0
+        name = getattr(self.about, 'name', 'unnamed') if hasattr(self, 'about') else 'unnamed'
+        return f"NeuPipeline(name='{name}', steps={steps_count})"
+    
+    def __repr__(self) -> str:
+        """Return a detailed string representation of the NeuPipeline."""
+        steps = getattr(self, 'steps', []) if hasattr(self, 'steps') else []
+        scheduler = getattr(self, 'scheduler', 'unknown') if hasattr(self, 'scheduler') else 'unknown'
+        pipeline_id = getattr(self, 'pipeline_id', 'unknown') if hasattr(self, 'pipeline_id') else 'unknown'
+        
+        step_names = [step.name for step in steps] if steps else []
+        
+        return f"NeuPipeline(id='{pipeline_id}', "\
+               f"name='{getattr(self.about, 'name', 'unnamed') if hasattr(self, 'about') else 'unnamed'}', "\
+               f"steps={step_names}, scheduler={scheduler})"
     
     def apply_standard_exec_params(self):
         """Apply standard execution parameters to all processes in the pipeline."""
@@ -370,60 +452,55 @@ class NeuPipeline(BaseModel):
         # Create the status file in the pipeline directory
         status_path = self.pipeline_dir_path / "status.json"
         
-        # Initialize pipeline status
         current_time = datetime.now().isoformat()
-        pipeline_status = {
-            "pipeline_id": self.pipeline_id,
-            "created_at": current_time,
-            "last_updated": current_time,
-            "status": "initialized",
-            "steps": []
-        }
         
-        # Initialize status for each step and process
+        pipeline_status = NeuPipelineStatus(
+            pipeline_id=self.pipeline_id,
+            created_at=current_time,
+            last_updated=current_time,
+            status=ProcessStatus.NOT_STARTED.value,
+            scheduler=self.scheduler.value,
+            steps=[]
+        )
         for i, step in enumerate(self.steps):
-            step_status = {
-                "step_id": i,
-                "name": step.name,
-                "status": ProcessStatus.NOT_STARTED.value,
-                "started_at": None,
-                "completed_at": None,
-                "error": None,
-                "processes": []
-            }
-            
-            # Initialize status for each process in the step
+            step_status = NeuPipelineStepStatus(
+                step_id=i,
+                name=step.name,
+                status=ProcessStatus.NOT_STARTED.value,
+                started_at=None,
+                completed_at=None,
+                last_updated=current_time,
+                error=None,
+                processes=[]
+            )
             for j, proc_exec in enumerate(step.process_execs):
-                proc_status = {
-                    "process_id": j,
-                    "exec_id": proc_exec.exec_id,
-                    "status": ProcessStatus.NOT_STARTED.value,
-                    "started_at": None,
-                    "completed_at": None,
-                    "error": None,
-                    "scheduler_job_id": None
-                }
-                
-                # Add process status to step
-                step_status["processes"].append(proc_status)
-            
-            # Add step status to pipeline
-            pipeline_status["steps"].append(step_status)
-        
+                proc_status = NeuProcessExecStatus(
+                    process_id=j,
+                    exec_id=proc_exec.exec_id,
+                    name=proc_exec.process.process_id if hasattr(proc_exec, 'process') else proc_exec.exec_id,
+                    status=ProcessStatus.NOT_STARTED.value,
+                    started_at=None,
+                    completed_at=None,
+                    last_updated=current_time,
+                    error=None,
+                    scheduler_job_id=None
+                )
+                step_status.processes.append(proc_status)
+            pipeline_status.steps.append(step_status)
+
         # Save the pipeline status file
         with open(status_path, "w") as f:
-            json.dump(pipeline_status, f, indent=2)
+            f.write(pipeline_status.model_dump_json(indent=2))
         
         return status_path
     
-    def get_pipeline_status(self) -> Dict[str, Any]:
-        """Get the current status of the pipeline.
+    def get_pipeline_status(self) -> NeuPipelineStatus:
+        """Retrieve the current status of the pipeline from the status file.
         
         Returns:
-            Dict[str, Any]: A dictionary containing the pipeline status
-        
+            NeuPipelineStatus: The current status of the pipeline.
         Raises:
-            FileNotFoundError: If the status file does not exist
+            FileNotFoundError: If the status file does not exist.
         """
         status_path = self.pipeline_dir_path / "status.json"
         
@@ -433,7 +510,7 @@ class NeuPipeline(BaseModel):
         with open(status_path, "r") as f:
             status_data = json.load(f)
         
-        return status_data
+        return NeuPipelineStatus.model_validate(status_data)
     
     def print_pipeline_status(self) -> None:
         """Print a formatted report of the current pipeline status."""
@@ -489,9 +566,84 @@ class NeuPipeline(BaseModel):
             
         except FileNotFoundError:
             print(f"No status information available for pipeline {self.pipeline_id}")
+            
+    def update_pipeline_status(self, step_idx: int, exec_id: str, new_status: ProcessStatus, error_msg: Optional[str] = None, scheduler_job_id: Optional[str] = None) -> None:
+        """Update the status of a specific process execution in the pipeline.
+        Args:
+            step_idx: The index of the step in the pipeline
+            exec_id: The execution ID of the specific process to update
+            new_status: The new status to set for the process execution
+            error_msg: Optional; Error message if the process failed
+            scheduler_job_id: Optional; Job ID assigned by the HPC scheduler
+            
+        Raises:
+            FileNotFoundError: If the status file does not exist
+            ValueError: If the step index or exec_id is invalid
+        """
+        
+        status: NeuPipelineStatus = self.get_pipeline_status()
+        
+        current_time = datetime.now().isoformat()
+        status.last_updated = current_time
+        
+        if step_idx < 0 or step_idx >= len(status.steps):
+            raise IndexError(f"Step index {step_idx} out of range")
+        
+        step_status = status.steps[step_idx]
+        step_status.last_updated = current_time
+        
+        if not exec_id:
+            raise ValueError("exec_id must be provided to update process status")
+        
+        proc_status = next((p for p in step_status.processes if p.exec_id == exec_id), None)
+        if not proc_status:
+            raise ValueError(f"Process exec ID {exec_id} not found in step {step_idx}")
+        
+        proc_status.status = new_status.value
+        proc_status.last_updated = current_time
+        
+        if new_status == ProcessStatus.RUNNING:
+            proc_status.started_at = current_time
+            if scheduler_job_id:
+                proc_status.scheduler_job_id = scheduler_job_id
+        elif new_status in (ProcessStatus.COMPLETE, ProcessStatus.FAILED):
+            proc_status.completed_at = current_time
+            if new_status == ProcessStatus.FAILED and error_msg:
+                proc_status.error = error_msg
+        
+        # Update step status based on process statuses
+        if all(p.status == ProcessStatus.COMPLETE.value for p in step_status.processes):
+            step_status.status = ProcessStatus.COMPLETE.value
+            step_status.completed_at = current_time
+        elif any(p.status == ProcessStatus.FAILED.value for p in step_status.processes):
+            step_status.status = ProcessStatus.FAILED.value
+            step_status.completed_at = current_time
+            step_status.error = "One or more processes failed"
+        elif any(p.status == ProcessStatus.RUNNING.value for p in step_status.processes):
+            step_status.status = ProcessStatus.RUNNING.value
+            if not step_status.started_at:
+                step_status.started_at = current_time
+        else:
+            step_status.status = ProcessStatus.NOT_STARTED.value
+            
+        # Update overall pipeline status based on step statuses
+        if all(s.status == ProcessStatus.COMPLETE.value for s in status.steps):
+            status.status = ProcessStatus.COMPLETE.value
+        elif any(s.status == ProcessStatus.FAILED.value for s in status.steps):
+            status.status = ProcessStatus.FAILED.value
+        elif any(s.status == ProcessStatus.RUNNING.value for s in status.steps):
+            status.status = ProcessStatus.RUNNING.value
+        else:
+            status.status = ProcessStatus.NOT_STARTED.value
+            
+        # Save the updated status back to the file
+        status_path = self.pipeline_dir_path / "status.json"
+        with open(status_path, "w") as f:
+            f.write(status.model_dump_json(indent=2))
+        
     
-    def execute(self, resume: bool = False) -> str:
-        """Execute the pipeline by running the generated script.
+    def execute_via_bash(self, resume: bool = False) -> str:
+        """Execute the pipeline by running the generated bash script.
         
         Args:
             resume: If True, resume execution from the last successful step
@@ -502,7 +654,7 @@ class NeuPipeline(BaseModel):
         Raises:
             FileNotFoundError: If resume=True and the status file does not exist
         """
-        # Ensure pipeline directory and script exist
+        # Ensure pipeline directory and bash script exist
         if not self.script_path.exists():
             self.create_pipeline_dir()
         
@@ -543,19 +695,95 @@ class NeuPipeline(BaseModel):
             return f"Pipeline {self.pipeline_id} executed successfully. Output:\n{result.stdout}"
         except subprocess.CalledProcessError as e:
             return f"Pipeline {self.pipeline_id} execution failed. Error:\n{e.stderr}"
-            
-    def resume(self) -> str:
-        """Resume pipeline execution from the last successful step.
         
-        This is a convenience method that calls execute(resume=True).
+    def get_earliest_incomplete_step_index(self) -> Optional[int]:
+        """Get the index of the earliest incomplete step in the pipeline.
         
         Returns:
-            str: A message indicating the result of the resume operation
-            
-        Raises:
-            FileNotFoundError: If the status file does not exist
+            Optional[int]: The index of the earliest incomplete step, or None if all steps are complete
         """
-        return self.execute(resume=True)
+        status = self.get_pipeline_status()
+        
+        for i, step in enumerate(status.steps):
+            if step.status != ProcessStatus.COMPLETE.value:
+                return i
+        return None
+
+    def execute_via_python(self, logger: logging.Logger, resume: bool = False) -> str:
+        """Execute the pipeline step-by-step via Python.
+        
+        Args:
+            logger: Logger instance for logging execution details.
+            resume: If True, resume execution from the last successful step.
+        Returns:
+            str: A message indicating the result of the execution.
+        """
+        # Ensure pipeline directory and bash script exist
+        if not self.script_path.exists():
+            self.create_pipeline_dir()
+            
+        starting_step_index = 0 if not resume else self.get_earliest_incomplete_step_index()
+        
+        if starting_step_index is None:
+            return f"Pipeline {self.pipeline_id} already completed. Nothing to resume."
+        
+        for step_index in range(starting_step_index, len(self.steps)):
+            step = self.steps[step_index]
+            logger.info(f"Executing Step {step_index + 1}/{len(self.steps)}: {step.name}")
+            
+            for proc_exec in step.process_execs:
+                logger.info(f"Executing Process: {proc_exec.exec_id}")
+
+                # Execute the process based on the scheduler
+                if self.scheduler == HPCScheduler.LSF:
+                    executor = LSFExecutor(proc_exec.exec_command)
+                elif self.scheduler == HPCScheduler.SLURM:
+                    executor = SLURMExecutor(proc_exec.exec_command)
+                elif self.scheduler == HPCScheduler.PBS:
+                    executor = PBSExecutor(proc_exec.exec_command)
+                else:
+                    executor = LocalExecutor(proc_exec.exec_command)
+
+                try:
+                    executor.submit()
+                    logger.info(f"Submitted with Job ID: {executor.job_id}")
+                    # Update status to RUNNING
+                    self.update_pipeline_status(step_index, proc_exec.exec_id, ProcessStatus.RUNNING, scheduler_job_id=executor.job_id)
+                    
+                    # Poll until done
+                    while not executor.is_done():
+                        executor.poll_status()
+                        print(f"    Status: {executor.status}")
+                        time.sleep(10)  # Polling interval
+                    
+                    if executor.is_success():
+                        logger.info(f"Process {proc_exec.exec_id} completed successfully.")
+                        self.update_pipeline_status(step_index, proc_exec.exec_id, ProcessStatus.COMPLETE)
+                    else:
+                        logger.error(f"Process {proc_exec.exec_id} failed.")
+                        self.update_pipeline_status(step_index, proc_exec.exec_id, ProcessStatus.FAILED, error_msg="Process failed during execution.")
+                        return f"Pipeline {self.pipeline_id} execution halted due to failure."
+                
+                except Exception as e:
+                    logger.error(f"Error executing process {proc_exec.exec_id}: {e}")
+                    self.update_pipeline_status(step_index, proc_exec.exec_id, ProcessStatus.FAILED, error_msg=str(e))
+                    return f"Pipeline {self.pipeline_id} execution halted due to error."
+
+            logger.info(f"Step {step_index + 1} completed.")
+        
+        logger.info(f"Pipeline {self.pipeline_id} completed successfully.")    
+            
+        return f"Pipeline {self.pipeline_id} executed successfully."
+
+    def resume_via_bash(self) -> str:
+        """Resume pipeline execution via bash script.
+        
+        Args:
+            resume: If True, resume execution from the last successful step.
+        Returns:
+            str: A message indicating the result of the execution.
+        """
+        return self.execute_via_bash(resume=True)
     
     @classmethod
     def from_model_file(cls, model_path: Union[str, Path]) -> 'NeuPipeline':

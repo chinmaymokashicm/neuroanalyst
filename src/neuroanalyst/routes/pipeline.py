@@ -394,7 +394,7 @@ async def execute_pipeline(
                 )
         
         # Execute the pipeline
-        result_message = pipeline.execute(resume=resume)
+        result_message = pipeline.execute_via_bash(resume=resume)
         
         # Return execution status
         result = {

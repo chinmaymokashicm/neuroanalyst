@@ -52,35 +52,10 @@ class NeuProcessExec(BaseModel):
     
     A NeuProcessExec can be created from a NeuProcess, a process ID, or a path to a process directory.
     """
-    
-    def __str__(self) -> str:
-        """Return a human-readable string representation of the NeuProcessExec."""
-        if hasattr(self, 'process') and hasattr(self.process, 'process_id'):
-            process_id = self.process.process_id
-        else:
-            process_id = 'unknown'
-        
-        if hasattr(self, 'execution_id'):
-            exec_id = self.execution_id
-        else:
-            exec_id = 'unknown'
-            
-        return f"NeuProcessExec(id='{exec_id}', process_id='{process_id}')"
-    
-    def __repr__(self) -> str:
-        """Return a detailed string representation of the NeuProcessExec."""
-        scheduler = getattr(self, 'scheduler', 'unknown')
-        mode = getattr(self, 'execution_mode', 'unknown')
-        
-        return f"NeuProcessExec(id='{getattr(self, 'execution_id', 'unknown')}', "\
-               f"process_id='{getattr(self.process, 'process_id', 'unknown') if hasattr(self, 'process') else 'unknown'}', "\
-               f"mode='{mode}', scheduler='{scheduler}')"
-    
     # Basic information
     exec_id: str = Field(default_factory=generate_process_exec_id, 
                         description="Unique identifier for the execution instance")
     
-    # Input source (NeuProcess)
     process: NeuProcess = Field(description="NeuProcess to execute")
     
     # Runtime configuration
@@ -96,6 +71,12 @@ class NeuProcessExec(BaseModel):
                                   description="HPC scheduler to use (lsf, slurm, pbs, none)")
     
     # Command storage
+    script_path: Optional[Path] = Field(default=None,
+                                        description="Path to the script file")
+    log_path: Optional[Path] = Field(default=None,
+                                     description="Path to the log file")
+    error_path: Optional[Path] = Field(default=None,
+                                       description="Path to the error file")
     exec_command: Optional[str] = Field(default=None,
                                       description="Generated execution command")
     
@@ -194,6 +175,29 @@ class NeuProcessExec(BaseModel):
             raise ValueError(f"Failed to parse model.json: {e}")
         except Exception as e:
             raise ValueError(f"Failed to load NeuProcessExec from disk: {e}")
+    
+    def __str__(self) -> str:
+        """Return a human-readable string representation of the NeuProcessExec."""
+        if hasattr(self, 'process') and hasattr(self.process, 'process_id'):
+            process_id = self.process.process_id
+        else:
+            process_id = 'unknown'
+        
+        if hasattr(self, 'execution_id'):
+            exec_id = self.execution_id
+        else:
+            exec_id = 'unknown'
+            
+        return f"NeuProcessExec(id='{exec_id}', process_id='{process_id}')"
+    
+    def __repr__(self) -> str:
+        """Return a detailed string representation of the NeuProcessExec."""
+        scheduler = getattr(self, 'scheduler', 'unknown')
+        mode = getattr(self, 'execution_mode', 'unknown')
+        
+        return f"NeuProcessExec(id='{getattr(self, 'execution_id', 'unknown')}', "\
+               f"process_id='{getattr(self.process, 'process_id', 'unknown') if hasattr(self, 'process') else 'unknown'}', "\
+               f"mode='{mode}', scheduler='{scheduler}')"
     
     def set_bind_path_value(self, bind_path: str, value: str) -> None:
         """
@@ -401,7 +405,8 @@ class NeuProcessExec(BaseModel):
         # Get the script path based on execution environment
         if location == "local":
             cmd_prefix = "source"
-            script_path: str = self.process.process_dir.script_paths["execute"]["local"][self.execution_mode]
+            # script_path: str = self.process.process_dir.script_paths["execute"]["local"][self.execution_mode]
+            self.script_path: str = self.process.process_dir.script_paths["execute"]["local"][self.execution_mode]
         else:
             if self.scheduler == HPCScheduler.LSF:
                 cmd_prefix = "bsub"
@@ -409,7 +414,8 @@ class NeuProcessExec(BaseModel):
                 cmd_prefix = "sbatch"
             elif self.scheduler == HPCScheduler.PBS:
                 cmd_prefix = "qsub"
-            script_path: str = self.process.process_dir.script_paths["execute"]["hpc"][self.scheduler][self.execution_mode]
+            # script_path: str = self.process.process_dir.script_paths["execute"]["hpc"][self.scheduler][self.execution_mode]
+            self.script_path: str = self.process.process_dir.script_paths["execute"]["hpc"][self.scheduler][self.execution_mode]
 
         # Add arguments to the script - the script itself will handle container execution
         # Pass bind path and environment variable arguments that the script will use
@@ -447,8 +453,25 @@ class NeuProcessExec(BaseModel):
                 # Simple values without spaces or special chars
                 script_args += f" --env {env_var}={value}"
         
+        # Generate log and error file paths if not already set
+        log_dir = self._paths.logs / "process_execs"
+        if not self.log_path:
+            self.log_path = log_dir / f"{self.exec_id}.log"
+        if not self.error_path:
+            self.error_path = log_dir / f"{self.exec_id}.err"
+        
         # Construct the final command
-        cmd = f"{cmd_prefix} {script_path}{script_args}"
+        # cmd = f"{cmd_prefix} {script_path}{script_args}"
+        if self.scheduler == HPCScheduler.LOCAL:
+            cmd = f"{cmd_prefix} {self.script_path}{script_args} > {self.log_path} 2> {self.error_path}"
+        elif self.scheduler == HPCScheduler.LSF:
+            cmd = f"{cmd_prefix} -o {self.log_path} -e {self.error_path} < {self.script_path}{script_args}"
+        elif self.scheduler == HPCScheduler.SLURM:
+            cmd = f"{cmd_prefix} --output={self.log_path} --error={self.error_path} {self.script_path}{script_args}"
+        elif self.scheduler == HPCScheduler.PBS:
+            cmd = f"{cmd_prefix} -o {self.log_path} -e {self.error_path} {self.script_path}{script_args}"
+        else:
+            raise ValueError(f"Unsupported scheduler: {self.scheduler}")
         
         # Store the generated command in the exec_command field
         self.exec_command = cmd
@@ -568,7 +591,9 @@ class NeuProcessExec(BaseModel):
         from ....utils.constants import PATHS
         
         # Create process_execs directory if it doesn't exist
-        exec_dir = PATHS.get_process_exec_path(self.exec_id)
+        # exec_dir = PATHS.get_process_exec_path(self.exec_id)
+        exec_dir = self._paths.get_process_exec_path(self.exec_id)
+        
         exec_dir.mkdir(parents=True, exist_ok=True)
         
         # Save the model as JSON, using our custom encoder to handle Path objects

@@ -5,5 +5,6 @@ This package contains components for creating and managing neuroimaging pipeline
 """
 
 from .core import NeuPipeline, NeuPipelineStep
+from .executor import BaseExecutor, LSFExecutor, PBSExecutor, LocalExecutor
 
-__all__ = ['NeuPipeline', 'NeuPipelineStep']
+__all__ = ['NeuPipeline', 'NeuPipelineStep', 'BaseExecutor', 'LSFExecutor', 'PBSExecutor', 'LocalExecutor']
