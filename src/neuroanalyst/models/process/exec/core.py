@@ -393,24 +393,6 @@ class NeuProcessExec(BaseModel):
         #! Determine the execution mode - for now, let us choose container even if the image does not exist
         # mode = self.determine_execution_mode()
         mode = ExecutionMode.CONTAINER
-        
-        # # Map execution mode to script key suffix
-        # mode_suffix = "container" if mode == ExecutionMode.CONTAINER else "venv"
-
-        # Map scheduler to script key prefix
-        # if self.scheduler == HPCScheduler.LOCAL:
-        #     scheduler_prefix = "execute_local"
-        # else:
-        #     scheduler_prefix = f"execute_{self.scheduler.value}"
-        
-        # # Construct the script key
-        # script_key = f"{scheduler_prefix}_{mode_suffix}"
-        
-        # # Check if the script exists in script_paths
-        # if not self.process.script_paths or script_key not in self.process.script_paths:
-        #     raise FileNotFoundError(f"Execution script not found for {script_key}")
-        
-        # script_path = self.process.script_paths[script_key]
 
         location: str = "local" if self.scheduler == HPCScheduler.LOCAL else "hpc"
         cmd_prefix: str | None = None
@@ -429,43 +411,41 @@ class NeuProcessExec(BaseModel):
                 cmd_prefix = "qsub"
             script_path: str = self.process.process_dir.script_paths["execute"]["hpc"][self.scheduler][self.execution_mode]
 
-        # For container execution mode, we need to handle environment variables and bind paths
-        if self.execution_mode == ExecutionMode.CONTAINER:
-            # Create temporary file with environment variables
-            # This is a more reliable way to pass complex environment variables
-            env_exports = []
+        # Add arguments to the script - the script itself will handle container execution
+        # Pass bind path and environment variable arguments that the script will use
+        
+        # Add bind path arguments
+        for bind_path, value in self.bind_path_values.items():
+            # For bind paths, we need to handle the format correctly
+            # The key is whether we need to quote the entire argument or just the path value
+            needs_quoting = " " in str(value) or (isinstance(value, str) and any(c in value for c in "*?[](){}|&;<>"))
             
-            # Add bind path arguments - these are passed directly to the script
-            for bind_path, value in self.bind_path_values.items():
-                if " " in str(value):
-                    script_args += f" --bind \"{bind_path}={value}\""
-                else:
-                    script_args += f" --bind {bind_path}={value}"
+            if needs_quoting:
+                # Quote just the value part to preserve shell interpretation
+                script_args += f" --bind {bind_path}='{value}'"
+            else:
+                # No special characters that need quoting
+                script_args += f" --bind {bind_path}={value}"
+        
+        # Add environment variable arguments
+        for env_var, value in self.env_var_values.items():
+            if value is None:
+                continue
             
-            # Add environment variable arguments - handle JSON and spaces properly
-            for env_var, value in self.env_var_values.items():
-                if value is None:
-                    continue
+            # Special handling for JSON values
+            if isinstance(value, str) and (value.startswith('{') or value.startswith('[')) and ('"' in value):
+                # For JSON, need to escape double quotes and wrap in single quotes
+                # Single quotes provide the best protection against shell interpretation
+                script_args += f" --env '{env_var}={value}'"
                 
-                # Special handling for JSON values
-                if isinstance(value, str) and (value.startswith('{') or value.startswith('[')) and ('"' in value or "'" in value):
-                    try:
-                        # Validate it's actually JSON by parsing it
-                        json.loads(value)
-                        # For JSON, use single quotes around the entire value to preserve the JSON structure
-                        script_args += f" --env {env_var}='{value}'"
-                    except json.JSONDecodeError:
-                        # If it's not valid JSON but contains quotes, use explicit shell escaping
-                        escaped_value = value.replace("'", "'\\''")
-                        script_args += f" --env {env_var}='{escaped_value}'"
-                
-                # Handle values with spaces by using single quotes
-                elif " " in str(value):
-                    escaped_value = value.replace("'", "'\\''")
-                    script_args += f" --env {env_var}='{escaped_value}'"
-                else:
-                    # Simple values without spaces
-                    script_args += f" --env {env_var}={value}"
+            # Handle values with spaces or special shell characters
+            elif isinstance(value, str) and (" " in value or any(c in value for c in "*?[](){}|&;<>\\")):
+                # Use single quotes for values with spaces or special chars
+                # Single quotes prevent all shell interpretation
+                script_args += f" --env '{env_var}={value}'"
+            else:
+                # Simple values without spaces or special chars
+                script_args += f" --env {env_var}={value}"
         
         # Construct the final command
         cmd = f"{cmd_prefix} {script_path}{script_args}"
