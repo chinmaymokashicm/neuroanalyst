@@ -429,20 +429,21 @@ class NeuProcessExec(BaseModel):
                 cmd_prefix = "qsub"
             script_path: str = self.process.process_dir.script_paths["execute"]["hpc"][self.scheduler][self.execution_mode]
 
-        # For container execution mode, we need to pass arguments differently
-        # The script itself handles passing these to the container runtime (singularity/apptainer)
+        # For container execution mode, we need to handle environment variables and bind paths
         if self.execution_mode == ExecutionMode.CONTAINER:
-            # Add bind path arguments
+            # Create temporary file with environment variables
+            # This is a more reliable way to pass complex environment variables
+            env_exports = []
+            
+            # Add bind path arguments - these are passed directly to the script
             for bind_path, value in self.bind_path_values.items():
-                # Make sure bind paths are properly quoted if they contain spaces
                 if " " in str(value):
-                    script_args += f" --bind '{bind_path}={value}'"
+                    script_args += f" --bind \"{bind_path}={value}\""
                 else:
                     script_args += f" --bind {bind_path}={value}"
             
-            # Add environment variable arguments
+            # Add environment variable arguments - handle JSON and spaces properly
             for env_var, value in self.env_var_values.items():
-                # Handle different types of values
                 if value is None:
                     continue
                 
@@ -451,20 +452,20 @@ class NeuProcessExec(BaseModel):
                     try:
                         # Validate it's actually JSON by parsing it
                         json.loads(value)
-                        # Create properly escaped JSON for shell
-                        json_value = value.replace('"', '\\"')
-                        script_args += f" --env '{env_var}=\"{json_value}\"'"
+                        # For JSON, use single quotes around the entire value to preserve the JSON structure
+                        script_args += f" --env {env_var}='{value}'"
                     except json.JSONDecodeError:
-                        # If it's not valid JSON, quote the whole thing
-                        script_args += f" --env '{env_var}={value}'"
+                        # If it's not valid JSON but contains quotes, use explicit shell escaping
+                        escaped_value = value.replace("'", "'\\''")
+                        script_args += f" --env {env_var}='{escaped_value}'"
                 
-                # Handle values with spaces
+                # Handle values with spaces by using single quotes
                 elif " " in str(value):
-                    # Quote the entire argument with single quotes and the value with double quotes
-                    script_args += f" --env '{env_var}=\"{value}\"'"
+                    escaped_value = value.replace("'", "'\\''")
+                    script_args += f" --env {env_var}='{escaped_value}'"
                 else:
                     # Simple values without spaces
-                    script_args += f" --env '{env_var}={value}'"
+                    script_args += f" --env {env_var}={value}"
         
         # Construct the final command
         cmd = f"{cmd_prefix} {script_path}{script_args}"
