@@ -416,9 +416,9 @@ def ensure_dataset_description(config: NeuProcessDecoratorConfig, output_path: O
             DatasetType="derivative",
             GeneratedBy=[
                 BIDSGeneratedByToolInfo(
-                    Name=config.pipeline_name,
+                    Name="NeuroAnalyst",
                     Version="1.0.0",  # Could be made configurable
-                    CodeURL=None,  # Optional
+                    CodeURL="https://github.com/chinmaymokashicm/neuroanalyst",  # Optional
                     Container=system_info
                 )
             ],
