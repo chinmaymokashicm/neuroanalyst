@@ -404,7 +404,7 @@ class NeuProcessExec(BaseModel):
             script_path: str = self.process.process_dir.script_paths["execute"]["local"][self.execution_mode]
         else:
             if self.scheduler == HPCScheduler.LSF:
-                cmd_prefix = "bsub <"
+                cmd_prefix = "bsub"
             elif self.scheduler == HPCScheduler.SLURM:
                 cmd_prefix = "sbatch"
             elif self.scheduler == HPCScheduler.PBS:
