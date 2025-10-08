@@ -71,7 +71,14 @@ def main():
         bids_filters = None
         if 'BIDS_FILTERS' in os.environ:
             try:
-                bids_filters = json.loads(os.environ['BIDS_FILTERS'])
+                bids_filters_raw = os.environ['BIDS_FILTERS']
+                
+                # Handle different quoting styles that might occur
+                if bids_filters_raw.startswith("'") and bids_filters_raw.endswith("'"):
+                    # Remove surrounding single quotes if present
+                    bids_filters_raw = bids_filters_raw[1:-1]
+                
+                bids_filters = json.loads(bids_filters_raw)
                 logger.info(f"Using BIDS filters from environment: {bids_filters}")
             except json.JSONDecodeError as e:
                 logger.error(f"Failed to parse BIDS_FILTERS environment variable: {e}")
