@@ -40,6 +40,8 @@ class HPCScheduler(str, Enum):
     LOCAL = "local"  # For local execution
 
 
+BASH_SCRIPT_NAME: str = "bash_script.sh"
+
 class NeuProcessExec(BaseModel):
     """
     NeuProcessExec - Class representing an execution instance of a NeuProcess.
@@ -362,6 +364,76 @@ class NeuProcessExec(BaseModel):
         status = self.get_configuration_status()
         return not status['bind_paths']['missing'] and not status['environment_variables']['missing']
     
+    def generate_script_args_str(self, include_newlines: bool = True) -> str:
+        """
+        Generate the script arguments string for bind paths and environment variables.
+        
+        Returns:
+            str: The generated script arguments string
+        """
+        script_args: str = ""
+        # Add bind path arguments
+        for bind_path, value in self.bind_path_values.items():
+            # For bind paths, we need to handle the format correctly
+            # The key is whether we need to quote the entire argument or just the path value
+            needs_quoting = " " in str(value) or (isinstance(value, str) and any(c in value for c in "*?[](){}|&;<>"))
+            
+            if needs_quoting:
+                # Quote just the value part to preserve shell interpretation
+                if include_newlines:
+                    script_args += f" \\\n  --bind {bind_path}='{value}'"
+                else:
+                    script_args += f" --bind {bind_path}='{value}'"
+            else:
+                # No special characters that need quoting
+                if include_newlines:
+                    script_args += f" \\\n  --bind {bind_path}={value}"
+                else:
+                    script_args += f" --bind {bind_path}={value}"
+        
+        # Add environment variable arguments
+        for env_var, value in self.env_var_values.items():
+            if value is None:
+                continue
+            
+            # Special handling for JSON values - must be properly quoted to ensure they're passed correctly
+            if isinstance(value, str) and (value.startswith('{') or value.startswith('[')):
+                # Ensure the JSON is properly formatted
+                try:
+                    # Validate that it's proper JSON by parsing it
+                    json_obj = json.loads(value)
+                    # Re-serialize with properly escaped quotes for shell
+                    # json_str = json.dumps(json_obj).replace('"', '\\"')
+                    json_str = json.dumps(json_obj)
+                    # Use double quotes for the whole argument to preserve the JSON structure
+                    if include_newlines:
+                        script_args += f" \\\n  --env {env_var}='{json_str}'"
+                    else:
+                        script_args += f" --env {env_var}='{json_str}'"
+                except json.JSONDecodeError:
+                    # If it's not valid JSON, treat it as a regular string with special characters
+                    if include_newlines:
+                        script_args += f" \\\n  --env '{env_var}={value}'"
+                    else:
+                        script_args += f" --env '{env_var}={value}'"
+
+            # Handle values with spaces or special shell characters
+            elif isinstance(value, str) and (" " in value or any(c in value for c in "*?[](){}|&;<>\\")):
+                # Use single quotes for values with spaces or special chars
+                # Single quotes prevent all shell interpretation
+                if include_newlines:
+                    script_args += f" \\\n  --env '{env_var}={value}'"
+                else:
+                    script_args += f" --env '{env_var}={value}'"
+            else:
+                # Simple values without spaces or special chars
+                if include_newlines:
+                    script_args += f" \\\n  --env {env_var}={value}"
+                else:
+                    script_args += f" --env {env_var}={value}"
+
+        return script_args
+
     def generate_command(self) -> str:
         """
         Generate the execution command for the process.
@@ -419,49 +491,12 @@ class NeuProcessExec(BaseModel):
 
         # Add arguments to the script - the script itself will handle container execution
         # Pass bind path and environment variable arguments that the script will use
-        
-        # Add bind path arguments
-        for bind_path, value in self.bind_path_values.items():
-            # For bind paths, we need to handle the format correctly
-            # The key is whether we need to quote the entire argument or just the path value
-            needs_quoting = " " in str(value) or (isinstance(value, str) and any(c in value for c in "*?[](){}|&;<>"))
-            
-            if needs_quoting:
-                # Quote just the value part to preserve shell interpretation
-                script_args += f" --bind {bind_path}='{value}'"
-            else:
-                # No special characters that need quoting
-                script_args += f" --bind {bind_path}={value}"
-        
-        # Add environment variable arguments
-        for env_var, value in self.env_var_values.items():
-            if value is None:
-                continue
-            
-            # Special handling for JSON values - must be properly quoted to ensure they're passed correctly
-            if isinstance(value, str) and (value.startswith('{') or value.startswith('[')):
-                # Ensure the JSON is properly formatted
-                try:
-                    # Validate that it's proper JSON by parsing it
-                    json_obj = json.loads(value)
-                    # Re-serialize with properly escaped quotes for shell
-                    # json_str = json.dumps(json_obj).replace('"', '\\"')
-                    json_str = json.dumps(json_obj)
-                    # Use double quotes for the whole argument to preserve the JSON structure
-                    script_args += f" --env {env_var}='{json_str}'"
-                except json.JSONDecodeError:
-                    # If it's not valid JSON, treat it as a regular string with special characters
-                    script_args += f" --env '{env_var}={value}'"
-                
-            # Handle values with spaces or special shell characters
-            elif isinstance(value, str) and (" " in value or any(c in value for c in "*?[](){}|&;<>\\")):
-                # Use single quotes for values with spaces or special chars
-                # Single quotes prevent all shell interpretation
-                script_args += f" --env '{env_var}={value}'"
-            else:
-                # Simple values without spaces or special chars
-                script_args += f" --env {env_var}={value}"
-        
+
+        # Generate the bash script if not already set and save to disk
+        exec_dir: Path = self._paths.get_process_exec_path(self.exec_id)
+        if not Path(exec_dir / BASH_SCRIPT_NAME).exists():
+            bash_script_path: str = str(self.save_bash_script_to_disk())
+
         # Generate log and error file paths if not already set
         log_dir = self._paths.logs / "process_execs"
         if not self.log_path:
@@ -470,15 +505,18 @@ class NeuProcessExec(BaseModel):
             self.error_path = log_dir / f"{self.exec_id}.err"
         
         # Construct the final command
-        # cmd = f"{cmd_prefix} {script_path}{script_args}"
         if self.scheduler == HPCScheduler.LOCAL:
-            cmd = f"{cmd_prefix} {self.script_path}{script_args} > {self.log_path} 2> {self.error_path}"
+            # cmd = f"{cmd_prefix} {self.script_path}{script_args} > {self.log_path} 2> {self.error_path}"
+            cmd = f"{cmd_prefix} {bash_script_path} > {self.log_path} 2> {self.error_path}"
         elif self.scheduler == HPCScheduler.LSF:
-            cmd = f"{cmd_prefix} -o {self.log_path} -e {self.error_path} -J {self.exec_id} bash {self.script_path}{script_args}"
+            # cmd = f"{cmd_prefix} -o {self.log_path} -e {self.error_path} -J {self.exec_id} bash {self.script_path}{script_args}"
+            cmd = f"{cmd_prefix} -o {self.log_path} -e {self.error_path} -J {self.exec_id} {bash_script_path}"
         elif self.scheduler == HPCScheduler.SLURM:
-            cmd = f"{cmd_prefix} --output={self.log_path} --error={self.error_path} {self.script_path}{script_args}"
+            # cmd = f"{cmd_prefix} --output={self.log_path} --error={self.error_path} {self.script_path}{script_args}"
+            cmd = f"{cmd_prefix} --output={self.log_path} --error={self.error_path} {bash_script_path}"
         elif self.scheduler == HPCScheduler.PBS:
-            cmd = f"{cmd_prefix} -o {self.log_path} -e {self.error_path} {self.script_path}{script_args}"
+            # cmd = f"{cmd_prefix} -o {self.log_path} -e {self.error_path} {self.script_path}{script_args}"
+            cmd = f"{cmd_prefix} -o {self.log_path} -e {self.error_path} {bash_script_path}"
         else:
             raise ValueError(f"Unsupported scheduler: {self.scheduler}")
         
@@ -588,6 +626,37 @@ class NeuProcessExec(BaseModel):
         
         return result
     
+    def save_bash_script_to_disk(self) -> Path:
+        """
+        Save the generated bash script to disk.
+        This method saves the bash script to the process_execs directory with the exec_id as the folder name.
+        
+        Returns:
+            Path to the saved bash script file
+        """
+        
+        # Create process_execs directory if it doesn't exist
+        exec_dir = self._paths.get_process_exec_path(self.exec_id)
+        
+        exec_dir.mkdir(parents=True, exist_ok=True)
+        
+        script_args_str = self.generate_script_args_str()
+        
+        script_str: str = f"""#!/bin/bash
+bash {self.script_path} \\
+    {script_args_str}
+        """
+        
+        # Save the script to a file
+        script_path = exec_dir / BASH_SCRIPT_NAME
+        with open(script_path, "w") as f:
+            f.write(script_str)
+            
+        # Make the script executable
+        os.chmod(script_path, 0o755)
+        
+        return script_path
+    
     def save_to_disk(self) -> Path:
         """
         Save the NeuProcessExec instance to disk.
@@ -597,10 +666,8 @@ class NeuProcessExec(BaseModel):
         Returns:
             Path to the saved model.json file
         """
-        from ....utils.constants import PATHS
         
         # Create process_execs directory if it doesn't exist
-        # exec_dir = PATHS.get_process_exec_path(self.exec_id)
         exec_dir = self._paths.get_process_exec_path(self.exec_id)
         
         exec_dir.mkdir(parents=True, exist_ok=True)
