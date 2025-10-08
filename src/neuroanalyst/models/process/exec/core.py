@@ -444,10 +444,10 @@ class NeuProcessExec(BaseModel):
                 try:
                     # Validate that it's proper JSON by parsing it
                     json_obj = json.loads(value)
-                    # Re-serialize with double quotes to ensure proper format
-                    json_str = json.dumps(json_obj)
-                    # Wrap in single quotes for shell protection
-                    script_args += f" --env {env_var}='{json_str}'"
+                    # Re-serialize with properly escaped quotes for shell
+                    json_str = json.dumps(json_obj).replace('"', '\\"')
+                    # Use double quotes for the whole argument to preserve the JSON structure
+                    script_args += f' --env {env_var}="{json_str}"'
                 except json.JSONDecodeError:
                     # If it's not valid JSON, treat it as a regular string with special characters
                     script_args += f" --env '{env_var}={value}'"
