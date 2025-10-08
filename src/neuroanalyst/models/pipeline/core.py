@@ -475,7 +475,7 @@ class NeuPipeline(BaseModel):
             )
             for j, proc_exec in enumerate(step.process_execs):
                 proc_status = NeuProcessExecStatus(
-                    process_id=j,
+                    process_id=proc_exec.process.process_id if hasattr(proc_exec, 'process') else proc_exec.exec_id,
                     exec_id=proc_exec.exec_id,
                     name=proc_exec.process.process_id if hasattr(proc_exec, 'process') else proc_exec.exec_id,
                     status=ProcessStatus.NOT_STARTED.value,
