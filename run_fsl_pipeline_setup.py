@@ -147,7 +147,7 @@ fast_exec: NeuProcessExec = NeuProcessExec(
     process=bet_process,
     execution_mode=EXECUTION_MODE,
     env_var_values={"FSL_IMG": fsl_img_path, "BIDS_FILTERS": json.dumps({
-        "desc": "brain",
+        # "desc": "brain",
         "suffix": "T1w",
         "extension": ".nii.gz"
     })},
@@ -159,7 +159,7 @@ threshold_exec: NeuProcessExec = NeuProcessExec(
     process=bet_process,
     execution_mode=EXECUTION_MODE,
     env_var_values={"FSL_IMG": fsl_img_path, "BIDS_FILTERS": json.dumps({
-        "desc": "seg",
+        # "desc": "seg",
         "suffix": "T1w",
         "extension": ".nii.gz"
     })},
