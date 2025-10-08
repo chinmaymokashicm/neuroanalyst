@@ -438,22 +438,17 @@ class NeuProcessExec(BaseModel):
             if value is None:
                 continue
             
-            # Special handling for JSON values - we need to ensure they're passed in a way that can be correctly parsed
+            # Special handling for JSON values - must be properly quoted to ensure they're passed correctly
             if isinstance(value, str) and (value.startswith('{') or value.startswith('[')):
                 # Ensure the JSON is properly formatted
                 try:
                     # Validate that it's proper JSON by parsing it
                     json_obj = json.loads(value)
-                    
-                    # For JSON, we need to:
-                    # 1. Convert to a string with proper double quotes
-                    # 2. Escape the double quotes for the shell
-                    # 3. Wrap the entire thing in single quotes to prevent shell expansion
-                    json_str = json.dumps(json_obj).replace('"', '\\"')
-                    
-                    # Pass the value in a format that will be correctly interpreted by the shell
-                    # and correctly passed to the script
-                    script_args += f" --env {env_var}=\"{json_str}\""
+                    # Re-serialize with properly escaped quotes for shell
+                    # json_str = json.dumps(json_obj).replace('"', '\\"')
+                    json_str = json.dumps(json_obj)
+                    # Use double quotes for the whole argument to preserve the JSON structure
+                    script_args += f" --env {env_var}='{json_str}'"
                 except json.JSONDecodeError:
                     # If it's not valid JSON, treat it as a regular string with special characters
                     script_args += f" --env '{env_var}={value}'"
