@@ -434,27 +434,37 @@ class NeuProcessExec(BaseModel):
         if self.execution_mode == ExecutionMode.CONTAINER:
             # Add bind path arguments
             for bind_path, value in self.bind_path_values.items():
-                script_args += f" --bind {bind_path}={value}"
+                # Make sure bind paths are properly quoted if they contain spaces
+                if " " in str(value):
+                    script_args += f" --bind '{bind_path}={value}'"
+                else:
+                    script_args += f" --bind {bind_path}={value}"
             
             # Add environment variable arguments
             for env_var, value in self.env_var_values.items():
-                # Special handling for JSON values to ensure they're properly escaped
-                if value and (value.startswith('{') or value.startswith('[')) and ('"' in value or "'" in value):
+                # Handle different types of values
+                if value is None:
+                    continue
+                
+                # Special handling for JSON values
+                if isinstance(value, str) and (value.startswith('{') or value.startswith('[')) and ('"' in value or "'" in value):
                     try:
                         # Validate it's actually JSON by parsing it
                         json.loads(value)
-                        # Properly escape JSON value for shell command
-                        escaped_value = f'"{value.replace('"', '\\"')}"'
-                        script_args += f" --env {env_var}={escaped_value}"
+                        # Create properly escaped JSON for shell
+                        json_value = value.replace('"', '\\"')
+                        script_args += f" --env '{env_var}=\"{json_value}\"'"
                     except json.JSONDecodeError:
-                        # If it's not valid JSON, just pass it as is
-                        script_args += f" --env {env_var}={value}"
+                        # If it's not valid JSON, quote the whole thing
+                        script_args += f" --env '{env_var}={value}'"
+                
+                # Handle values with spaces
+                elif " " in str(value):
+                    # Quote the entire argument with single quotes and the value with double quotes
+                    script_args += f" --env '{env_var}=\"{value}\"'"
                 else:
-                    # For values with spaces, quote them
-                    if " " in str(value):
-                        script_args += f' --env {env_var}="{value}"'
-                    else:
-                        script_args += f" --env {env_var}={value}"
+                    # Simple values without spaces
+                    script_args += f" --env '{env_var}={value}'"
         
         # Construct the final command
         cmd = f"{cmd_prefix} {script_path}{script_args}"
