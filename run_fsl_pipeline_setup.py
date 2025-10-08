@@ -32,6 +32,7 @@ import json
 
 # %%
 BIDS_ROOT: str = "/rsrch5/home/csi/cmokashi/neuroanalyst/datasets/ds004884-1.0.2"
+BASE_IMAGE: str = "/rsrch5/home/csi/cmokashi/neuroanalyst/apptainer/images/python_3.12_slim_amd64_git.sif"
 FSL_IMG: str = "/risapps/apptainer/repo/fsl/3.16.8/fsl_3.16.8.sif"
 
 # %% [markdown]
@@ -91,6 +92,8 @@ threshold_dir: NeuProcessDir = NeuProcessDir.from_logic(threshold_logic)
 for dir in [bet_dir, fast_dir, threshold_dir]:
     dir.add_environment_variables("FSL_IMG")
     dir.add_language_packages("python", ["nibabel", "numpy"])
+    dir.config.bootstrap_method = "localimage"
+    dir.config.base_image = BASE_IMAGE
 
 bet_dir.generate()
 fast_dir.generate()
