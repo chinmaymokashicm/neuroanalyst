@@ -210,7 +210,7 @@ fsl_pipeline: NeuPipeline = NeuPipeline(
     scheduler=scheduler
 )
 fsl_pipeline.apply_standard_exec_params()
-fsl_pipeline.steps[2].process_execs[0].print_configuration_status()
+fsl_pipeline.steps[0].process_execs[0].print_configuration_status()
 
 # %%
 # fsl_pipeline.steps[0].process_execs[0].generate_command()
