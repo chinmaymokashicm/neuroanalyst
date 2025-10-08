@@ -1788,7 +1788,8 @@ echo "Virtual environment created and requirements installed successfully at: ${
         """
         # Start with the basic command
         image_path = self._paths.get_process_image_path(self.process_id)
-        command_parts = [f"singularity run {image_path}"]
+        # command_parts = [f"singularity run {image_path}"]
+        command_parts = [f"singularity run"]
         
         # Add environment variables with --env
         if self.config.environment_variables:
@@ -1814,37 +1815,17 @@ echo "Virtual environment created and requirements installed successfully at: ${
                 
                 if use_runtime_vars:
                     # Use the BIND_PATHS associative array that will be set at runtime
-                    bind_args.append(f"--bind \"${{BIND_PATHS[{norm_path}]}}\":{norm_path}")
+                    # Escape the path when used as an array key to handle special characters
+                    safe_key = norm_path.replace('"', '\\"')  # Escape double quotes in the path
+                    bind_args.append(f"--bind \"${{BIND_PATHS[\"{safe_key}\"]}}\":\"{norm_path}\"")
                 else:
                     # Use placeholders for documentation
-                    bind_args.append(f"--bind <path_to{norm_path}>:{norm_path}")
+                    bind_args.append(f"--bind \"<path_to{norm_path}>\":\"{norm_path}\"")
             
             command_parts.append(" ".join(bind_args))
-        
-        # # Add example for actual command arguments (based on logic arguments if available)
-        # if self.logic and self.logic.arguments:
-        #     arg_examples = []
-        #     for arg in self.logic.arguments:
-        #         if arg.is_optional:
-        #             continue  # Skip optional arguments in the example
-                
-        #         if use_runtime_vars:
-        #             # Pass through script arguments from $@
-        #             # We don't add specific arguments here as they'll be passed through from the shell script
-        #             pass
-        #         else:
-        #             # Create a placeholder example for each required argument for documentation
-        #             arg_examples.append(f"--{arg.name} <{arg.name.lower()}_value>")
             
-        #     if arg_examples and not use_runtime_vars:
-        #         command_parts.append(" ".join(arg_examples))
-            
-        #     # When using runtime vars, always add the arguments passthrough
-        #     if use_runtime_vars:
-        #         command_parts.append("\"$@\"")
-        # elif use_runtime_vars:
-        #     # Even without specific logic arguments, pass through any script arguments
-        #     command_parts.append("\"$@\"")
+        # Specify the image path
+        command_parts.append(f"\"{image_path}\"")
         
         # Return the final command
         return " ".join(command_parts)
