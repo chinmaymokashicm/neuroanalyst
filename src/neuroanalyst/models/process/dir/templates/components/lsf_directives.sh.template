@@ -1,7 +1,5 @@
 #!/bin/bash
 #BSUB -J ${exec_id}
-#BSUB -o ${logs_dir}/${exec_id}.o%J
-#BSUB -e ${logs_dir}/${exec_id}.e%J
 #BSUB -n ${max_workers}
 #BSUB -W ${lsf_time}
 #BSUB -M ${lsf_mem}
