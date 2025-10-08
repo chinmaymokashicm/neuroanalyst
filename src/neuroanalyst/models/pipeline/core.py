@@ -753,7 +753,7 @@ class NeuPipeline(BaseModel):
                     # Poll until done
                     while not executor.is_done():
                         executor.poll_status()
-                        print(f"    Status: {executor.status}")
+                        logger.info(f"Status: {executor.status}")
                         time.sleep(10)  # Polling interval
                     
                     if executor.is_success():

@@ -19,7 +19,7 @@ from src.neuroanalyst.models.process.process.core import NeuProcess
 from src.neuroanalyst.models.process.exec.core import NeuProcessExec, HPCScheduler
 from src.neuroanalyst.models.pipeline.core import NeuPipeline, NeuPipelineStep
 
-import json
+import json, time
 
 # %% [markdown]
 # ## T1w pre-processing pipeline using FSL
@@ -195,8 +195,11 @@ threshold_step: NeuPipelineStep = NeuPipelineStep(
     description="Apply thresholding using FSL Threshold",
     process_execs=[threshold_exec]
 )
+
+timestamp: str = time.strftime("%Y%m%d-%H%M%S")
+
 about_fsl_pipeline: About = About(
-    name="T1w Preprocessing Pipeline using FSL",
+    name=f"FSL_T1w_Preprocessing_{timestamp}",
     description="A pipeline for preprocessing T1-weighted MRI images using FSL tools.",
     version="1.0.0",
     author="Chinmay Mokashi"
