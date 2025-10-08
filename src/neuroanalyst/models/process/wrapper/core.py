@@ -62,6 +62,13 @@ class NeuProcessDecoratorConfig(BaseModel):
     process_id: str = Field(..., description="ID of the NeuProcess")
     pipeline_id: str = Field(..., description="ID of the NeuPipeline")
     pipeline_name: str = Field(..., description="Name of the pipeline")
+    process_exec_id: str = Field(..., description="ID of the NeuProcessExec instance")
+    bids_root: Union[str, Path] = Field(..., description="BIDS root directory path")
+    overwrite: bool = Field(default=False, description="Whether to overwrite existing files")
+    create_sidecar: bool = Field(default=True, description="Whether to create sidecar JSON files")
+    derivatives_dir: Optional[str] = Field(default=CONFIG.DERIVATIVES_DIR, description="Custom derivatives directory name")
+    bids_layout: Optional[Any] = Field(default=None, description="Pre-initialized BIDSLayout object", exclude=True)
+    bids_validate: bool = Field(default=False, description="Whether to validate BIDS compliance")
     
     def __str__(self) -> str:
         """Return a human-readable string representation of the NeuProcessDecoratorConfig."""
@@ -72,13 +79,6 @@ class NeuProcessDecoratorConfig(BaseModel):
         return f"NeuProcessDecoratorConfig(process_id='{self.process_id}', "\
                f"pipeline_id='{self.pipeline_id}', "\
                f"pipeline_name='{self.pipeline_name}')"
-    process_exec_id: str = Field(..., description="ID of the NeuProcessExec instance")
-    bids_root: Union[str, Path] = Field(..., description="BIDS root directory path")
-    overwrite: bool = Field(default=False, description="Whether to overwrite existing files")
-    create_sidecar: bool = Field(default=True, description="Whether to create sidecar JSON files")
-    derivatives_dir: Optional[str] = Field(default=CONFIG.DERIVATIVES_DIR, description="Custom derivatives directory name")
-    bids_layout: Optional[Any] = Field(default=None, description="Pre-initialized BIDSLayout object", exclude=True)
-    bids_validate: bool = Field(default=False, description="Whether to validate BIDS compliance")
     
     class Config:
         arbitrary_types_allowed = True  # Allow BIDSLayout object

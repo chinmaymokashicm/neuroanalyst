@@ -414,7 +414,9 @@ class NeuProcessExec(BaseModel):
 
         location: str = "local" if self.scheduler == HPCScheduler.LOCAL else "hpc"
         cmd_prefix: str | None = None
+        script_args: str = ""
 
+        # Get the script path based on execution environment
         if location == "local":
             cmd_prefix = "source"
             script_path: str = self.process.process_dir.script_paths["execute"]["local"][self.execution_mode]
@@ -427,16 +429,35 @@ class NeuProcessExec(BaseModel):
                 cmd_prefix = "qsub"
             script_path: str = self.process.process_dir.script_paths["execute"]["hpc"][self.scheduler][self.execution_mode]
 
-        # Construct the command
-        cmd = f"{cmd_prefix} {script_path}"
-
-        # Add bind path arguments
-        for bind_path, value in self.bind_path_values.items():
-            cmd += f" --bind {bind_path}={value}"
+        # For container execution mode, we need to pass arguments differently
+        # The script itself handles passing these to the container runtime (singularity/apptainer)
+        if self.execution_mode == ExecutionMode.CONTAINER:
+            # Add bind path arguments
+            for bind_path, value in self.bind_path_values.items():
+                script_args += f" --bind {bind_path}={value}"
+            
+            # Add environment variable arguments
+            for env_var, value in self.env_var_values.items():
+                # Special handling for JSON values to ensure they're properly escaped
+                if value and (value.startswith('{') or value.startswith('[')) and ('"' in value or "'" in value):
+                    try:
+                        # Validate it's actually JSON by parsing it
+                        json.loads(value)
+                        # Properly escape JSON value for shell command
+                        escaped_value = f'"{value.replace('"', '\\"')}"'
+                        script_args += f" --env {env_var}={escaped_value}"
+                    except json.JSONDecodeError:
+                        # If it's not valid JSON, just pass it as is
+                        script_args += f" --env {env_var}={value}"
+                else:
+                    # For values with spaces, quote them
+                    if " " in str(value):
+                        script_args += f' --env {env_var}="{value}"'
+                    else:
+                        script_args += f" --env {env_var}={value}"
         
-        # Add environment variable arguments
-        for env_var, value in self.env_var_values.items():
-            cmd += f" --env {env_var}={value}"
+        # Construct the final command
+        cmd = f"{cmd_prefix} {script_path}{script_args}"
         
         # Store the generated command in the exec_command field
         self.exec_command = cmd
