@@ -98,8 +98,8 @@ for dir in [bet_dir, fast_dir, threshold_dir]:
     dir.config.base_image = BASE_IMAGE
 
 bet_dir.generate()
-# fast_dir.generate()
-# threshold_dir.generate()
+fast_dir.generate()
+threshold_dir.generate()
 
 # %% [markdown]
 # ### Create NeuProcess instances (with virtual environments)
@@ -123,8 +123,8 @@ fast_process: NeuProcess = NeuProcess.from_process_id(fast_dir.process_id)
 threshold_process: NeuProcess = NeuProcess.from_process_id(threshold_dir.process_id)
 
 bet_process.build_image()
-fast_process.build_image()
-threshold_process.build_image()
+# fast_process.build_image()
+# threshold_process.build_image()
 
 # %% [markdown]
 # ### Create NeuProcessExec instances
