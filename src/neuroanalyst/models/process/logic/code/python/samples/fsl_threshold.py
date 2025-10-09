@@ -10,11 +10,15 @@ def fsl_threshold(input_filepath: str):
     Apply FSL's thresholding to a NIfTI image to generate a binary mask for each tissue type.
     Uses a Nifti file that has been brain-extracted and segmented into tissue types - CSF, GM, WM. These images are stacked along the last dimension.
     """
-    fsl_img = os.environ["FSL_IMG"]       # path to FSL Singularity image (passed at runtime)
+    fsl_img = os.getenv("FSL_IMG")       # path to FSL Singularity image (passed at runtime)
+    if fsl_img is None:
+        raise ValueError("FSL_IMG environment variable is not set.")
     data_dir = "/data"  # shared data dir bind
-    pipeline_name = os.environ["PIPELINE_NAME"]  # get pipeline name from env
+    pipeline_name = os.getenv("PIPELINE_NAME")  # get pipeline name from env
+    if pipeline_name is None:
+        raise ValueError("PIPELINE_NAME environment variable is not set.")
     output_dir = f"/data/derivatives/{pipeline_name}"  # output dir bind
-    threshold: float = float(os.environ.get("THRESHOLD", 0.5))  # threshold value from env or default
+    threshold: float = float(os.getenv("THRESHOLD", 0.5))  # threshold value from env or default
 
     Path(output_dir).mkdir(parents=True, exist_ok=True)
 

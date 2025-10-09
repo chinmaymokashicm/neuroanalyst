@@ -19,9 +19,13 @@ def fsl_fast(input_filepath: str):
         output_entities (dict): Dictionary of BIDS entities for the output file.
         forced_outputs (list): List of file paths that are saved as outputs but not BIDS-compliant.
     """
-    fsl_img = os.environ["FSL_IMG"]       # path to FSL Singularity image (passed at runtime)
+    fsl_img = os.getenv("FSL_IMG")       # path to FSL Singularity image (passed at runtime)
+    if fsl_img is None:
+        raise ValueError("FSL_IMG environment variable is not set.")
     data_dir = "/data"  # shared data dir bind
-    pipeline_name = os.environ["PIPELINE_NAME"]  # get pipeline name from env
+    pipeline_name = os.getenv("PIPELINE_NAME")  # get pipeline name from env
+    if pipeline_name is None:
+        raise ValueError("PIPELINE_NAME environment variable is not set.")
     output_dir = f"/data/derivatives/{pipeline_name}"  # output dir bind
 
     Path(output_dir).mkdir(parents=True, exist_ok=True)

@@ -50,8 +50,8 @@ functions: dict = {
             version="1.0.0",
             author="Chinmay Mokashi"
         ),
-        # "file_path": "./src/neuroanalyst/models/process/logic/code/python/samples/fsl_bet.py",
-        "file_path": "./src/neuroanalyst/models/process/logic/code/python/samples/fake_fsl_bet.py",
+        "file_path": "./src/neuroanalyst/models/process/logic/code/python/samples/fsl_bet.py",
+        # "file_path": "./src/neuroanalyst/models/process/logic/code/python/samples/fake_fsl_bet.py",
     },
     "fsl_fast": {
         "about": About(
@@ -60,8 +60,8 @@ functions: dict = {
             version="1.0.0",
             author="Chinmay Mokashi"
         ),
-        # "file_path": "./src/neuroanalyst/models/process/logic/code/python/samples/fsl_fast.py",
-        "file_path": "./src/neuroanalyst/models/process/logic/code/python/samples/fake_fsl_fast.py",
+        "file_path": "./src/neuroanalyst/models/process/logic/code/python/samples/fsl_fast.py",
+        # "file_path": "./src/neuroanalyst/models/process/logic/code/python/samples/fake_fsl_fast.py",
     },
     "fsl_threshold": {
         "about": About(
@@ -70,7 +70,8 @@ functions: dict = {
             version="1.0.0",
             author="Chinmay Mokashi"
         ),
-        "file_path": "./src/neuroanalyst/models/process/logic/code/python/samples/fake_fsl_threshold.py",
+        "file_path": "./src/neuroanalyst/models/process/logic/code/python/samples/fsl_threshold.py",
+        # "file_path": "./src/neuroanalyst/models/process/logic/code/python/samples/fake_fsl_threshold.py",
     },
 }
 
@@ -122,8 +123,8 @@ fast_process: NeuProcess = NeuProcess.from_process_id(fast_dir.process_id)
 threshold_process: NeuProcess = NeuProcess.from_process_id(threshold_dir.process_id)
 
 bet_process.build_image()
-# fast_process.build_image()
-# threshold_process.build_image()
+fast_process.build_image()
+threshold_process.build_image()
 
 # %% [markdown]
 # ### Create NeuProcessExec instances
@@ -143,11 +144,11 @@ bet_exec: NeuProcessExec = NeuProcessExec(
 )
 
 fast_exec: NeuProcessExec = NeuProcessExec(
-    # process=fast_process,
-    process=bet_process,
+    process=fast_process,
+    # process=bet_process,
     execution_mode=EXECUTION_MODE,
     env_var_values={"FSL_IMG": fsl_img_path, "BIDS_FILTERS": json.dumps({
-        # "desc": "brain",
+        "desc": "brain",
         "suffix": "T1w",
         "extension": ".nii.gz"
     })},
@@ -155,11 +156,11 @@ fast_exec: NeuProcessExec = NeuProcessExec(
 )
 
 threshold_exec: NeuProcessExec = NeuProcessExec(
-    # process=threshold_process,
-    process=bet_process,
+    process=threshold_process,
+    # process=bet_process,
     execution_mode=EXECUTION_MODE,
     env_var_values={"FSL_IMG": fsl_img_path, "BIDS_FILTERS": json.dumps({
-        # "desc": "seg",
+        "desc": "seg",
         "suffix": "T1w",
         "extension": ".nii.gz"
     })},
@@ -199,7 +200,7 @@ threshold_step: NeuPipelineStep = NeuPipelineStep(
 timestamp: str = time.strftime("%Y%m%d-%H%M%S")
 
 about_fsl_pipeline: About = About(
-    name=f"FSL_Fake_Redundant_T1w_Preprocessing_{timestamp}",
+    name=f"FSL_Real_Redundant_T1w_Preprocessing_{timestamp}",
     description="A pipeline for preprocessing T1-weighted MRI images using FSL tools.",
     version="1.0.0",
     author="Chinmay Mokashi"
@@ -211,11 +212,10 @@ fsl_pipeline: NeuPipeline = NeuPipeline(
     bids_root=BIDS_ROOT
 )
 fsl_pipeline.apply_standard_exec_params()
-fsl_pipeline.steps[0].process_execs[0].print_configuration_status()
+print(fsl_pipeline.steps[0].process_execs[0].print_configuration_status())
 
 # %%
 # fsl_pipeline.steps[0].process_execs[0].generate_command()
 fsl_pipeline.create_pipeline_dir()
 
 print(f"Pipeline ID: {fsl_pipeline.pipeline_id}")
-
