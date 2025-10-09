@@ -187,6 +187,7 @@ class NeuPipeline(BaseModel):
     # Basic information
     pipeline_id: str = Field(default_factory=lambda: generate_id("pipeline_id"), 
                            description="Unique identifier for the pipeline")
+    bids_root: Path = Field(..., description="Path to the BIDS dataset root directory")
     
     # Author and metadata
     about: About = Field(default_factory=About, description="Author and metadata information")
@@ -724,7 +725,7 @@ class NeuPipeline(BaseModel):
             self.create_pipeline_dir()
             
         # Create dataset_description.json if not exists
-        dataset_description_path = self.pipeline_dir_path / "dataset_description.json"
+        dataset_description_path = self.bids_root / "dataset_description.json"
         if not dataset_description_path.exists():
             dataset_description = BIDSDatasetDescription(
                 Name=self.about.name,
@@ -753,6 +754,7 @@ class NeuPipeline(BaseModel):
             )
             with open(dataset_description_path, "w") as f:
                 f.write(dataset_description.model_dump_json(indent=2))
+                logger.info(f"Created dataset_description.json at {dataset_description_path}")
             
         starting_step_index = 0 if not resume else self.get_earliest_incomplete_step_index()
         

@@ -147,7 +147,7 @@ fast_exec: NeuProcessExec = NeuProcessExec(
     process=bet_process,
     execution_mode=EXECUTION_MODE,
     env_var_values={"FSL_IMG": fsl_img_path, "BIDS_FILTERS": json.dumps({
-        "desc": "brain",
+        # "desc": "brain",
         "suffix": "T1w",
         "extension": ".nii.gz"
     })},
@@ -159,7 +159,7 @@ threshold_exec: NeuProcessExec = NeuProcessExec(
     process=bet_process,
     execution_mode=EXECUTION_MODE,
     env_var_values={"FSL_IMG": fsl_img_path, "BIDS_FILTERS": json.dumps({
-        "desc": "seg",
+        # "desc": "seg",
         "suffix": "T1w",
         "extension": ".nii.gz"
     })},
@@ -207,7 +207,8 @@ about_fsl_pipeline: About = About(
 fsl_pipeline: NeuPipeline = NeuPipeline(
     about=about_fsl_pipeline,
     steps=[bet_step, fast_step, threshold_step],
-    scheduler=scheduler
+    scheduler=scheduler,
+    bids_root=BIDS_ROOT
 )
 fsl_pipeline.apply_standard_exec_params()
 fsl_pipeline.steps[0].process_execs[0].print_configuration_status()
