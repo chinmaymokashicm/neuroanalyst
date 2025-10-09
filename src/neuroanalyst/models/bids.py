@@ -1,4 +1,4 @@
-from typing import List, Optional, Dict
+from typing import Any, List, Optional, Dict
 
 from pydantic import BaseModel, Field
 
@@ -35,7 +35,7 @@ class BIDSDatasetDescription(BaseModel):
     ReferencesAndLinks: Optional[List[str]] = Field(default=None, description="List of references and links")
     DatasetDOI: Optional[str] = Field(default=None, description="The DOI of the dataset if available")
     PipelineDescription: Optional[str] = Field(default=None, description="Description of the processing pipeline applied to the dataset")
-    PipelineSteps: Optional[List[str]] = Field(default=None, description="Description of the processing steps applied to the dataset")
+    PipelineSteps: Optional[List[Any]] = Field(default=None, description="Description of the processing steps applied to the dataset")
     
     class Config:
         extra = "allow"  # Allow additional fields for forward compatibility
