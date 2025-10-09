@@ -203,6 +203,8 @@ def neuprocess_decorator(config: NeuProcessDecoratorConfig):
                     if isinstance(raw_result, dict):
                         validated_result = NeuProcessOutput(**raw_result)
                         forced_outputs = validated_result.metadata.get("forced_output_filepaths", None)
+                        print(f"Function returned dict format. Validated successfully.")
+                        print(f"Data type: {type(validated_result.data)}")
                     elif isinstance(raw_result, tuple) and len(raw_result) >= 3:
                         # Handle legacy tuple format
                         output_data, metrics, output_entities = raw_result[:3]
@@ -217,6 +219,8 @@ def neuprocess_decorator(config: NeuProcessDecoratorConfig):
                                 "forced_output_filepaths": forced_outputs
                             }
                         )
+                        print(f"Legacy tuple format detected. Converted to NeuProcessOutput.")
+                        print(f"Data type: {type(output_data)}")
                     else:
                         error_in_func = True
                         func_error_message = (
@@ -241,6 +245,7 @@ def neuprocess_decorator(config: NeuProcessDecoratorConfig):
                         }
                     )
                     forced_outputs = None
+                    print(f"Error during function execution: {func_error_message}")
                 
                 # Construct output filepath using PyBIDS
                 output_entities = validated_result.metadata.get('output_bids_entities', {})
@@ -273,6 +278,7 @@ def neuprocess_decorator(config: NeuProcessDecoratorConfig):
                             f = Path(fpath)
                             if f.exists():
                                 f.unlink()
+                                print(f"Deleted forced output file: {f}")
                         except Exception:
                             pass  # Ignore errors during forced file deletion
                 

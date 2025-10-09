@@ -40,7 +40,17 @@ def fsl_bet(input_filepath: str):
     ]
     subprocess.run(cmd, check=True)
 
+    if not os.path.exists(output_filepath):
+        raise ValueError(f"Brain-extracted file not found at {output_filepath}")
+    
     output_data = nib.load(output_filepath).get_fdata()
+    if output_data is None:
+        raise ValueError(f"Failed to load brain-extracted data from {output_filepath}")
+    if output_data.size == 0:
+        raise ValueError(f"Brain-extracted data from {output_filepath} is empty")
+    if not (output_data > 0).any():
+        raise ValueError(f"Brain-extracted data from {output_filepath} contains no non-zero values")
+    print(f"Loaded brain-extracted data from {output_filepath} with shape {output_data.shape}")
     
     metrics: dict = {
         "brain_volume": int((output_data > 0).sum()),
