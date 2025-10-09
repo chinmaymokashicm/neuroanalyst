@@ -249,7 +249,9 @@ def neuprocess_decorator(config: NeuProcessDecoratorConfig):
                     config=config,
                     output_entities=output_entities
                 )
-                
+                print(f"Input file: {input_path}")
+                print(f"Output file: {output_filepath}")
+
                 # Create output directory if it doesn't exist
                 output_filepath.parent.mkdir(parents=True, exist_ok=True)
                 
@@ -294,14 +296,14 @@ def neuprocess_decorator(config: NeuProcessDecoratorConfig):
                 }
                 
                 # Add PyBIDS dataset information if available
-                if config.bids_layout:
-                    try:
-                        dataset_desc = config.bids_layout.get_dataset_description()
-                        if dataset_desc:
-                            metadata['DatasetName'] = dataset_desc.get('Name', 'Unknown')
-                            metadata['BIDSVersion'] = dataset_desc.get('BIDSVersion', 'Unknown')
-                    except Exception:
-                        pass  # Continue without dataset info
+                # if config.bids_layout:
+                #     try:
+                #         dataset_desc = config.bids_layout.get_dataset_description()
+                #         if dataset_desc:
+                #             metadata['DatasetName'] = dataset_desc.get('Name', 'Unknown')
+                #             metadata['BIDSVersion'] = dataset_desc.get('BIDSVersion', 'Unknown')
+                #     except Exception:
+                #         pass  # Continue without dataset info
                 
                 # Create sidecar JSON file if enabled
                 sidecar_filepath = None
@@ -411,30 +413,30 @@ def ensure_dataset_description(config: NeuProcessDecoratorConfig, output_path: O
         }
         
         # Create dataset description
-        dataset_desc = BIDSDatasetDescription(
-            Name=f"{config.pipeline_name} derivatives",
-            BIDSVersion="1.8.0",  # Current BIDS version
-            DatasetType="derivative",
-            GeneratedBy=[
-                BIDSGeneratedByToolInfo(
-                    Name="NeuroAnalyst",
-                    Version="1.0.0",  # Could be made configurable
-                    CodeURL="https://github.com/chinmaymokashicm/neuroanalyst",  # Optional
-                    Container=system_info
-                )
-            ],
-            License=None,  # Optional fields
-            Authors=None,
-            Acknowledgements=None,
-            HowToAcknowledge=None,
-            Funding=None,
-            ReferencesAndLinks=None,
-            DatasetDOI=None
-        )
+        # dataset_desc = BIDSDatasetDescription(
+        #     Name=f"{config.pipeline_name} derivatives",
+        #     BIDSVersion="1.8.0",  # Current BIDS version
+        #     DatasetType="derivative",
+        #     GeneratedBy=[
+        #         BIDSGeneratedByToolInfo(
+        #             Name="NeuroAnalyst",
+        #             Version="1.0.0",  # Could be made configurable
+        #             CodeURL="https://github.com/chinmaymokashicm/neuroanalyst",  # Optional
+        #             Container=system_info
+        #         )
+        #     ],
+        #     License=None,  # Optional fields
+        #     Authors=None,
+        #     Acknowledgements=None,
+        #     HowToAcknowledge=None,
+        #     Funding=None,
+        #     ReferencesAndLinks=None,
+        #     DatasetDOI=None
+        # )
         
-        # Write the file
-        with open(desc_path, 'w') as f:
-            json.dump(dataset_desc.model_dump(exclude_none=True), f, indent=2)
+        # # Write the file
+        # with open(desc_path, 'w') as f:
+        #     json.dump(dataset_desc.model_dump(exclude_none=True), f, indent=2)
     
     return desc_path
 
@@ -690,6 +692,8 @@ def _write_output_data(data: Any, output_filepath: Union[str, Path]) -> None:
     # Handle .nii.gz explicitly
     if suffix == ".gz" and output_filepath.name.endswith(".nii.gz"):
         suffix = ".nii.gz"
+    
+    print(f"Writing output data to {output_filepath} with inferred format {suffix}")
 
     if suffix in [".nii", ".nii.gz", ".mgz"]:
         if isinstance(data, nib.spatialimages.SpatialImage):
