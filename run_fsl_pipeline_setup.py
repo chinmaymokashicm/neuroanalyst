@@ -216,4 +216,5 @@ fsl_pipeline.steps[0].process_execs[0].print_configuration_status()
 # fsl_pipeline.steps[0].process_execs[0].generate_command()
 fsl_pipeline.create_pipeline_dir()
 
+print(f"Pipeline ID: {fsl_pipeline.pipeline_id}")
 
