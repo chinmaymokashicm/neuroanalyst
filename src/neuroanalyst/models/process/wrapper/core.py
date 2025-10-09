@@ -312,11 +312,12 @@ def neuprocess_decorator(config: NeuProcessDecoratorConfig):
                     if output_filepath.suffix.lower() == CONFIG.JSON_EXTENSION:
                         # If output is already JSON, create sidecar with different name
                         sidecar_filepath = output_filepath.with_name(
-                            output_filepath.stem + f'_sidecar{CONFIG.JSON_EXTENSION}'
+                            str(output_filepath).split(".")[0] + f'_sidecar{CONFIG.JSON_EXTENSION}'
                         )
                     else:
                         # Standard case: add .json extension
-                        sidecar_filepath = output_filepath.with_suffix(CONFIG.BIDS_SIDECAR_SUFFIX)
+                        # sidecar_filepath = output_filepath.with_suffix(CONFIG.BIDS_SIDECAR_SUFFIX)
+                        sidecar_filepath = str(output_filepath).split(".")[0] + f'{CONFIG.BIDS_SIDECAR_SUFFIX}'
                     
                     with open(sidecar_filepath, 'w') as f:
                         json.dump(metadata, f, indent=2)

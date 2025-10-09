@@ -92,7 +92,7 @@ def main():
             
         # Create BIDSLayout
         try:
-            layout = BIDSLayout(bids_root)
+            layout = BIDSLayout(bids_root, derivatives=True)
             logger.info(f"BIDS dataset loaded from {bids_root}")
         except Exception as e:
             logger.error(f"Failed to load BIDS dataset: {e}")
