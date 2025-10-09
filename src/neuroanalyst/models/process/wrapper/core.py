@@ -697,9 +697,13 @@ def _write_output_data(data: Any, output_filepath: Union[str, Path]) -> None:
     print(f"Writing output data to {output_filepath} with inferred format {suffix}")
 
     if suffix in [".nii", ".nii.gz", ".mgz"]:
+        print(f"Detected neuroimaging format: {suffix}")
+        print(f"Data type: {type(data)}")
         if isinstance(data, nib.spatialimages.SpatialImage):
+            print("Saving nibabel image directly")
             nib.save(data, str(output_filepath))
         elif isinstance(data, np.ndarray):
+            print("Wrapping numpy array in Nifti1Image and saving")
             img = nib.Nifti1Image(data, affine=np.eye(4))
             nib.save(img, str(output_filepath))
         else:
