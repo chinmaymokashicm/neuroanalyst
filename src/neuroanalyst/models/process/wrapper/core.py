@@ -11,6 +11,7 @@ import time
 import pickle
 import warnings
 import platform
+import traceback
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union, Callable
@@ -196,7 +197,11 @@ def neuprocess_decorator(config: NeuProcessDecoratorConfig):
                 except Exception as func_error:
                     raw_result = None
                     error_in_func = True
-                    func_error_message = str(func_error)
+                    func_error_message = f"""Error in function '{func.__name__}': {str(func_error)}.
+Traceback: {traceback.format_exc()}
+Error message: {str(func_error)}
+                    """
+                    # func_error_message = str(func_error)
 
                 # Validate the result format using NeuProcessOutput
                 if not error_in_func:
