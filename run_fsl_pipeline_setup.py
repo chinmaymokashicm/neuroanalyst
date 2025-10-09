@@ -140,7 +140,7 @@ bet_exec: NeuProcessExec = NeuProcessExec(
         "suffix": "T1w",
         "extension": ".nii.gz"
     })},
-    bind_path_values={"/data": dataset_path, "/opt/fsl": fsl_img_path}
+    bind_path_values={"/opt/fsl_image.sif": fsl_img_path}
 )
 
 fast_exec: NeuProcessExec = NeuProcessExec(
@@ -152,7 +152,7 @@ fast_exec: NeuProcessExec = NeuProcessExec(
         "suffix": "T1w",
         "extension": ".nii.gz"
     })},
-    bind_path_values={"/data": dataset_path}
+    bind_path_values={"/opt/fsl_image.sif": fsl_img_path}
 )
 
 threshold_exec: NeuProcessExec = NeuProcessExec(
@@ -164,7 +164,7 @@ threshold_exec: NeuProcessExec = NeuProcessExec(
         "suffix": "T1w",
         "extension": ".nii.gz"
     })},
-    bind_path_values={"/data": dataset_path}
+    bind_path_values={"/opt/fsl_image.sif": fsl_img_path}
 )
 
 # bet_exec.get_configuration_status()

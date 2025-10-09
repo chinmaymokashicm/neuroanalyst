@@ -17,10 +17,13 @@ def fsl_bet(input_filepath: str):
         output_entities (dict): Dictionary of BIDS entities for the output file.
         forced_outputs (list): List of file paths that are saved as outputs but not BIDS-compliant.
     """
-    fsl_img = os.getenv("FSL_IMG")       # path to FSL Singularity image (passed at runtime)
-    if fsl_img is None:
-        raise ValueError("FSL_IMG environment variable is not set.")
-    data_dir = "/data"  # shared data dir bind
+    # fsl_img = os.getenv("FSL_IMG")       # path to FSL Singularity image (passed at runtime)
+    # if fsl_img is None:
+    #     raise ValueError("FSL_IMG environment variable is not set.")
+    DATA_DIR = "/data"  # shared data dir bind
+    FSL_IMAGE_PATH: str = "/opt/fsl_image.sif"
+    SINGULARITY_PATH = "/usr/bin/singularity"
+    
     pipeline_name = os.getenv("PIPELINE_NAME")  # get pipeline name from env
     if pipeline_name is None:
         raise ValueError("PIPELINE_NAME environment variable is not set.")
@@ -32,10 +35,9 @@ def fsl_bet(input_filepath: str):
     mask_filepath = str(Path(output_dir) / (input_filepath.replace(".nii.gz", "") + "_brain_mask.nii.gz"))
 
     cmd = [
-        # "singularity", "exec",
-        # "--bind", f"{data_dir}:{data_dir}",
-        # "--bind", f"{output_dir}:{output_dir}",
-        # fsl_img,
+        SINGULARITY_PATH, "exec",
+        "--bind", DATA_DIR,
+        FSL_IMAGE_PATH,
         "bet", input_filepath, output_filepath, "-m"
     ]
     result = subprocess.run(cmd, check=True)
