@@ -147,7 +147,7 @@ fast_exec: NeuProcessExec = NeuProcessExec(
     process=bet_process,
     execution_mode=EXECUTION_MODE,
     env_var_values={"FSL_IMG": fsl_img_path, "BIDS_FILTERS": json.dumps({
-        # "desc": "brain",
+        "desc": "brain",
         "suffix": "T1w",
         "extension": ".nii.gz"
     })},
@@ -159,7 +159,7 @@ threshold_exec: NeuProcessExec = NeuProcessExec(
     process=bet_process,
     execution_mode=EXECUTION_MODE,
     env_var_values={"FSL_IMG": fsl_img_path, "BIDS_FILTERS": json.dumps({
-        # "desc": "seg",
+        "desc": "seg",
         "suffix": "T1w",
         "extension": ".nii.gz"
     })},
@@ -199,7 +199,7 @@ threshold_step: NeuPipelineStep = NeuPipelineStep(
 timestamp: str = time.strftime("%Y%m%d-%H%M%S")
 
 about_fsl_pipeline: About = About(
-    name=f"FSL_T1w_Preprocessing_{timestamp}",
+    name=f"FSL_Fake_Redundant_T1w_Preprocessing_{timestamp}",
     description="A pipeline for preprocessing T1-weighted MRI images using FSL tools.",
     version="1.0.0",
     author="Chinmay Mokashi"

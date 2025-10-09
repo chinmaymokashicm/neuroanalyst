@@ -25,7 +25,7 @@ def fsl_threshold(input_filepath: str):
     wm_data = nib.load(input_filepath).get_fdata()[..., 2]
 
     # Save individual tissue files to disk
-    base_stem = Path(input_filepath).stem
+    base_stem = input_filepath.replace(".nii.gz", "")
     csf_filepath = str(Path(output_dir) / f"{base_stem}_csf.nii.gz")
     gm_filepath = str(Path(output_dir) / f"{base_stem}_gm.nii.gz")
     wm_filepath = str(Path(output_dir) / f"{base_stem}_wm.nii.gz")

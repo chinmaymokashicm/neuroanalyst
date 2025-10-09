@@ -26,6 +26,7 @@ from pydantic import BaseModel, Field, model_validator
 from ...utils.constants import NeuroAnalystPaths
 from ...utils.id_generators import generate_id
 from ..about import About
+from ..bids import BIDSDatasetDescription, BIDSGeneratedByToolInfo
 from ..process.exec.core import NeuProcessExec, HPCScheduler
 from ..process.process.core import NeuProcess
 from .executor import ProcessStatus, LSFExecutor, SLURMExecutor, PBSExecutor, LocalExecutor
@@ -721,6 +722,37 @@ class NeuPipeline(BaseModel):
         # Ensure pipeline directory and bash script exist
         if not self.script_path.exists():
             self.create_pipeline_dir()
+            
+        # Create dataset_description.json if not exists
+        dataset_description_path = self.pipeline_dir_path / "dataset_description.json"
+        if not dataset_description_path.exists():
+            dataset_description = BIDSDatasetDescription(
+                Name=self.about.name,
+                BIDSVersion="1.6.0",
+                DatasetType="derivative",
+                GeneratedBy=[
+                    BIDSGeneratedByToolInfo(
+                        Name="NeuroAnalyst",
+                        Version="0.1.0",
+                        CodeURL="https://github.com/chinmaymokashicm/neuroanalyst"
+                    )
+                ],
+                License="CC0",
+                Authors=[self.about.author] if self.about.author else [],
+                Acknowledgements="",
+                HowToAcknowledge="Please cite the NeuroAnalyst repository.",
+                PipelineDescription=self.about.description if self.about.description else "Pipeline description not provided.",
+                PipelineSteps=[{
+                    "name": step.name, 
+                    "description": step.description if step.description else "",
+                    "processes": [{
+                        "process_exec_id": proc_exec.exec_id,
+                        "process_id": proc_exec.process.process_id if hasattr(proc_exec, 'process') else proc_exec.exec_id,
+                    } for proc_exec in step.process_execs]
+                    } for step in self.steps]
+            )
+            with open(dataset_description_path, "w") as f:
+                f.write(dataset_description.model_dump_json(indent=2))
             
         starting_step_index = 0 if not resume else self.get_earliest_incomplete_step_index()
         

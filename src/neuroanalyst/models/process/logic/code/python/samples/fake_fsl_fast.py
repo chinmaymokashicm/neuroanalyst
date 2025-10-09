@@ -27,7 +27,7 @@ def fsl_fast(input_filepath: str):
 
     Path(output_dir).mkdir(parents=True, exist_ok=True)
 
-    base_stem = Path(input_filepath).stem
+    base_stem = input_filepath.replace(".nii.gz", "")
     output_filepath = str(Path(output_dir) / f"{base_stem}_seg.nii.gz")
     csf_filepath = str(Path(output_dir) / f"{base_stem}_csf.nii.gz")
     gm_filepath = str(Path(output_dir) / f"{base_stem}_gm.nii.gz")

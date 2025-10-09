@@ -260,8 +260,9 @@ def neuprocess_decorator(config: NeuProcessDecoratorConfig):
                 # Write output data
                 _write_output_data(validated_result.data, output_filepath)
                 
+                #! HOLD: dataset_description.json should be created at a pipeline level, not process level. Skip for now.
                 # Ensure dataset_description.json exists in the derivatives directory
-                desc_path = ensure_dataset_description(config, output_filepath)
+                # desc_path = ensure_dataset_description(config, output_filepath)
                 
                 # Delete files under forced_outputs if specified
                 if forced_outputs:
@@ -288,7 +289,7 @@ def neuprocess_decorator(config: NeuProcessDecoratorConfig):
                     'BIDSEntities': bids_entities,
                     'FunctionName': func.__name__,
                     'FunctionModule': func.__module__,
-                    'BIDSDatasetDescription': str(desc_path),
+                    # 'BIDSDatasetDescription': str(desc_path),
                     **validated_result.metadata  # Include any additional metadata
                 }
                 
