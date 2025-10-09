@@ -725,7 +725,7 @@ class NeuPipeline(BaseModel):
             self.create_pipeline_dir()
             
         # Create dataset_description.json if not exists
-        dataset_description_path = self.bids_root / "dataset_description.json"
+        dataset_description_path = self.bids_root / "derivatives" / self.about.name / "dataset_description.json"
         if not dataset_description_path.exists():
             dataset_description = BIDSDatasetDescription(
                 Name=self.about.name,
