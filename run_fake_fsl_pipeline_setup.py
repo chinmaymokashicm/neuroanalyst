@@ -200,7 +200,7 @@ threshold_step: NeuPipelineStep = NeuPipelineStep(
 timestamp: str = time.strftime("%Y%m%d-%H%M%S")
 
 about_fsl_pipeline: About = About(
-    name=f"FSL_Real_Redundant_T1w_Preprocessing_{timestamp}",
+    name=f"FSL_Fake_Redundant_T1w_Preprocessing_{timestamp}",
     description="A pipeline for preprocessing T1-weighted MRI images using FSL tools.",
     version="1.0.0",
     author="Chinmay Mokashi"

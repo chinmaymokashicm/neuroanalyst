@@ -710,6 +710,10 @@ class NeuPipeline(BaseModel):
             if step.status != ProcessStatus.COMPLETE.value:
                 return i
         return None
+    
+    def reset_pipeline_status(self) -> None:
+        """Reset the pipeline status to NOT_STARTED for all steps and processes."""
+        self._initialize_status_tracking()
 
     def execute_via_python(self, logger: logging.Logger, resume: bool = False) -> str:
         """Execute the pipeline step-by-step via Python.
@@ -788,7 +792,7 @@ class NeuPipeline(BaseModel):
                     # Poll until done
                     while not executor.is_done():
                         executor.poll_status()
-                        logger.info(f"Status: {executor.status}")
+                        logger.info(f"Status: {executor.status.value}")
                         time.sleep(10)  # Polling interval
                     
                     if executor.is_success():

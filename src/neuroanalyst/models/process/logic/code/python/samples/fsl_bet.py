@@ -28,8 +28,8 @@ def fsl_bet(input_filepath: str):
 
     Path(output_dir).mkdir(parents=True, exist_ok=True)
 
-    output_filepath = str(Path(output_dir) / (Path(input_filepath).stem + "_brain.nii.gz"))
-    mask_filepath = str(Path(output_dir) / (Path(input_filepath).stem + "_brain_mask.nii.gz"))
+    output_filepath = str(Path(output_dir) / (input_filepath.replace(".nii.gz", "") + "_brain.nii.gz"))
+    mask_filepath = str(Path(output_dir) / (input_filepath.replace(".nii.gz", "") + "_brain_mask.nii.gz"))
 
     cmd = [
         "singularity", "exec",
