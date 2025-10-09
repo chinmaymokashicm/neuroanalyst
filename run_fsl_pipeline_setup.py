@@ -140,7 +140,7 @@ bet_exec: NeuProcessExec = NeuProcessExec(
         "suffix": "T1w",
         "extension": ".nii.gz"
     })},
-    bind_path_values={"/data": dataset_path}
+    bind_path_values={"/data": dataset_path, "/fsl": fsl_img_path}
 )
 
 fast_exec: NeuProcessExec = NeuProcessExec(

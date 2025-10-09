@@ -32,13 +32,20 @@ def fsl_bet(input_filepath: str):
     mask_filepath = str(Path(output_dir) / (input_filepath.replace(".nii.gz", "") + "_brain_mask.nii.gz"))
 
     cmd = [
-        "singularity", "exec",
-        "--bind", f"{data_dir}:{data_dir}",
-        "--bind", f"{output_dir}:{output_dir}",
-        fsl_img,
+        # "singularity", "exec",
+        # "--bind", f"{data_dir}:{data_dir}",
+        # "--bind", f"{output_dir}:{output_dir}",
+        # fsl_img,
         "bet", input_filepath, output_filepath, "-m"
     ]
-    subprocess.run(cmd, check=True)
+    result = subprocess.run(cmd, check=True)
+    print(f"FSL BET command finished with return code {result.returncode}")
+    
+    print(f"=== Command Output ===\n{result.stdout}\n===================")
+    print(result.stdout)
+    
+    print(f"=== Command Error (if any) ===\n{result.stderr}\n===================")
+    print(result.stderr)
 
     if not os.path.exists(output_filepath):
         raise ValueError(f"Brain-extracted file not found at {output_filepath}")
