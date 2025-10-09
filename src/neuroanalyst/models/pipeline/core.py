@@ -287,6 +287,11 @@ class NeuPipeline(BaseModel):
                 proc_exec.set_env_var_value("PROCESS_ID", proc_exec.process.process_id)
                 proc_exec.set_env_var_value("PROCESS_EXEC_ID", proc_exec.exec_id)
                 
+                # Set standard bind-mount paths - /data, /usr/bin/apptainer, /usr/bin/singularity
+                proc_exec.set_bind_path_value("/data", str(self.bids_root))
+                proc_exec.set_bind_path_value("/usr/bin/apptainer", "/usr/bin/apptainer")
+                proc_exec.set_bind_path_value("/usr/bin/singularity", "/usr/bin/singularity")
+
                 # Generate the command to ensure it's ready
                 proc_exec.generate_command()
                 

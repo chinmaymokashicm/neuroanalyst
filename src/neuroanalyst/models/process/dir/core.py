@@ -439,7 +439,7 @@ class NeuProcessDir(BaseModel):
             config = NeuProcessDirConfig()
         
         # Set mandatory binds for all logic kinds
-        mandatory_binds: List[str] = ["/data"]
+        mandatory_binds: List[str] = ["/data", "/usr/bin/apptainer", "/usr/bin/singularity"]
         new_binds: List[str] = list(set(mandatory_binds + config.bind_paths))
         
         new_envs: List[str] = config.environment_variables.copy()
