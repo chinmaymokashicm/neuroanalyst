@@ -91,18 +91,6 @@ class NeuProcessDir(BaseModel):
     3. Support for both script and container execution
     4. Metadata for downstream NeuProcess instances
     """
-    
-    def __str__(self) -> str:
-        """Return a human-readable string representation of the NeuProcessDir."""
-        return f"NeuProcessDir(name='{self.name}', id='{self.process_id}')"
-    
-    def __repr__(self) -> str:
-        """Return a detailed string representation of the NeuProcessDir."""
-        modes = self.get_available_execution_modes() if hasattr(self, 'get_available_execution_modes') else None
-        return f"NeuProcessDir(name='{self.name}', id='{self.process_id}', "\
-               f"path='{self.process_dir if hasattr(self, 'process_dir') else None}', "\
-               f"modes={modes})"
-    
     # Basic information
     process_id: str = Field(default_factory=generate_process_id, 
                           description="Unique identifier for the process")
@@ -124,6 +112,17 @@ class NeuProcessDir(BaseModel):
     # Class variables
     _paths: ClassVar[NeuroAnalystPaths] = NeuroAnalystPaths()
     _template_dir: ClassVar[Path] = Path(__file__).parent / "templates"
+    
+    def __str__(self) -> str:
+        """Return a human-readable string representation of the NeuProcessDir."""
+        return f"NeuProcessDir(name='{self.name}', id='{self.process_id}')"
+    
+    def __repr__(self) -> str:
+        """Return a detailed string representation of the NeuProcessDir."""
+        modes = self.get_available_execution_modes() if hasattr(self, 'get_available_execution_modes') else None
+        return f"NeuProcessDir(name='{self.name}', id='{self.process_id}', "\
+               f"path='{self.process_dir if hasattr(self, 'process_dir') else None}', "\
+               f"modes={modes})"
     
     # Configuration modification methods
     def add_environment_variables(self, variables: Union[str, List[str]]) -> None:
@@ -439,7 +438,8 @@ class NeuProcessDir(BaseModel):
             config = NeuProcessDirConfig()
         
         # Set mandatory binds for all logic kinds
-        mandatory_binds: List[str] = ["/data", "/usr/bin/apptainer", "/usr/bin/singularity"]
+        # mandatory_binds: List[str] = ["/data", "/usr/bin/apptainer", "/usr/bin/singularity", "/etc/apptainer"]
+        mandatory_binds: List[str] = ["/data"]
         new_binds: List[str] = list(set(mandatory_binds + config.bind_paths))
         
         new_envs: List[str] = config.environment_variables.copy()

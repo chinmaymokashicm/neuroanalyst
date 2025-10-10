@@ -263,17 +263,24 @@ class NeuPipeline(BaseModel):
         return f"NeuPipeline(name='{name}', steps={steps_count})"
     
     def __repr__(self) -> str:
-        """Return a detailed string representation of the NeuPipeline."""
+        """Return a detailed string representation of the NeuPipeline.
+        - Pipeline details
+        - Scheduler
+        - Step names
+        - Individual process IDs, process exec IDs
+        """
         steps = getattr(self, 'steps', []) if hasattr(self, 'steps') else []
-        scheduler = getattr(self, 'scheduler', 'unknown') if hasattr(self, 'scheduler') else 'unknown'
-        pipeline_id = getattr(self, 'pipeline_id', 'unknown') if hasattr(self, 'pipeline_id') else 'unknown'
+        step_details = []
+        for i, step in enumerate(steps):
+            proc_execs = getattr(step, 'process_execs', []) if hasattr(step, 'process_execs') else []
+            proc_exec_ids = [pe.exec_id for pe in proc_execs]
+            step_details.append(f"Step {i+1}: {step.name}, Processes: {proc_exec_ids}")
         
-        step_names = [step.name for step in steps] if steps else []
+        name = getattr(self.about, 'name', 'unnamed') if hasattr(self, 'about') else 'unnamed'
         
-        return f"NeuPipeline(id='{pipeline_id}', "\
-               f"name='{getattr(self.about, 'name', 'unnamed') if hasattr(self, 'about') else 'unnamed'}', "\
-               f"steps={step_names}, scheduler={scheduler})"
-    
+        return f"NeuPipeline(name='{name}', id='{self.pipeline_id}', "\
+               f"steps={step_details}, scheduler={self.scheduler})"
+
     def apply_standard_exec_params(self):
         """Apply standard execution parameters to all processes in the pipeline."""
         for step in self.steps:
@@ -287,10 +294,12 @@ class NeuPipeline(BaseModel):
                 proc_exec.set_env_var_value("PROCESS_ID", proc_exec.process.process_id)
                 proc_exec.set_env_var_value("PROCESS_EXEC_ID", proc_exec.exec_id)
                 
-                # Set standard bind-mount paths - /data, /usr/bin/apptainer, /usr/bin/singularity
+                # Set standard bind-mount paths - /data, 
                 proc_exec.set_bind_path_value("/data", str(self.bids_root))
-                proc_exec.set_bind_path_value("/usr/bin/apptainer", "/usr/bin/apptainer")
-                proc_exec.set_bind_path_value("/usr/bin/singularity", "/usr/bin/singularity")
+                # Set standard bind-mount paths - /usr/bin/apptainer, /usr/bin/singularity
+                # proc_exec.set_bind_path_value("/usr/bin/apptainer", "/usr/bin/apptainer")
+                # proc_exec.set_bind_path_value("/usr/bin/singularity", "/usr/bin/singularity")
+                # proc_exec.set_bind_path_value("/etc/apptainer", "/etc/apptainer")
 
                 # Generate the command to ensure it's ready
                 proc_exec.generate_command()

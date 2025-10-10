@@ -32,7 +32,7 @@ import json, time
 
 # %%
 BIDS_ROOT: str = "/rsrch5/home/csi/cmokashi/neuroanalyst/datasets/ds004884-1.0.2"
-BASE_IMAGE: str = "/rsrch5/home/csi/cmokashi/neuroanalyst/apptainer/images/python_3.12_slim_amd64_git.sif"
+BASE_IMAGE: str = "/rsrch5/home/csi/cmokashi/neuroanalyst/apptainer/images/python_3.12_slim_amd64_git_apptainer.sif"
 FSL_IMG: str = "/risapps/apptainer/repo/fsl/3.16.8/fsl_3.16.8.sif"
 EXECUTION_MODE: str = "container"
 
@@ -219,3 +219,4 @@ print(fsl_pipeline.steps[0].process_execs[0].print_configuration_status())
 fsl_pipeline.create_pipeline_dir()
 
 print(f"Pipeline ID: {fsl_pipeline.pipeline_id}")
+print(fsl_pipeline)
