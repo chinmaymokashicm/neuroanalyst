@@ -8,6 +8,10 @@ def fsl_bet(input_filepath: str):
     """
     Brain Extraction (BET).
     Runs FSL BET inside the provided FSL Singularity image.
+    Assumptions-
+    - The path of the FSL Singularity image is mounted to /opt/fsl in the container
+    - The name of the image is passed via the FSL_IMG_NAME environment variable.
+    - Apptainer/Singularity is available in the container.
     
     Args:
         input_filepath (str): Path to input NIfTI file.
@@ -17,27 +21,28 @@ def fsl_bet(input_filepath: str):
         output_entities (dict): Dictionary of BIDS entities for the output file.
         forced_outputs (list): List of file paths that are saved as outputs but not BIDS-compliant.
     """
-    # fsl_img = os.getenv("FSL_IMG")       # path to FSL Singularity image (passed at runtime)
-    # if fsl_img is None:
-    #     raise ValueError("FSL_IMG environment variable is not set.")
     DATA_DIR = "/data"  # shared data dir bind
-    FSL_IMAGE_PATH: str = "/opt/fsl_image.sif"
-    SINGULARITY_PATH = "/usr/bin/singularity"
-    
+    fsl_img_name = os.getenv("FSL_IMG_NAME")
+    fsl_img_path = f"/opt/fsl/{fsl_img_name}"  # path to FSL Singularity image inside container
     pipeline_name = os.getenv("PIPELINE_NAME")  # get pipeline name from env
-    if pipeline_name is None:
-        raise ValueError("PIPELINE_NAME environment variable is not set.")
     output_dir = f"/data/derivatives/{pipeline_name}"  # output dir bind
 
     Path(output_dir).mkdir(parents=True, exist_ok=True)
 
     output_filepath = str(Path(output_dir) / (input_filepath.replace(".nii.gz", "") + "_brain.nii.gz"))
     mask_filepath = str(Path(output_dir) / (input_filepath.replace(".nii.gz", "") + "_brain_mask.nii.gz"))
+    
+    # Check if singularity executable exists
+    subprocess.run(["apptainer", "--version"], check=True)
+
+    # Check if FSL image exists
+    if not os.path.exists(fsl_img_path):
+        print(f"FSL image not found at {fsl_img_path}")
+        raise ValueError(f"FSL image not found at {fsl_img_path}")
 
     cmd = [
-        SINGULARITY_PATH, "exec",
-        "--bind", DATA_DIR,
-        FSL_IMAGE_PATH,
+        "apptainer", "exec",
+        fsl_img_path,
         "bet", input_filepath, output_filepath, "-m"
     ]
     result = subprocess.run(cmd, check=True)

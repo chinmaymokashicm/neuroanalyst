@@ -20,6 +20,7 @@ from src.neuroanalyst.models.process.exec.core import NeuProcessExec, HPCSchedul
 from src.neuroanalyst.models.pipeline.core import NeuPipeline, NeuPipelineStep
 
 import json, time
+from pathlib import Path
 
 # %% [markdown]
 # ## T1w pre-processing pipeline using FSL
@@ -132,39 +133,41 @@ threshold_process.build_image()
 # %%
 dataset_path: str = BIDS_ROOT
 fsl_img_path: str = FSL_IMG
+fsl_img_dir: str = str(Path(fsl_img_path).parent)
+fsl_img_name: str = str(Path(fsl_img_path).name)
 
 bet_exec: NeuProcessExec = NeuProcessExec(
     process=bet_process,
     execution_mode=EXECUTION_MODE,
-    env_var_values={"FSL_IMG": fsl_img_path, "BIDS_FILTERS": json.dumps({
+    env_var_values={"FSL_IMG_NAME": fsl_img_name, "BIDS_FILTERS": json.dumps({
         "suffix": "T1w",
         "extension": ".nii.gz"
     })},
-    bind_path_values={"/opt/fsl_image.sif": fsl_img_path}
+    bind_path_values={"/opt/fsl_images": fsl_img_dir}
 )
 
 fast_exec: NeuProcessExec = NeuProcessExec(
     process=fast_process,
     # process=bet_process,
     execution_mode=EXECUTION_MODE,
-    env_var_values={"FSL_IMG": fsl_img_path, "BIDS_FILTERS": json.dumps({
+    env_var_values={"FSL_IMG_NAME": fsl_img_name, "BIDS_FILTERS": json.dumps({
         "desc": "brain",
         "suffix": "T1w",
         "extension": ".nii.gz"
     })},
-    bind_path_values={"/opt/fsl_image.sif": fsl_img_path}
+    bind_path_values={"/opt/fsl_images": fsl_img_dir}
 )
 
 threshold_exec: NeuProcessExec = NeuProcessExec(
     process=threshold_process,
     # process=bet_process,
     execution_mode=EXECUTION_MODE,
-    env_var_values={"FSL_IMG": fsl_img_path, "BIDS_FILTERS": json.dumps({
+    env_var_values={"FSL_IMG_NAME": fsl_img_name, "BIDS_FILTERS": json.dumps({
         "desc": "seg",
         "suffix": "T1w",
         "extension": ".nii.gz"
     })},
-    bind_path_values={"/opt/fsl_image.sif": fsl_img_path}
+    bind_path_values={"/opt/fsl_images": fsl_img_dir}
 )
 
 # bet_exec.get_configuration_status()
