@@ -278,8 +278,20 @@ class NeuPipeline(BaseModel):
         
         name = getattr(self.about, 'name', 'unnamed') if hasattr(self, 'about') else 'unnamed'
         
-        return f"NeuPipeline(name='{name}', id='{self.pipeline_id}', "\
-               f"steps={step_details}, scheduler={self.scheduler})"
+        # return f"NeuPipeline(name='{name}'id='{self.pipeline_id}', "\
+        #        f"steps={'\n'.join(step_details)}, scheduler={self.scheduler.value})"
+        
+        return f"""
+    NeuPipeline Details:
+    Name: {name}
+    ID: {self.pipeline_id}
+    Scheduler: {self.scheduler.value}
+    Steps:
+    {'\n\t'.join(step_details) if step_details else 'None'}
+    BIDS Root: {self.bids_root}
+    About: {self.about if self.about else 'None'}
+    Execution Command: {self.execution_command if self.execution_command else 'Not generated yet'}
+    """
 
     def apply_standard_exec_params(self):
         """Apply standard execution parameters to all processes in the pipeline."""

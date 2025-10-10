@@ -93,7 +93,8 @@ fast_dir: NeuProcessDir = NeuProcessDir.from_logic(fast_logic)
 threshold_dir: NeuProcessDir = NeuProcessDir.from_logic(threshold_logic)
 
 for dir in [bet_dir, fast_dir, threshold_dir]:
-    dir.add_environment_variables("FSL_IMG")
+    dir.add_environment_variables("FSL_IMG_NAME")
+    dir.add_bind_paths("/opt/fsl_images")
     dir.add_language_packages("python", ["nibabel", "numpy"])
     dir.config.bootstrap_method = "localimage"
     dir.config.base_image = BASE_IMAGE
@@ -123,9 +124,9 @@ bet_process: NeuProcess = NeuProcess.from_process_id(bet_dir.process_id)
 fast_process: NeuProcess = NeuProcess.from_process_id(fast_dir.process_id)
 threshold_process: NeuProcess = NeuProcess.from_process_id(threshold_dir.process_id)
 
-bet_process.build_image()
-fast_process.build_image()
-threshold_process.build_image()
+# bet_process.build_image()
+# fast_process.build_image()
+# threshold_process.build_image()
 
 # %% [markdown]
 # ### Create NeuProcessExec instances
@@ -222,4 +223,4 @@ print(fsl_pipeline.steps[0].process_execs[0].print_configuration_status())
 fsl_pipeline.create_pipeline_dir()
 
 print(f"Pipeline ID: {fsl_pipeline.pipeline_id}")
-print(fsl_pipeline)
+print(repr(fsl_pipeline))
