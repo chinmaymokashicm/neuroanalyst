@@ -274,7 +274,7 @@ class NeuPipeline(BaseModel):
         for i, step in enumerate(steps):
             proc_execs = getattr(step, 'process_execs', []) if hasattr(step, 'process_execs') else []
             proc_exec_ids = [pe.exec_id for pe in proc_execs]
-            step_details.append(f"Step {i+1}: {step.name}, Processes: {proc_exec_ids}")
+            step_details.append(f"Step {i+1}: {step.name}, Processes: {[proc_exec.process.process_id for proc_exec in proc_execs]}, Process Execs: {proc_exec_ids}")
         
         name = getattr(self.about, 'name', 'unnamed') if hasattr(self, 'about') else 'unnamed'
         
