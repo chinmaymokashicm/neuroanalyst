@@ -125,9 +125,9 @@ bet_process: NeuProcess = NeuProcess.from_process_id(bet_dir.process_id)
 fast_process: NeuProcess = NeuProcess.from_process_id(fast_dir.process_id)
 threshold_process: NeuProcess = NeuProcess.from_process_id(threshold_dir.process_id)
 
-# bet_process.build_image()
-# fast_process.build_image()
-# threshold_process.build_image()
+bet_process.build_image()
+fast_process.build_image()
+threshold_process.build_image()
 
 # %% [markdown]
 # ### Create NeuProcessExec instances
