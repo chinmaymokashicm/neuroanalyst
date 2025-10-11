@@ -433,6 +433,25 @@ class NeuProcessExec(BaseModel):
                     script_args += f" \\\n  --env {env_var}={value}"
                 else:
                     script_args += f" --env {env_var}={value}"
+                    
+        # Add command flags
+        command_flags = self.command_flags or []
+        
+        # If process has command flags and they're not overridden by exec, use those instead
+        if not command_flags and self.process and self.process.command_flags:
+            command_flags = self.process.command_flags
+            
+        for flag in command_flags:
+            # Ensure flag starts with '--'
+            if not flag.startswith('-'):
+                flag = f"--{flag}"
+            elif flag.startswith('-') and not flag.startswith('--') and len(flag) > 2:
+                flag = f"--{flag[1:]}"
+                
+            if include_newlines:
+                script_args += f" \\\n  {flag}"
+            else:
+                script_args += f" {flag}"
 
         return script_args
 

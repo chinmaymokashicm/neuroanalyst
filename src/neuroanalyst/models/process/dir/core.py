@@ -48,6 +48,20 @@ class NeuProcessDirConfig(BaseModel):
     parallel_execution: bool = Field(default=False, 
                                    description="Whether to enable parallel execution")
     max_workers: int = Field(default=1, description="Maximum number of parallel workers")
+                                   
+    @field_validator('command_flags')
+    @classmethod
+    def normalize_command_flags(cls, flags):
+        """Ensure all command flags are properly formatted."""
+        normalized = []
+        for flag in flags:
+            if not flag.startswith('-'):
+                normalized.append(f"--{flag}")
+            elif flag.startswith('-') and not flag.startswith('--') and len(flag) > 2:
+                normalized.append(f"--{flag[1:]}")
+            else:
+                normalized.append(flag)
+        return normalized
     
     def __str__(self) -> str:
         """Return a human-readable string representation of the NeuProcessDirConfig."""
@@ -75,6 +89,10 @@ class NeuProcessDirConfig(BaseModel):
     # Bind paths
     bind_paths: List[str] = Field(default_factory=list,
                                 description="Internal paths that need to be mounted/aliased at runtime")
+    
+    # Command flags
+    command_flags: List[str] = Field(default_factory=list,
+                                   description="Additional command-line flags for the process (e.g., '--verbose', '--fakeroot')")
     
     # Additional configuration
     additional_config: Dict[str, Any] = Field(default_factory=dict, 
@@ -284,6 +302,60 @@ class NeuProcessDir(BaseModel):
             if package in self.config.system_packages:
                 self.config.system_packages.remove(package)
                 removed.append(package)
+        
+        return removed
+    
+    def add_command_flags(self, flags: Union[str, List[str]]) -> None:
+        """
+        Add command-line flags to the configuration.
+        
+        Args:
+            flags: A single command flag or list of command flags to add
+            
+        Note:
+            Each flag will be prefixed with '--' if it doesn't already start with '-'
+        """
+        # Convert single string to list for consistent handling
+        flag_list = [flags] if isinstance(flags, str) else flags
+        
+        for flag in flag_list:
+            # Ensure each flag starts with '--' or '-'
+            if not flag.startswith('-'):
+                flag = f"--{flag}"
+            elif flag.startswith('-') and not flag.startswith('--') and len(flag) > 2:
+                # Convert single dash to double dash for long options (more than one character)
+                flag = f"--{flag[1:]}"
+            
+            # Add flag if it's not already in the list
+            if flag not in self.config.command_flags:
+                self.config.command_flags.append(flag)
+    
+    def remove_command_flags(self, flags: Union[str, List[str]]) -> List[str]:
+        """
+        Remove command-line flags from the configuration.
+        
+        Args:
+            flags: A single command flag or list of command flags to remove
+            
+        Returns:
+            List of flags that were successfully removed
+            
+        Note:
+            The method will try to match flags regardless of '--' prefix
+        """
+        # Convert single string to list for consistent handling
+        flag_list = [flags] if isinstance(flags, str) else flags
+        
+        removed = []
+        for flag in flag_list:
+            # Try to match with and without dash prefixes
+            normalized_flag = flag.lstrip('-')
+            for existing_flag in self.config.command_flags[:]:  # Create a copy to safely modify during iteration
+                existing_normalized = existing_flag.lstrip('-')
+                if normalized_flag == existing_normalized:
+                    self.config.command_flags.remove(existing_flag)
+                    removed.append(existing_flag)
+                    break
         
         return removed
     
@@ -1790,6 +1862,10 @@ echo "Virtual environment created and requirements installed successfully at: ${
         image_path = self._paths.get_process_image_path(self.process_id)
         # command_parts = [f"singularity run {image_path}"]
         command_parts = [f"singularity run"]
+        
+        # Add command flags immediately after 'singularity run'
+        if self.config.command_flags:
+            command_parts.append(" ".join(self.config.command_flags))
         
         # Add environment variables with --env
         if self.config.environment_variables:

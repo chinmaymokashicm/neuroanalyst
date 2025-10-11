@@ -60,7 +60,9 @@ class NeuProcess(BaseModel):
                                 description="Paths that need to be mounted/aliased at runtime")
     environment_variables: List[str] = Field(default_factory=list,
                                           description="Environment variables required for execution")
-    
+    command_flags: Optional[List[str]] = Field(default=None,
+                                                description="Additional command-line flags for the process. E.g., ['--verbose', '--fakeroot']")
+
     # Class variables
     _paths: ClassVar[NeuroAnalystPaths] = NeuroAnalystPaths()
     
@@ -74,6 +76,10 @@ class NeuProcess(BaseModel):
                 
             if not self.environment_variables and self.process_dir.config.environment_variables:
                 self.environment_variables = self.process_dir.config.environment_variables.copy()
+                
+            # Copy command flags if not explicitly set
+            if self.command_flags is None and hasattr(self.process_dir.config, 'command_flags'):
+                self.command_flags = self.process_dir.config.command_flags.copy() if self.process_dir.config.command_flags else []
             
             # Update process_id if not explicitly set
             if self.process_id == generate_process_id():  # If it's a default generated ID

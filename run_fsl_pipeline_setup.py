@@ -98,6 +98,7 @@ for dir in [bet_dir, fast_dir, threshold_dir]:
     dir.add_language_packages("python", ["nibabel", "numpy"])
     dir.config.bootstrap_method = "localimage"
     dir.config.base_image = BASE_IMAGE
+    dir.config.command_flags = ["--fakeroot"]
 
 bet_dir.generate()
 fast_dir.generate()
@@ -124,9 +125,9 @@ bet_process: NeuProcess = NeuProcess.from_process_id(bet_dir.process_id)
 fast_process: NeuProcess = NeuProcess.from_process_id(fast_dir.process_id)
 threshold_process: NeuProcess = NeuProcess.from_process_id(threshold_dir.process_id)
 
-bet_process.build_image()
-fast_process.build_image()
-threshold_process.build_image()
+# bet_process.build_image()
+# fast_process.build_image()
+# threshold_process.build_image()
 
 # %% [markdown]
 # ### Create NeuProcessExec instances
@@ -144,7 +145,7 @@ bet_exec: NeuProcessExec = NeuProcessExec(
         "suffix": "T1w",
         "extension": ".nii.gz"
     })},
-    bind_path_values={"/opt/fsl_images": fsl_img_dir}
+    bind_path_values={"/opt/fsl_images": fsl_img_dir},
 )
 
 fast_exec: NeuProcessExec = NeuProcessExec(
@@ -156,7 +157,7 @@ fast_exec: NeuProcessExec = NeuProcessExec(
         "suffix": "T1w",
         "extension": ".nii.gz"
     })},
-    bind_path_values={"/opt/fsl_images": fsl_img_dir}
+    bind_path_values={"/opt/fsl_images": fsl_img_dir},
 )
 
 threshold_exec: NeuProcessExec = NeuProcessExec(
@@ -168,7 +169,7 @@ threshold_exec: NeuProcessExec = NeuProcessExec(
         "suffix": "T1w",
         "extension": ".nii.gz"
     })},
-    bind_path_values={"/opt/fsl_images": fsl_img_dir}
+    bind_path_values={"/opt/fsl_images": fsl_img_dir},
 )
 
 # bet_exec.get_configuration_status()
