@@ -71,7 +71,9 @@ class NeuProcessExec(BaseModel):
                                         description="Mode of execution (venv, container, auto)")
     scheduler: HPCScheduler = Field(default=HPCScheduler.LSF,
                                   description="HPC scheduler to use (lsf, slurm, pbs, none)")
-    
+    command_flags: Optional[List[str]] = Field(default=None,
+                                                description="Additional command-line flags for the process. E.g., ['--verbose', '--fakeroot']")
+
     # Command storage
     script_path: Optional[Path] = Field(default=None,
                                         description="Path to the script file")
@@ -643,7 +645,7 @@ class NeuProcessExec(BaseModel):
         script_args_str = self.generate_script_args_str()
         
         script_str: str = f"""#!/bin/bash
-bash {self.script_path} \\
+bash {self.script_path} {' '.join(self.command_flags) if self.command_flags else ''} \\
     {script_args_str}
         """
         
