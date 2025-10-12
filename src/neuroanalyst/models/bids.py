@@ -8,6 +8,13 @@ class BIDSGeneratedByToolInfo(BaseModel):
     Version: str = Field(..., description="Version of the tool")
     CodeURL: Optional[str] = Field(default=None, description="URL where the code for the tool can be found")
     Container: Optional[Dict[str, str]] = Field(default=None, description="Container information")
+    
+class PipelineDescriptionSpec(BaseModel):
+    """Description of the processing pipeline applied to the dataset."""
+    Name: str = Field(..., description="Name of the processing pipeline")
+    Version: Optional[str] = Field(default=None, description="Version of the processing pipeline")
+    CodeURL: Optional[str] = Field(default=None, description="URL where the code for the pipeline can be found")
+    Description: Optional[str] = Field(default=None, description="Description of the processing pipeline")
 
 
 class BIDSDatasetDescription(BaseModel):
@@ -34,7 +41,7 @@ class BIDSDatasetDescription(BaseModel):
     EthicsApprovals: Optional[List[str]] = Field(default=None, description="List of ethics committee approvals")
     ReferencesAndLinks: Optional[List[str]] = Field(default=None, description="List of references and links")
     DatasetDOI: Optional[str] = Field(default=None, description="The DOI of the dataset if available")
-    PipelineDescription: Optional[str] = Field(default=None, description="Description of the processing pipeline applied to the dataset")
+    PipelineDescription: PipelineDescriptionSpec = Field(..., description="Description of the processing pipeline applied to the dataset")
     PipelineSteps: Optional[List[Any]] = Field(default=None, description="Description of the processing steps applied to the dataset")
     
     class Config:

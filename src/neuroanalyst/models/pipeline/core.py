@@ -22,11 +22,12 @@ from datetime import datetime
 from typing import Optional, List, Dict, Any, Union, Set, ClassVar, Literal
 
 from pydantic import BaseModel, Field, model_validator
+import pandas as pd
 
 from ...utils.constants import NeuroAnalystPaths
 from ...utils.id_generators import generate_id
 from ..about import About
-from ..bids import BIDSDatasetDescription, BIDSGeneratedByToolInfo
+from ..bids import BIDSDatasetDescription, BIDSGeneratedByToolInfo, PipelineDescriptionSpec
 from ..process.exec.core import NeuProcessExec, HPCScheduler
 from ..process.process.core import NeuProcess
 from .executor import ProcessStatus, LSFExecutor, SLURMExecutor, PBSExecutor, LocalExecutor
@@ -203,6 +204,7 @@ class NeuPipeline(BaseModel):
         default=HPCScheduler.LSF,
         description="HPC scheduler to use for all processes in the pipeline"
     )
+    start_from_raw_bids: bool = Field(default=True, description="Whether to start processing from raw BIDS data")
     
     # Execution command
     execution_command: Optional[str] = Field(
@@ -221,40 +223,6 @@ class NeuPipeline(BaseModel):
         if not self.steps:
             raise ValueError("Pipeline must contain at least one step")
         return self
-    
-    @property
-    def pipeline_dir_path(self) -> Path:
-        """Get the path to the pipeline directory."""
-        return Path(self._paths.pipelines) / self.pipeline_id
-    
-    @property
-    def model_path(self) -> Path:
-        """Get the path to the pipeline model file."""
-        return self.pipeline_dir_path / "model.json"
-    
-    @property
-    def script_path(self) -> Path:
-        """Get the path to the pipeline execution script."""
-        return self.pipeline_dir_path / f"{self.pipeline_id}.sh"
-    
-    @property
-    def command(self) -> str:
-        """Get the execution command for the pipeline.
-        
-        Returns:
-            str: The command to execute the pipeline
-        
-        Raises:
-            ValueError: If the execution command is not yet generated
-        """
-        if not self.execution_command:
-            if self.script_path.exists():
-                # If the script exists but execution_command is not set, generate it
-                self.execution_command = f"bash {self.script_path}"
-            else:
-                raise ValueError("Pipeline execution script has not been generated yet. "
-                                "Call create_pipeline_dir() first.")
-        return self.execution_command
     
     def __str__(self) -> str:
         """Return a human-readable string representation of the NeuPipeline."""
@@ -291,9 +259,56 @@ class NeuPipeline(BaseModel):
     About: {self.about if self.about else 'None'}
     Execution Command: {self.execution_command if self.execution_command else 'Not generated yet'}
     """
+    
+    @property
+    def pipeline_dir_path(self) -> Path:
+        """Get the path to the pipeline directory."""
+        return Path(self._paths.pipelines) / self.pipeline_id
+    
+    @property
+    def model_path(self) -> Path:
+        """Get the path to the pipeline model file."""
+        return self.pipeline_dir_path / "model.json"
+    
+    @property
+    def script_path(self) -> Path:
+        """Get the path to the pipeline execution script."""
+        return self.pipeline_dir_path / f"{self.pipeline_id}.sh"
+    
+    @property
+    def command(self) -> str:
+        """Get the execution command for the pipeline.
+        
+        Returns:
+            str: The command to execute the pipeline
+        
+        Raises:
+            ValueError: If the execution command is not yet generated
+        """
+        if not self.execution_command:
+            if self.script_path.exists():
+                # If the script exists but execution_command is not set, generate it
+                self.execution_command = f"bash {self.script_path}"
+            else:
+                raise ValueError("Pipeline execution script has not been generated yet. "
+                                "Call create_pipeline_dir() first.")
+        return self.execution_command
 
     def apply_standard_exec_params(self):
         """Apply standard execution parameters to all processes in the pipeline."""
+        
+        # If starting from raw BIDS, ensure that the first step's processes take only raw BIDS input
+        # Assume that BIDS filters are set at BIDS_FILTERS env var in the process execs
+        if self.start_from_raw_bids and self.steps:
+            first_step = self.steps[0]
+            for proc_exec in first_step.process_execs:
+                # Check if scope="raw" is set in BIDS_FILTERS. If not, set it.
+                bids_filters_str: str = proc_exec.env_var_values.get("BIDS_FILTERS", "{}")
+                bids_filters: dict = json.loads(bids_filters_str) if bids_filters_str else {}
+                if "scope" not in bids_filters or bids_filters["scope"] != "raw":
+                    bids_filters["scope"] = "raw"
+                    proc_exec.set_env_var_value("BIDS_FILTERS", json.dumps(bids_filters))
+        
         for step in self.steps:
             for proc_exec in step.process_execs:
                 # Apply the pipeline's scheduler to each process exec
@@ -307,10 +322,6 @@ class NeuPipeline(BaseModel):
                 
                 # Set standard bind-mount paths - /data, 
                 proc_exec.set_bind_path_value("/data", str(self.bids_root))
-                # Set standard bind-mount paths - /usr/bin/apptainer, /usr/bin/singularity
-                # proc_exec.set_bind_path_value("/usr/bin/apptainer", "/usr/bin/apptainer")
-                # proc_exec.set_bind_path_value("/usr/bin/singularity", "/usr/bin/singularity")
-                # proc_exec.set_bind_path_value("/etc/apptainer", "/etc/apptainer")
 
                 # Generate the command to ensure it's ready
                 proc_exec.generate_command()
@@ -740,19 +751,28 @@ class NeuPipeline(BaseModel):
         """Reset the pipeline status to NOT_STARTED for all steps and processes."""
         self._initialize_status_tracking()
 
-    def execute_via_python(self, logger: logging.Logger, resume: bool = False) -> str:
-        """Execute the pipeline step-by-step via Python.
+    def pre_execution_checks(self) -> List[str]:
+        """Perform pre-execution checks to ensure all processes are properly configured.
+        
+        Returns:
+            List[str]: A list of warning messages for any issues found.
+        """
+        warnings = []
+        
+        for step in self.steps:
+            for proc_exec in step.process_execs:
+                if not proc_exec.check_configuration_complete():
+                    warnings.append(f"WARNING: ProcessExec {proc_exec.exec_id} in step '{step.name}' is missing configuration.")
+                    warnings.append(proc_exec.print_configuration_status())
+        
+        return warnings
+    
+    def pre_execution(self, logger: logging.Logger) -> None:
+        """Perform any necessary actions before executing the first step.
         
         Args:
-            logger: Logger instance for logging execution details.
-            resume: If True, resume execution from the last successful step.
-        Returns:
-            str: A message indicating the result of the execution.
+            logger: Logger instance for logging details.
         """
-        # Ensure pipeline directory and bash script exist
-        if not self.script_path.exists():
-            self.create_pipeline_dir()
-            
         # Create dataset_description.json if not exists
         dataset_description_path = self.bids_root / "derivatives" / self.about.name / "dataset_description.json"
         if not dataset_description_path.exists():
@@ -763,6 +783,12 @@ class NeuPipeline(BaseModel):
                 DatasetType="derivative",
                 GeneratedBy=[
                     BIDSGeneratedByToolInfo(
+                        Name=self.about.name,
+                        Version=self.about.version if self.about.version else "0.1.0",
+                        Description=self.about.description if self.about.description else "Neuroimaging pipeline",
+                        Author=self.about.author if self.about.author else "Unknown",
+                    ),
+                    BIDSGeneratedByToolInfo(
                         Name="NeuroAnalyst",
                         Version="0.1.0",
                         CodeURL="https://github.com/chinmaymokashicm/neuroanalyst"
@@ -772,7 +798,12 @@ class NeuPipeline(BaseModel):
                 Authors=[self.about.author] if self.about.author else [],
                 Acknowledgements="",
                 HowToAcknowledge="Please cite the NeuroAnalyst repository.",
-                PipelineDescription=self.about.description if self.about.description else "Pipeline description not provided.",
+                PipelineDescription=PipelineDescriptionSpec(
+                    Name=self.about.name,
+                    Version="0.1.0",
+                    CodeURL="https://github.com/chinmaymokashicm/neuroanalyst",
+                    Description=self.about.description if self.about.description else "Pipeline description not provided."
+                ),
                 PipelineSteps=[{
                     "name": step.name, 
                     "description": step.description if step.description else "",
@@ -785,7 +816,204 @@ class NeuPipeline(BaseModel):
             with open(dataset_description_path, "w") as f:
                 f.write(dataset_description.model_dump_json(indent=2))
                 logger.info(f"Created dataset_description.json at {dataset_description_path}")
+
+    def load_metrics(self, filepath: str, numeric_only: bool = True) -> Dict[str, Any]:
+        """Load metrics from a sidecar file and provide associated metadata such as -
+            - function name
+            - process ID
+            - process exec ID
+            - processing time
+            - processing date
+            - directory
+            - input file path
+            - output file path
+            - BIDS entities (subject, session, etc.)
+
+        Args:
+            filepath: The path to the sidecar JSON file.
+            numeric_only: If True, only load numeric metrics. Non-numeric metrics will be ignored.
+
+        Returns:
+            Dict[str, Any]: A dictionary mapping metric names to their values.
+            Dict[str, Any]: A dictionary containing metadata about the metrics.
+        """
+        metrics, about = {}, {}
+        try:
+            with open(filepath, "r") as f:
+                data = json.load(f)
+                if "metrics" in data and isinstance(data["metrics"], dict):
+                    file_metrics = data["metrics"]
+                    if numeric_only:
+                        file_metrics = {k: v for k, v in file_metrics.items() if isinstance(v, (int, float))}
+                    metrics.update(file_metrics)
+                if "FunctionName" in data:
+                    bids_entities: Dict[str, Any] = {f"bids_{k}": v for k, v in data.get("BIDSEntities", {}).items() if v}
+                    about = {
+                        "function": data.get("FunctionName", ""),
+                        "processing_time": data.get("ProcessingTime", ""),
+                        "processing_date": data.get("ProcessingDate", ""),
+                        "process_id": data.get("ProcessID", ""),
+                        "process_exec_id": data.get("ProcessExecID", ""),
+                        "directory": data.get("Directory", ""),
+                        "input_file": data.get("InputFile", ""),
+                        "output_file": data.get("OutputFile", ""),
+                        **bids_entities
+                    }
+        except Exception as e:
+            print(f"Error loading metrics from {filepath}: {e}")
+
+        return metrics, about
+    
+    def aggregate_metrics(self, sidecar_filepaths: list[str | Path]) -> pd.DataFrame:
+        """
+        Aggregate metrics from all sidecar files in the derivatives directory of the pipeline.
+        Assumptions:
+            - Sidecar files are JSON files with a 'metrics' key containing numeric metrics.
+            - All sidecar files are associated with the same process exec ID - ensuring that the metrics have been generated by the same process execution.
+        
+        Args:
+            sidecar_filepaths: List of paths to sidecar JSON files.
+        
+        Returns:
+            pd.DataFrame: A DataFrame containing aggregated metrics with metadata.
+        """
+        # Ensure that all sidecar files belong to the same process exec ID
+        process_exec_id: Optional[str] = None
+        all_metrics = []
+        for filepath in sidecar_filepaths:
+            metrics, about = self.load_metrics(str(filepath), numeric_only=True)
+            if metrics:
+                all_metrics.append({**metrics, **about})
+                if "process_exec_id" not in about:
+                    raise ValueError(f"Sidecar file {filepath} missing 'process_exec_id' in metadata.")
+                if process_exec_id is None:
+                    process_exec_id = about["process_exec_id"]
+                elif process_exec_id != about["process_exec_id"]:
+                    raise ValueError(f"Sidecar file {filepath} has a different 'process_exec_id' ({about['process_exec_id']}) than expected ({process_exec_id}).")
+
+        # If we have all metrics and a consistent process exec ID, create a DataFrame
+        if all_metrics and process_exec_id:
+            df = pd.DataFrame(all_metrics)
+            return df
+
+        # If we didn't collect any valid metrics, return an empty DataFrame
+        return pd.DataFrame()
+
+    def generate_summary(self) -> Path:
+        """Generate a summary report of the pipeline configuration.
+        This will be an Excel file containing the following sheets:
+        - One sheet per process. Each sheet will extract numeric values from the metrics in the sidecar files for output files.
+            - Each row will represent the output file to each sidecar file.
+            - Columns - subject, session (if applicable), directory, file path, process ID, process exec ID, and all numeric values from the sidecar file (within the key 'metrics').
+        - [HOLD THIS FOR NOW] A summary sheet that aggregates all the individual step sheets. Include a column indicating the step name in the beginning.
+        - A metadata sheet that includes pipeline ID, name, version, author, description, BIDS root path, date of execution, and any other relevant metadata.
+        
+        Returns:
+            Path: The path to the generated summary file.
+        """
+        derivatives_dir: Path = self.bids_root / "derivatives" / self.about.name
+        summary_path: Path = derivatives_dir / "pipeline_summary.xlsx"
+        
+        # Step 1: List all steps and the process IDs and process exec IDs within each step. Convert this into a Pandas DataFrame.
+        step_info = []
+        for i, step in enumerate(self.steps):
+            for proc_exec in step.process_execs:
+                step_info.append({
+                    "step_number": i + 1,
+                    "step_name": step.name,
+                    "step_description": step.description if step.description else "",
+                    "process_id": proc_exec.process.process_id if hasattr(proc_exec, 'process') else proc_exec.exec_id,
+                    "process_exec_id": proc_exec.exec_id
+                })
+        df_steps = pd.DataFrame(step_info)
+        
+        # Step 2: Assign each sidecar filepath to the relevant step and process exec ID.
+        sidecar_mappings: dict = {step_idx: {process_exec_id: [] for process_exec_id in step.process_execs} for step_idx, step in enumerate(self.steps)}
+        for sidecar_filepath in derivatives_dir.rglob("*.json"):
+            if sidecar_filepath.name == "dataset_description.json":
+                continue  # Skip dataset_description.json
+            with open(sidecar_filepath, "r") as f:
+                try:
+                    data = json.load(f)
+                    if "ProcessExecID" in data:
+                        process_exec_id = data["ProcessExecID"]
+                        step_idx: int = next((i for i, step in enumerate(self.steps) if any(pe.exec_id == process_exec_id for pe in step.process_execs)), None)
+                        if step_idx is not None:
+                            sidecar_mappings[step_idx][process_exec_id].append(sidecar_filepath)
+                except json.JSONDecodeError:
+                    print(f"Warning: Could not decode JSON from {sidecar_filepath}. Skipping.")
+                    continue
+        
+        # Step 3: For each step and process exec ID, aggregate metrics from the associated sidecar files. Also create a sheet for metadata.
+        with pd.ExcelWriter(summary_path, engine='openpyxl') as writer:
+            for step_idx, process_execs in sidecar_mappings.items():
+                step = self.steps[step_idx]
+                for process_exec_id, filepaths in process_execs.items():
+                    if filepaths:
+                        df_metrics = self.aggregate_metrics(filepaths)
+                        if not df_metrics.empty:
+                            df_metadata["step_idx"] = step_idx
+                            df_metrics["step_number"] = step_idx + 1
+                            df_metrics["step_name"] = step.name
+                            
+                            process_exec: NeuProcessExec = NeuProcessExec.from_exec_id(process_exec_id)
+                            process_id: str = process_exec.process.process_id if hasattr(process_exec, 'process') else process_exec.exec_id
+                            
+                            sheet_name = f"{step.name[:20]}_{process_id[:20]}".replace(" ", "_")
+                            pd.merge(
+                                df_steps,
+                                df_metrics,
+                                how="inner",
+                                left_on=["step_number", "process_id", "process_exec_id"],
+                                right_on=["step_number", "process_id", "process_exec_id"]
+                            ).to_excel(writer, sheet_name=sheet_name, index=False)
+                
             
+            # Create metadata sheet
+            metadata = {
+                "Pipeline ID": self.pipeline_id,
+                "Pipeline Name": self.about.name,
+                "Version": self.about.version,
+                "Author": self.about.author,
+                "Description": self.about.description if self.about.description else "",
+                "BIDS Root": str(self.bids_root),
+                "Generated On": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                "Number of Steps": len(self.steps),
+                "Scheduler": self.scheduler.value
+            }
+            df_metadata = pd.DataFrame(list(metadata.items()), columns=["Key", "Value"])
+            df_metadata.to_excel(writer, sheet_name="Metadata", index=False)
+
+        return summary_path
+    
+    def post_execution(self, logger: logging.Logger) -> None:
+        """Perform any necessary actions after executing all steps.
+
+        Args:
+            logger: Logger instance for logging details.
+        """
+        # Generate summary report
+        summary_path = self.generate_summary()
+        logger.info(f"Generated pipeline summary at {summary_path}")
+        
+        # Print final status
+        self.print_pipeline_status()
+
+    def execute_via_python(self, logger: logging.Logger, resume: bool = False) -> str:
+        """Execute the pipeline step-by-step via Python.
+        
+        Args:
+            logger: Logger instance for logging execution details.
+            resume: If True, resume execution from the last successful step.
+        Returns:
+            str: A message indicating the result of the execution.
+        """
+        # Ensure pipeline directory and bash script exist
+        if not self.script_path.exists():
+            self.create_pipeline_dir()
+
+        self.pre_execution(logger)
+
         starting_step_index = 0 if not resume else self.get_earliest_incomplete_step_index()
         
         if starting_step_index is None:
@@ -835,7 +1063,9 @@ class NeuPipeline(BaseModel):
 
             logger.info(f"Step {step_index + 1} completed.")
         
-        logger.info(f"Pipeline {self.pipeline_id} completed successfully.")    
+        logger.info(f"Pipeline {self.pipeline_id} completed successfully.")
+        
+        self.post_execution(logger)
             
         return f"Pipeline {self.pipeline_id} executed successfully."
 
