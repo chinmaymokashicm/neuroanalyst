@@ -7,79 +7,115 @@ import numpy as np
 
 def fsl_threshold(input_filepath: str):
     """
-    Apply FSL's thresholding to a NIfTI image to generate a binary mask for each tissue type.
-    Uses a Nifti file that has been brain-extracted and segmented into tissue types - CSF, GM, WM. These images are stacked along the last dimension.
+    Performs thresholding on tissue segmentation outputs from FSL FAST using FSL fslmaths.
+    Uses a Nifti file that has been segmented by FSL FAST. The input is expected to be a multi-channel Nifti file
+    where each channel corresponds to a tissue type (CSF, GM, WM), seg, mixeltype, and restored image.
+    Assumptions-
+    - The path of the FSL Singularity image is mounted to /opt/fsl in the container
+    - The name of the image is passed via the FSL_IMG_NAME environment variable.
+    - Apptainer/Singularity is available in the container.
+    - All the required parameters are passed via environment variables.
+      If not provided, default values will be used.
+    
+    Args:
+        input_filepath (str): Path to input NIfTI file. Takes the segmented output from FSL FAST as input.
+    Returns:
+        output_data (np.ndarray): Array of binary masks for each tissue type (CSF, GM, WM), seg, mixeltype, and restored image.
+        metrics (dict): Dictionary of relevant metrics.
+        output_entities (dict): Dictionary of BIDS entities for the output file.
+        forced_outputs (list): List of file paths that are saved as outputs but not BIDS-compliant.
     """
-    fsl_img = os.getenv("FSL_IMG")       # path to FSL Singularity image (passed at runtime)
-    if fsl_img is None:
-        raise ValueError("FSL_IMG environment variable is not set.")
-    data_dir = "/data"  # shared data dir bind
-    pipeline_name = os.getenv("PIPELINE_NAME")  # get pipeline name from env
-    if pipeline_name is None:
-        raise ValueError("PIPELINE_NAME environment variable is not set.")
-    output_dir = f"/data/derivatives/{pipeline_name}"  # output dir bind
-    threshold: float = float(os.getenv("THRESHOLD", 0.5))  # threshold value from env or default
-
-    Path(output_dir).mkdir(parents=True, exist_ok=True)
-
-    # Extract each tissue type from the stacked input
-    csf_data = nib.load(input_filepath).get_fdata()[..., 0]
-    gm_data = nib.load(input_filepath).get_fdata()[..., 1]
-    wm_data = nib.load(input_filepath).get_fdata()[..., 2]
-
-    # Save individual tissue files to disk
-    base_stem = input_filepath.replace(".nii.gz", "")
-    csf_filepath = str(Path(output_dir) / f"{base_stem}_csf.nii.gz")
-    gm_filepath = str(Path(output_dir) / f"{base_stem}_gm.nii.gz")
-    wm_filepath = str(Path(output_dir) / f"{base_stem}_wm.nii.gz")
-
-    nib.save(nib.Nifti1Image(csf_data, affine=np.eye(4)), csf_filepath)
-    nib.save(nib.Nifti1Image(gm_data, affine=np.eye(4)), gm_filepath)
-    nib.save(nib.Nifti1Image(wm_data, affine=np.eye(4)), wm_filepath)
+    # Step 1: Prepare environment and paths
+    threshold: int = int(os.getenv("THRESHOLD", "0.5"))
     
-    # Apply thresholding using FSL's fslmaths
-    csf_thresh_filepath = str(Path(output_dir) / f"{base_stem}_csf_mask.nii.gz")
-    gm_thresh_filepath = str(Path(output_dir) / f"{base_stem}_gm_mask.nii.gz")
-    wm_thresh_filepath = str(Path(output_dir) / f"{base_stem}_wm_mask.nii.gz")
+    DATA_DIR = "/data"  # shared data dir bind
+    fsl_img_name = os.getenv("FSL_IMG_NAME")
+    fsl_img_path = f"/opt/fsl/{fsl_img_name}"  # path to FSL Singularity image inside container
+    
+    output_dir = f"/tmp/"
 
-    tissue_types = [
-        ("csf", csf_filepath, csf_thresh_filepath),
-        ("gm", gm_filepath, gm_thresh_filepath),
-        ("wm", wm_filepath, wm_thresh_filepath)
+    # Step 2: Define output file paths - this is necessary because fslmaths creates outputs automatically.
+    # These outputs will then be deleted by the NeuroAnalyst wrapper.
+    # We need to pass the actual output data to the NeuroAnalyst wrapper, so that it can be saved correctly with exhaustive metadata.
+    # Load the tissues (CSF, GM, WM) from the input segmented file
+    img = nib.load(input_filepath)
+    img_data = img.get_fdata()
+    if img_data.ndim != 4 or img_data.shape[3] < 3:
+        raise ValueError("Input NIfTI file must be a 4D file with at least 3 channels (CSF, GM, WM).")
+    csf_data = img_data[:, :, :, 0]
+    gm_data = img_data[:, :, :, 1]
+    wm_data = img_data[:, :, :, 2]
+    
+    # Save temporary files for each tissue type
+    csf_temp_path = os.path.join(output_dir, input_filepath.split("/")[-1].replace(".nii.gz", "_csf_temp.nii.gz"))
+    gm_temp_path = os.path.join(output_dir, input_filepath.split("/")[-1].replace(".nii.gz", "_gm_temp.nii.gz"))
+    wm_temp_path = os.path.join(output_dir, input_filepath.split("/")[-1].replace(".nii.gz", "_wm_temp.nii.gz"))
+
+    for data, path in zip([csf_data, gm_data, wm_data], [csf_temp_path, gm_temp_path, wm_temp_path]):
+        nib.save(nib.Nifti1Image(data, img.affine, img.header), path)
+
+    # Temporary output paths
+    csf_output_path = csf_temp_path.replace("_temp", "_thresh")
+    gm_output_path = gm_temp_path.replace("_temp", "_thresh")
+    wm_output_path = wm_temp_path.replace("_temp", "_thresh")
+    
+    # Step 3: Build and run the Apptainer/Singularity command. This runs FSL FAST inside an Apptainer container.
+    internal_bash_command: str = f"""
+. ${{FSLDIR}}/etc/fslconf/fsl.sh
+fslmaths {csf_temp_path} -thr {threshold} -bin {csf_output_path}
+fslmaths {gm_temp_path} -thr {threshold} -bin {gm_output_path}
+fslmaths {wm_temp_path} -thr {threshold} -bin {wm_output_path}
+    """
+    cmd = [
+        "apptainer", "exec",
+        fsl_img_path,
+        "bash", "-c", f"'{internal_bash_command}'"
     ]
-
-    for tissue, input_file, output_file in tissue_types:
-        subprocess.run([
-            "singularity", "exec",
-            "--bind", f"{data_dir}:{data_dir}",
-            "--bind", f"{output_dir}:{output_dir}",
-            fsl_img,
-            "fslmaths", input_file, "-thr", str(threshold), "-bin", output_file
-        ], check=True)
-
-    # Stack the binary masks into a single output array
-    csf_mask = nib.load(csf_thresh_filepath).get_fdata()
-    gm_mask = nib.load(gm_thresh_filepath).get_fdata()
-    wm_mask = nib.load(wm_thresh_filepath).get_fdata()
-    output_data = np.stack([csf_mask, gm_mask, wm_mask], axis=-1)
+    print(f"Running command: {' \\ '.join(cmd)}")
     
+    result = subprocess.run(cmd, check=True)
+    print(f"FSL fslmaths command finished with return code {result.returncode}")
+    
+    print(f"=== Command Output ===\n{result.stdout}\n===================")
+    print(result.stdout)
+    
+    print(f"=== Command Error (if any) ===\n{result.stderr}\n===================")
+    print(result.stderr)
+    
+    # Step 4: Load output data and prepare return values
+    # This is necessary because the NeuroAnalyst wrapper expects the output data to be returned from this function.
+    # The wrapper will then save the data to the appropriate NeuroAnalyst-compliant location with metadata.
+    
+    # Compute volume metrics for each tissue type
+    tissue_data_list = []
+    for tissue_path in [csf_output_path, gm_output_path, wm_output_path]:
+        tissue_img = nib.load(tissue_path)
+        tissue_data = tissue_img.get_fdata()
+        tissue_data_list.append(tissue_data)
+
+    # Forced outputs - files that are saved are by the application but not NeuroAnalyst-compliant
+    forced_outputs = {
+        "CSF": csf_output_path,
+        "GM": gm_output_path,
+        "WM": wm_output_path
+    }
+    output_data = np.stack(tissue_data_list, axis=-1)  # shape will be (X, Y, Z, 3)
+    print(f"Stacked output data shape: {output_data.shape}")
+    
+    # Compute relevant metrics
     metrics: dict = {
-        "csf_voxels": int((csf_mask > 0).sum()),
-        "gm_voxels": int((gm_mask > 0).sum()),
-        "wm_voxels": int((wm_mask > 0).sum()),
+        "shape": output_data.shape,
+        "csf_volume": int((output_data[..., 0] > 0).sum()),
+        "gm_volume": int((output_data[..., 1] > 0).sum()),
+        "wm_volume": int((output_data[..., 2] > 0).sum()),
         "tool": "FSL fslmaths",
-        "version": "6.0.5",
-        "parameters": {
-            "threshold": threshold
-        }
+        "threshold": threshold
     }
     
     output_entities: dict = {
-        "desc": "mask",
-        "suffix": "T1w",
+        "desc": "fslmaths",
+        "suffix": "mask",
         "extension": ".nii.gz"
     }
-    
-    forced_outputs: list[str] = [csf_filepath, gm_filepath, wm_filepath, csf_thresh_filepath, gm_thresh_filepath, wm_thresh_filepath]
-    
+
     return output_data, metrics, output_entities, forced_outputs
