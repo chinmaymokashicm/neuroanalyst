@@ -25,7 +25,7 @@ def fsl_bet(input_filepath: str):
     """
     # Step 1: Prepare environment and paths
     fsl_img_name = os.getenv("FSL_IMG_NAME")
-    fsl_img_path = f"/opt/fsl/{fsl_img_name}"  # path to FSL Singularity image inside container
+    fsl_img_path = f"/opt/fsl_images/{fsl_img_name}"  # path to FSL Singularity image inside container
     output_dir: str = "/tmp/"  # Temporary directory for outputs; will be cleaned up by NeuroAnalyst wrapper
 
     # Step 2: Define output file paths - this is necessary because BET creates two outputs automatically.

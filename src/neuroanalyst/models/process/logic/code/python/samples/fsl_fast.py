@@ -38,7 +38,7 @@ def fsl_fast(input_filepath: str):
     
     DATA_DIR = "/data"  # shared data dir bind
     fsl_img_name = os.getenv("FSL_IMG_NAME")
-    fsl_img_path = f"/opt/fsl/{fsl_img_name}"  # path to FSL Singularity image inside container
+    fsl_img_path = f"/opt/fsl_images/{fsl_img_name}"  # path to FSL Singularity image inside container
     
     output_dir = f"/tmp/"
 
