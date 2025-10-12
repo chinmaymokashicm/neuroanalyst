@@ -45,7 +45,7 @@ class NeuProcessDirConfig(BaseModel):
                                                   description="Packages required for execution, by language (e.g., {'python': ['numpy'], 'R': ['dplyr']})")
     system_packages: List[str] = Field(default_factory=list,
                                      description="System packages required for execution")
-    parallel_execution: bool = Field(default=False, 
+    parallel_execution: bool = Field(default=True, 
                                    description="Whether to enable parallel execution")
     max_workers: int = Field(default=1, description="Maximum number of parallel workers")
                                    
@@ -910,7 +910,6 @@ class NeuProcessDir(BaseModel):
         
         # Determine processing kind (file or bulk)
         kind = self.logic.kind.value if self.logic.kind else "bulk"
-        max_workers = 8  # Default max workers for parallel processing
         
         # Load templates
         main_template = self._load_template("main.py.template")
@@ -941,7 +940,7 @@ class NeuProcessDir(BaseModel):
             "arg_parser_section": "\n".join(arg_parser_lines),
             "func_args_section": "\n".join([f"        '{arg.name}': args.{arg.name}," for arg in self.logic.arguments]),
             "kind": kind,
-            "max_workers": max_workers
+            "max_workers": self.config.max_workers if self.config.parallel_execution else 1
         }
         
         # Render templates and write to files

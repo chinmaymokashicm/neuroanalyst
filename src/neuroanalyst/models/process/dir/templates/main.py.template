@@ -112,7 +112,7 @@ def main():
             
         # Process the files in parallel
         results = []
-        max_workers = 8  # Default to 8 workers for parallel processing
+        max_workers = $max_workers  # Set the number of parallel workers
         
         # Use parallel processing
         logger.info(f"Using parallel processing with {max_workers} workers")
