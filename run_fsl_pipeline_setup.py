@@ -80,10 +80,6 @@ bet_logic: NeuProcessLogic = decoder.decode_from_file(functions["fsl_bet"]["file
 fast_logic: NeuProcessLogic = decoder.decode_from_file(functions["fsl_fast"]["file_path"])
 threshold_logic: NeuProcessLogic = decoder.decode_from_file(functions["fsl_threshold"]["file_path"])
 
-# bet_logic.about = functions["fsl_bet"]["about"]
-# fast_logic.about = functions["fsl_fast"]["about"]
-# threshold_logic.about = functions["fsl_threshold"]["about"]
-
 # %% [markdown]
 # ### Create NeuProcessDir and respective directories
 
@@ -142,6 +138,7 @@ bet_exec: NeuProcessExec = NeuProcessExec(
     process=bet_process,
     execution_mode=EXECUTION_MODE,
     env_var_values={"FSL_IMG_NAME": fsl_img_name, "BIDS_FILTERS": json.dumps({
+        "desc": None,
         "suffix": "T1w",
         "extension": ".nii.gz"
     })},
@@ -153,7 +150,7 @@ fast_exec: NeuProcessExec = NeuProcessExec(
     # process=bet_process,
     execution_mode=EXECUTION_MODE,
     env_var_values={"FSL_IMG_NAME": fsl_img_name, "BIDS_FILTERS": json.dumps({
-        "desc": "brain",
+        "desc": "bet",
         "suffix": "T1w",
         "extension": ".nii.gz"
     })},
@@ -165,8 +162,8 @@ threshold_exec: NeuProcessExec = NeuProcessExec(
     # process=bet_process,
     execution_mode=EXECUTION_MODE,
     env_var_values={"FSL_IMG_NAME": fsl_img_name, "BIDS_FILTERS": json.dumps({
-        "desc": "seg",
-        "suffix": "T1w",
+        "desc": "fast",
+        "suffix": "seg",
         "extension": ".nii.gz"
     })},
     bind_path_values={"/opt/fsl_images": fsl_img_dir},
