@@ -650,8 +650,9 @@ class NeuProcessExec(BaseModel):
             elif key == "P" or key == "project":
                 flag_str += f" -P {value}"
             else:
-                # For any other flags, format as -flag value
-                flag_str += f" -{key} {value}"
+                # For any other flags, format as -flag value, preserving any existing hyphens
+                prefix = "" if key.startswith("-") else "-"
+                flag_str += f" {prefix}{key} {value}"
         return flag_str
         
     def _format_slurm_flags(self) -> str:
@@ -682,7 +683,15 @@ class NeuProcessExec(BaseModel):
                 flag_str += f" --qos={value}"
             else:
                 # For any other flags, format as --flag=value
-                flag_str += f" --{key}={value}"
+                if key.startswith("--"):
+                    # Already has double dash prefix
+                    flag_str += f" {key}={value}"
+                elif key.startswith("-"):
+                    # Has single dash prefix, add one more dash
+                    flag_str += f" -{key}={value}"
+                else:
+                    # No dash prefix, add double dash
+                    flag_str += f" --{key}={value}"
         return flag_str
         
     def _format_pbs_flags(self) -> str:
@@ -712,8 +721,9 @@ class NeuProcessExec(BaseModel):
                 resource = key.replace("l ", "")
                 flag_str += f" -l {resource}={value}"
             else:
-                # For any other flags, format as -flag value
-                flag_str += f" -{key} {value}"
+                # For any other flags, format as -flag value, preserving any existing hyphens
+                prefix = "" if key.startswith("-") else "-"
+                flag_str += f" {prefix}{key} {value}"
         return flag_str
     
     def execute(self) -> subprocess.CompletedProcess:
