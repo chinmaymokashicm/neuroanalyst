@@ -122,9 +122,9 @@ bet_process: NeuProcess = NeuProcess.from_process_id(bet_dir.process_id)
 fast_process: NeuProcess = NeuProcess.from_process_id(fast_dir.process_id)
 threshold_process: NeuProcess = NeuProcess.from_process_id(threshold_dir.process_id)
 
-bet_process.build_image()
-fast_process.build_image()
-threshold_process.build_image()
+# bet_process.build_image()
+# fast_process.build_image()
+# threshold_process.build_image()
 
 # %% [markdown]
 # ### Create NeuProcessExec instances
@@ -135,6 +135,7 @@ fsl_img_path: str = FSL_IMG
 fsl_img_dir: str = str(Path(fsl_img_path).parent)
 fsl_img_name: str = str(Path(fsl_img_path).name)
 
+scheduler_flags: dict = {"-M": 8000, "-n": 2, "-q": "medium"} # LSF-specific flags - memory 8GB, 2 cores, medium queue
 bet_exec: NeuProcessExec = NeuProcessExec(
     process=bet_process,
     execution_mode=EXECUTION_MODE,
@@ -144,6 +145,7 @@ bet_exec: NeuProcessExec = NeuProcessExec(
         "extension": ".nii.gz"
     })},
     bind_path_values={"/opt/fsl_images": fsl_img_dir},
+    scheduler_flags=scheduler_flags
 )
 
 fast_exec: NeuProcessExec = NeuProcessExec(
@@ -156,6 +158,7 @@ fast_exec: NeuProcessExec = NeuProcessExec(
         "extension": ".nii.gz"
     })},
     bind_path_values={"/opt/fsl_images": fsl_img_dir},
+    scheduler_flags=scheduler_flags
 )
 
 threshold_exec: NeuProcessExec = NeuProcessExec(
@@ -168,6 +171,7 @@ threshold_exec: NeuProcessExec = NeuProcessExec(
         "extension": ".nii.gz"
     })},
     bind_path_values={"/opt/fsl_images": fsl_img_dir},
+    scheduler_flags=scheduler_flags
 )
 
 # bet_exec.get_configuration_status()
