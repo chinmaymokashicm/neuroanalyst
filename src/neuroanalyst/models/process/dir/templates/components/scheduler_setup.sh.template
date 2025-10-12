@@ -1,0 +1,4 @@
+#!/bin/bash
+
+# Scheduler-specific setup for ${scheduler_name} scheduler
+${cd_command}

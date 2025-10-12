@@ -53,6 +53,11 @@ class NeuProcessExec(BaseModel):
     4. Execution of the generated commands
     
     A NeuProcessExec can be created from a NeuProcess, a process ID, or a path to a process directory.
+    
+    Scheduler flags can be set dynamically using the scheduler_flags field. Common flags include:
+    - LSF: queue, mem, time, nodes, etc.
+    - SLURM: partition, mem, time, cpus-per-task, etc.
+    - PBS: queue, mem, walltime, nodes, etc.
     """
     # Basic information
     exec_id: str = Field(default_factory=generate_process_exec_id, 
@@ -73,6 +78,8 @@ class NeuProcessExec(BaseModel):
                                   description="HPC scheduler to use (lsf, slurm, pbs, none)")
     command_flags: Optional[List[str]] = Field(default=None,
                                                 description="Additional command-line flags for the process. E.g., ['--verbose', '--fakeroot']")
+    scheduler_flags: Dict[str, int | float | str] = Field(default_factory=dict,
+                                         description="Scheduler-specific flags to pass to the scheduler command. E.g., {'queue': 'normal', 'mem': '4GB'}")
 
     # Command storage
     script_path: Optional[Path] = Field(default=None,
@@ -264,6 +271,63 @@ class NeuProcessExec(BaseModel):
         except Exception as e:
             # Don't raise an exception if saving fails - just continue
             print(f"Warning: Failed to save execution model after updating environment variable: {e}")
+            
+    def set_scheduler_flag(self, flag: str, value: str) -> None:
+        """
+        Set a scheduler flag. These flags will be passed to the scheduler command
+        (bsub, sbatch, qsub) when executing the process.
+        
+        Args:
+            flag: Flag name (e.g., 'queue', 'mem', 'time', etc.)
+            value: Flag value
+            
+        Examples:
+            # LSF
+            set_scheduler_flag('queue', 'normal')
+            set_scheduler_flag('mem', '4GB')
+            
+            # SLURM
+            set_scheduler_flag('partition', 'normal')
+            set_scheduler_flag('mem', '4G')
+            
+            # PBS
+            set_scheduler_flag('queue', 'batch')
+            set_scheduler_flag('l mem', '4gb')
+        """
+        self.scheduler_flags[flag] = value
+        
+        # Save the updated model to disk
+        try:
+            self.save_to_disk()
+        except Exception as e:
+            # Don't raise an exception if saving fails - just continue
+            print(f"Warning: Failed to save execution model after setting scheduler flag: {e}")
+            
+    def set_scheduler_flags(self, flags: Dict[str, str]) -> None:
+        """
+        Set multiple scheduler flags at once.
+        
+        Args:
+            flags: Dictionary of flag names and values
+            
+        Examples:
+            # LSF
+            set_scheduler_flags({'queue': 'normal', 'mem': '4GB', 'time': '1:00'})
+            
+            # SLURM
+            set_scheduler_flags({'partition': 'normal', 'mem': '4G', 'time': '01:00:00'})
+            
+            # PBS
+            set_scheduler_flags({'queue': 'batch', 'l mem': '4gb', 'l walltime': '1:00:00'})
+        """
+        self.scheduler_flags.update(flags)
+        
+        # Save the updated model to disk
+        try:
+            self.save_to_disk()
+        except Exception as e:
+            # Don't raise an exception if saving fails - just continue
+            print(f"Warning: Failed to save execution model after setting scheduler flags: {e}")
     
     def get_configuration_status(self) -> Dict[str, Dict[str, List[str]] | Dict[str, Any]]:
         """
@@ -303,6 +367,9 @@ class NeuProcessExec(BaseModel):
                 "provided": list(self.env_var_values.keys()),
                 "missing": missing_env_vars
             },
+            "scheduler_flags": {
+                "provided": self.scheduler_flags
+            },
             "command": {
                 "is_set": self.exec_command is not None,
                 "value": self.exec_command if self.exec_command is not None else None
@@ -338,6 +405,13 @@ class NeuProcessExec(BaseModel):
             print(f"  Missing ({len(status['environment_variables']['missing'])}): {', '.join(status['environment_variables']['missing'])}")
         else:
             print("  Missing (0): None")
+            
+        # Scheduler flags section
+        print("\nScheduler Flags:")
+        if status['scheduler_flags']['provided']:
+            print(f"  Provided ({len(status['scheduler_flags']['provided'])}): {', '.join([f'{k}={v}' for k, v in status['scheduler_flags']['provided'].items()])}")
+        else:
+            print("  Provided (0): None")
         
         # Command status section
         print("\nExecution Command:")
@@ -496,19 +570,19 @@ class NeuProcessExec(BaseModel):
         script_args: str = ""
 
         # Get the script path based on execution environment
+        # All execution scripts are now in the execute directory directly
+        self.script_path: str = self.process.process_dir.script_paths["execute"][self.execution_mode]
+        
         if location == "local":
             cmd_prefix = "source"
-            # script_path: str = self.process.process_dir.script_paths["execute"]["local"][self.execution_mode]
-            self.script_path: str = self.process.process_dir.script_paths["execute"]["local"][self.execution_mode]
         else:
+            # Set appropriate scheduler command
             if self.scheduler == HPCScheduler.LSF:
                 cmd_prefix = "bsub"
             elif self.scheduler == HPCScheduler.SLURM:
                 cmd_prefix = "sbatch"
             elif self.scheduler == HPCScheduler.PBS:
                 cmd_prefix = "qsub"
-            # script_path: str = self.process.process_dir.script_paths["execute"]["hpc"][self.scheduler][self.execution_mode]
-            self.script_path: str = self.process.process_dir.script_paths["execute"]["hpc"][self.scheduler][self.execution_mode]
 
         # Add arguments to the script - the script itself will handle container execution
         # Pass bind path and environment variable arguments that the script will use
@@ -516,7 +590,7 @@ class NeuProcessExec(BaseModel):
         # Generate the bash script if not already set and save to disk
         exec_dir: Path = self._paths.get_process_exec_path(self.exec_id)
         if not Path(exec_dir / BASH_SCRIPT_NAME).exists():
-            bash_script_path: str = str(self.save_bash_script_to_disk())
+            bash_script_with_runtime_args_path: str = str(self.save_bash_script_to_disk())
 
         # Generate log and error file paths if not already set
         log_dir = self._paths.logs / "process_execs"
@@ -528,16 +602,16 @@ class NeuProcessExec(BaseModel):
         # Construct the final command. Include creation of log directory if it doesn't exist within the command.
         if self.scheduler == HPCScheduler.LOCAL:
             cmd = "mkdir -p " + str(log_dir) + " && "
-            cmd += f"{cmd_prefix} {bash_script_path} > {self.log_path} 2> {self.error_path}"
+            cmd += f"{cmd_prefix} {bash_script_with_runtime_args_path} > {self.log_path} 2> {self.error_path}"
         elif self.scheduler == HPCScheduler.LSF:
             cmd = "mkdir -p " + str(log_dir) + " && "
-            cmd += f"{cmd_prefix} -o {self.log_path} -e {self.error_path} -J {self.exec_id} {bash_script_path}"
+            cmd += f"{cmd_prefix} -o {self.log_path} -e {self.error_path} -J {self.exec_id}{self._format_lsf_flags()} {bash_script_with_runtime_args_path}"
         elif self.scheduler == HPCScheduler.SLURM:
             cmd = "mkdir -p " + str(log_dir) + " && "
-            cmd += f"{cmd_prefix} --output={self.log_path} --error={self.error_path} {bash_script_path}"
+            cmd += f"{cmd_prefix} --output={self.log_path} --error={self.error_path}{self._format_slurm_flags()} {bash_script_with_runtime_args_path}"
         elif self.scheduler == HPCScheduler.PBS:
             cmd = "mkdir -p " + str(log_dir) + " && "
-            cmd += f"{cmd_prefix} -o {self.log_path} -e {self.error_path} {bash_script_path}"
+            cmd += f"{cmd_prefix} -o {self.log_path} -e {self.error_path}{self._format_pbs_flags()} {bash_script_with_runtime_args_path}"
         else:
             raise ValueError(f"Unsupported scheduler: {self.scheduler}")
         
@@ -552,6 +626,95 @@ class NeuProcessExec(BaseModel):
             print(f"Warning: Failed to save execution model after generating command: {e}")
         
         return cmd
+    
+    def _format_lsf_flags(self) -> str:
+        """
+        Format scheduler flags for LSF.
+        
+        Returns:
+            str: Formatted LSF flags
+        """
+        flag_str = ""
+        for key, value in self.scheduler_flags.items():
+            # Common LSF flags and their corresponding formats
+            if key == "queue" or key == "q":
+                flag_str += f" -q {value}"
+            elif key == "mem" or key == "M":
+                flag_str += f" -M {value}"
+            elif key == "time" or key == "W":
+                flag_str += f" -W {value}"
+            elif key == "n" or key == "nodes":
+                flag_str += f" -n {value}"
+            elif key == "R":
+                flag_str += f" -R {value}"
+            elif key == "P" or key == "project":
+                flag_str += f" -P {value}"
+            else:
+                # For any other flags, format as -flag value
+                flag_str += f" -{key} {value}"
+        return flag_str
+        
+    def _format_slurm_flags(self) -> str:
+        """
+        Format scheduler flags for SLURM.
+        
+        Returns:
+            str: Formatted SLURM flags
+        """
+        flag_str = ""
+        for key, value in self.scheduler_flags.items():
+            # Common SLURM flags and their corresponding formats
+            if key == "partition" or key == "p":
+                flag_str += f" --partition={value}"
+            elif key == "mem":
+                flag_str += f" --mem={value}"
+            elif key == "time" or key == "t":
+                flag_str += f" --time={value}"
+            elif key == "cpus-per-task" or key == "c":
+                flag_str += f" --cpus-per-task={value}"
+            elif key == "nodes" or key == "N":
+                flag_str += f" --nodes={value}"
+            elif key == "ntasks" or key == "n":
+                flag_str += f" --ntasks={value}"
+            elif key == "account" or key == "A":
+                flag_str += f" --account={value}"
+            elif key == "qos":
+                flag_str += f" --qos={value}"
+            else:
+                # For any other flags, format as --flag=value
+                flag_str += f" --{key}={value}"
+        return flag_str
+        
+    def _format_pbs_flags(self) -> str:
+        """
+        Format scheduler flags for PBS/Torque.
+        
+        Returns:
+            str: Formatted PBS flags
+        """
+        flag_str = ""
+        for key, value in self.scheduler_flags.items():
+            # Common PBS flags and their corresponding formats
+            if key == "queue" or key == "q":
+                flag_str += f" -q {value}"
+            elif key == "walltime" or key == "l walltime":
+                flag_str += f" -l walltime={value}"
+            elif key == "mem" or key == "l mem":
+                flag_str += f" -l mem={value}"
+            elif key == "nodes" or key == "l nodes":
+                flag_str += f" -l nodes={value}"
+            elif key == "ppn" or key == "l ppn":
+                flag_str += f" -l ppn={value}"
+            elif key == "A" or key == "account":
+                flag_str += f" -A {value}"
+            elif key.startswith("l "):
+                # For other PBS resource flags
+                resource = key.replace("l ", "")
+                flag_str += f" -l {resource}={value}"
+            else:
+                # For any other flags, format as -flag value
+                flag_str += f" -{key} {value}"
+        return flag_str
     
     def execute(self) -> subprocess.CompletedProcess:
         """
@@ -631,6 +794,9 @@ class NeuProcessExec(BaseModel):
             "environment_variables": {
                 "values": self.env_var_values,
                 "missing": config_status["environment_variables"]["missing"]
+            },
+            "scheduler_flags": {
+                "values": self.scheduler_flags
             },
             "configuration_complete": config_complete,
             "exec_command": self.exec_command

@@ -1,0 +1,89 @@
+#!/bin/bash
+
+# Detect scheduler environment based on environment variables
+detect_scheduler() {
+    if [ -n "${SLURM_JOB_ID:-}" ]; then
+        echo "slurm"
+    elif [ -n "${PBS_JOBID:-}" ]; then
+        echo "pbs"
+    elif [ -n "${LSB_JOBID:-}" ]; then
+        echo "lsf"
+    else
+        echo "local"
+    fi
+}
+
+# Set scheduler-specific variables and commands
+setup_scheduler_environment() {
+    local scheduler=$1
+    
+    case $scheduler in
+        slurm)
+            echo "# Running under SLURM scheduler"
+            # SLURM usually handles working directory automatically
+            # via sbatch --chdir option or current directory
+            ;;
+        pbs)
+            echo "# Running under PBS scheduler"
+            if [ -n "${PBS_O_WORKDIR:-}" ]; then
+                cd $PBS_O_WORKDIR
+            fi
+            ;;
+        lsf)
+            echo "# Running under LSF scheduler"
+            if [ -n "${LSB_SUBCWD:-}" ]; then
+                cd $LSB_SUBCWD
+            fi
+            ;;
+        local)
+            echo "# Running in local environment"
+            # No special handling needed for local execution
+            ;;
+        *)
+            echo "# Unknown scheduler environment"
+            ;;
+    esac
+}
+
+# Show submission command based on scheduler
+show_submission_help() {
+    local scheduler=$1
+    local script_name=$2
+    
+    echo "To submit this job to the scheduler, use:"
+    case $scheduler in
+        slurm)
+            echo "  sbatch $script_name [--env KEY=VALUE...] [--bind PATH=EXTERNAL_PATH...] [arguments to pass to main.py]"
+            ;;
+        pbs)
+            echo "  qsub $script_name [--env KEY=VALUE...] [--bind PATH=EXTERNAL_PATH...] [arguments to pass to main.py]"
+            ;;
+        lsf)
+            echo "  bsub $script_name [--env KEY=VALUE...] [--bind PATH=EXTERNAL_PATH...] [arguments to pass to main.py]"
+            ;;
+        local)
+            echo "  ./$script_name [--env KEY=VALUE...] [--bind PATH=EXTERNAL_PATH...] [arguments to pass to main.py]"
+            ;;
+        *)
+            echo "  Unknown submission command for this environment"
+            ;;
+    esac
+}
+
+# Usage information when run without parameters
+show_usage_info() {
+    local script_name=$1
+    local execution_mode=$2
+    
+    echo "Usage: $script_name <PROCESS_EXEC_ID> [args...]"
+    echo ""
+    echo "This is a unified HPC script that automatically detects the scheduler environment"
+    echo "and adjusts its behavior accordingly. It can run on SLURM, PBS, LSF, or locally."
+    echo ""
+    echo "Execution mode: $execution_mode"
+    echo ""
+    
+    # Detect current environment
+    local current_scheduler=$(detect_scheduler)
+    show_submission_help "$current_scheduler" "$script_name"
+}

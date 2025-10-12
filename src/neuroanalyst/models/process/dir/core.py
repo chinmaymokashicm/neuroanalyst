@@ -678,11 +678,8 @@ class NeuProcessDir(BaseModel):
     # Helper methods for generation
     def _create_directories(self, process_dir: Path) -> None:
         """Create the directory structure."""
-        # Create execute subdirectories
-        (process_dir / "execute" / "local").mkdir(parents=True, exist_ok=True)
-        (process_dir / "execute" / "hpc" / "slurm").mkdir(parents=True, exist_ok=True)
-        (process_dir / "execute" / "hpc" / "pbs").mkdir(parents=True, exist_ok=True)
-        (process_dir / "execute" / "hpc" / "lsf").mkdir(parents=True, exist_ok=True)
+        # Create execute subdirectories - only local scripts
+        (process_dir / "execute").mkdir(parents=True, exist_ok=True)
         
         # Create build subdirectories
         (process_dir / "build").mkdir(parents=True, exist_ok=True)
@@ -741,8 +738,8 @@ class NeuProcessDir(BaseModel):
                 bind_args += f" --bind {norm_path}={bind_value}"
             
             # Create manual example commands
-            local_container_cmd = f"./execute/local/run_container.sh {env_args}{bind_args}"
-            local_venv_cmd = f"./execute/local/run_venv.sh {env_args}{bind_args}"
+            local_container_cmd = f"./execute/run_container.sh {env_args}{bind_args}"
+            local_venv_cmd = f"./execute/run_venv.sh {env_args}{bind_args}"
             slurm_container_cmd = f"sbatch ./execute/hpc/slurm/run_container.sh {env_args}{bind_args}"
             slurm_venv_cmd = f"sbatch ./execute/hpc/slurm/run_venv.sh {env_args}{bind_args}"
             pbs_container_cmd = f"qsub ./execute/hpc/pbs/run_container.sh {env_args}{bind_args}"
@@ -1136,13 +1133,8 @@ echo "Virtual environment created and requirements installed successfully at: ${
     
     def _generate_execution_scripts(self, process_dir: Path) -> None:
         """Generate execution scripts for different environments."""
-        # Local execution scripts
+        # Local execution scripts only - HPC scripts removed
         self._generate_local_execution_scripts(process_dir)
-        
-        # HPC execution scripts
-        self._generate_hpc_execution_scripts(process_dir, "slurm")
-        self._generate_hpc_execution_scripts(process_dir, "pbs")
-        self._generate_hpc_execution_scripts(process_dir, "lsf")
     
     def _generate_local_execution_scripts(self, process_dir: Path) -> None:
         """Generate local execution scripts."""
@@ -1270,7 +1262,7 @@ echo "Virtual environment created and requirements installed successfully at: ${
         ]
         
         container_script = assemble_script(container_components)
-        container_path = process_dir / "execute" / "local" / "run_container.sh"
+        container_path = process_dir / "execute" / "run_container.sh"
         with open(container_path, "w") as f:
             f.write(container_script)
         os.chmod(container_path, 0o755)
@@ -1343,286 +1335,11 @@ echo "Virtual environment created and requirements installed successfully at: ${
         ]
         
         venv_script = assemble_script(venv_components)
-        venv_path = process_dir / "execute" / "local" / "run_venv.sh"
+        venv_path = process_dir / "execute" / "run_venv.sh"
         with open(venv_path, "w") as f:
             f.write(venv_script)
         os.chmod(venv_path, 0o755)
     
-    def _generate_hpc_execution_scripts(self, process_dir: Path, scheduler: str) -> None:
-        """Generate HPC execution scripts for a specific scheduler."""
-        from .script_builder import assemble_script
-        components_dir = self._template_dir / "components"
-        
-        hpc_dir = process_dir / "execute" / "hpc" / scheduler
-        if not hpc_dir.exists():
-            os.makedirs(hpc_dir)
-        
-        # Prepare environment variables comment
-        env_vars_comment = "No specific environment variables required."
-        if self.config.environment_variables:
-            env_vars_comment = "\n".join(f"# {var}" for var in self.config.environment_variables)
-            
-        # Prepare bind paths comment
-        bind_paths_comment = "No specific bind paths required."
-        if self.config.bind_paths:
-            bind_paths_comment = "\n".join(f"# {path} -> /external/path (to be specified)" for path in self.config.bind_paths)
-        
-        # Prepare environment variables export
-        env_vars_export = "# No environment variables to export"
-        if self.config.environment_variables:
-            env_vars_export = "\n".join([f"export {var}=\"${{{var}:-}}\"" for var in self.config.environment_variables])
-        
-        # Generate singularity command with runtime variables
-        try:
-            singularity_command = self.generate_singularity_execution_command(use_runtime_vars=True)
-        except Exception as e:
-            singularity_command = "echo \"Error generating Singularity command: $e\" && exit 1"
-            
-        # For backward compatibility and venv script
-        bind_options = ""
-        if self.config.bind_paths:
-            bind_opts = []
-            for path in self.config.bind_paths:
-                # Normalize path to ensure consistent handling
-                norm_path = path if path.startswith('/') else f"/{path}"
-                # Strip trailing slash if present for consistency
-                norm_path = norm_path.rstrip('/')
-                # Use standard format for external path mapping
-                bind_opts.append(f"--bind \"${{PROCESS_DIR}}{norm_path}:$NEUROANALYST_DATA_DIR{norm_path}\"")
-            if bind_opts:
-                bind_options = " ".join(bind_opts)
-        
-        # Prepare symbolic links setup for venv
-        symbolic_links_setup = "# No symbolic links to set up"
-        symbolic_links_cleanup = "# No symbolic links to clean up"
-        if self.config.bind_paths:
-            symlink_setup_lines = []
-            symlink_cleanup_lines = []
-            for path in self.config.bind_paths:
-                # Normalize path to ensure consistent handling
-                norm_path = path if path.startswith('/') else f"/{path}"
-                # Strip trailing slash if present for consistency
-                norm_path = norm_path.rstrip('/')
-                
-                # Check if this path is already handled by a custom bind path
-                symlink_setup_lines.append(f"if [[ -z \"${{ALREADY_BOUND[{norm_path}]:-}}\" ]]; then")
-                symlink_setup_lines.append(f"    # Set default bind path if available from environment")
-                symlink_setup_lines.append(f"    BIND_PATH=\"$NEUROANALYST_DATA_DIR{norm_path}\"")
-                symlink_setup_lines.append(f"    # Create directory structure if needed")
-                symlink_setup_lines.append(f"    mkdir -p \"${{PROCESS_DIR}}{os.path.dirname(norm_path)}\"")
-                symlink_setup_lines.append(f"    # Create symbolic link")
-                symlink_setup_lines.append(f"    ln -sf \"$BIND_PATH\" \"${{PROCESS_DIR}}{norm_path}\"")
-                symlink_setup_lines.append(f"    echo \"Created predefined symlink: $BIND_PATH -> ${{PROCESS_DIR}}{norm_path}\"")
-                symlink_setup_lines.append("fi")
-                
-                symlink_cleanup_lines.append(f"# Remove symlink if it exists")
-                symlink_cleanup_lines.append(f"if [ -L \"${{PROCESS_DIR}}{norm_path}\" ]; then")
-                symlink_cleanup_lines.append(f"    rm \"${{PROCESS_DIR}}{norm_path}\"")
-                symlink_cleanup_lines.append(f"    echo \"Removed symlink ${{PROCESS_DIR}}{norm_path}\"")
-                symlink_cleanup_lines.append("fi")
-            
-            symbolic_links_setup = "\n".join(symlink_setup_lines)
-            symbolic_links_cleanup = "\n".join(symlink_cleanup_lines)
-        
-        # Get scheduler-specific components
-        scheduler_setup_component = ""
-        if scheduler == "pbs":
-            scheduler_setup_component = str(components_dir / "pbs_setup.sh.template")
-        elif scheduler == "lsf":
-            scheduler_setup_component = str(components_dir / "lsf_setup.sh.template")
-        # No special setup needed for SLURM
-            
-        # Container script - using simplified components
-        
-        # Get path of logs directory from environment variable or default
-        logs_dir = os.getenv('NEUROANALYST_LOGS', '$HOME/neuroanalyst/logs')
-        
-        container_components = [
-            {
-                'template': str(components_dir / f"{scheduler}_directives.sh.template"),
-                'context': {
-                    'process_id': self.process_id,
-                    'exec_id': '${PROCESS_EXEC_ID}',
-                    'process_name': self.process_name,
-                    'execution_mode': 'container',
-                    'max_workers': self.config.max_workers,
-                    'logs_dir': logs_dir,
-                    'pbs_time': '12:00:00',
-                    'pbs_mem': '8gb',
-                    'slurm_time': '12:00:00',
-                    'slurm_mem': '8G',
-                    'slurm_partition': 'compute',
-                    'slurm_account': 'default',
-                    'slurm_qos': 'normal',
-                    'lsf_time': '12:00',
-                    'lsf_mem': '8000',
-                    'lsf_queue': 'medium'
-                }
-            },
-            {
-                'template': str(components_dir / "script_header.sh.template"),
-                'context': {
-                    'script_type': f'HPC ({scheduler.upper()})',
-                    'process_id': self.process_id,
-                    'execution_mode_desc': 'as a Singularity container',
-                    'scheduler_desc': f'on {scheduler.upper()} scheduler',
-                    'usage_command': f'sbatch run_container.sh [--env KEY=VALUE...] [--bind PATH=EXTERNAL_PATH...] [arguments to pass to main.py]' if scheduler == 'slurm' else
-                                    f'qsub run_container.sh [--env KEY=VALUE...] [--bind PATH=EXTERNAL_PATH...] [arguments to pass to main.py]' if scheduler == 'pbs' else
-                                    f'bsub run_container.sh [--env KEY=VALUE...] [--bind PATH=EXTERNAL_PATH...] [arguments to pass to main.py]',
-                    'environment_variables_comment': env_vars_comment,
-                    'bind_paths_comment': bind_paths_comment,
-                    'author': self.author,
-                    'creation_date': datetime.datetime.now().strftime("%Y-%m-%d")
-                }
-            },
-            {
-                'template': str(components_dir / "variable_setup.sh.template"),
-                'context': {
-                    'dir_levels': '3',
-                    'dir_path': '../../..',
-                    'process_id': self.process_id,
-                    'process_name': self.process_name,
-                    'resource_path_var': 'IMAGE_PATH',
-                    'resource_path': str(self._paths.get_process_image_path(self.process_id)),
-                    'script_var': 'MAIN_SCRIPT',
-                    'script_path': 'main.py',
-                    'other_vars': 'DEF_FILE="' + self.process_id + '.def"',
-                    'script_header': f'HPC {scheduler.upper()} Container',
-                    'execution_mode_desc': 'as a container',
-                    'scheduler_echo': f'echo "Running on {scheduler.upper()} scheduler"',
-                    'environment_variables_export': env_vars_export
-                }
-            }
-        ]
-        
-        # Add scheduler-specific setup if needed
-        if scheduler_setup_component:
-            container_components.append({
-                'template': scheduler_setup_component,
-                'context': {}
-            })
-            
-        container_components.extend([
-            {
-                'template': str(components_dir / "arg_parsing.sh.template"),
-                'context': {
-                    'singularity_args_init': 'SINGULARITY_ARGS=()'
-                }
-            },
-            {
-                'template': str(components_dir / "simplified_container_execution.sh.template"),
-                'context': {
-                    'singularity_command': singularity_command
-                }
-            }
-        ])
-        
-        container_script = assemble_script(container_components)
-        container_path = hpc_dir / "run_container.sh"
-        with open(container_path, "w") as f:
-            f.write(container_script)
-        os.chmod(container_path, 0o755)
-        
-        # Virtual environment script - using components (unchanged)
-        venv_components = [
-            {
-                'template': str(components_dir / f"{scheduler}_directives.sh.template"),
-                'context': {
-                    'process_id': self.process_id,
-                    'exec_id': '${PROCESS_EXEC_ID}',
-                    'process_name': self.process_name,
-                    'execution_mode': 'venv',
-                    'max_workers': self.config.max_workers,
-                    'logs_dir': '${NEUROANALYST_LOGS:-$HOME/neuroanalyst/logs}',
-                    'pbs_time': '12:00:00',
-                    'pbs_mem': '8gb',
-                    'slurm_time': '12:00:00',
-                    'slurm_mem': '8G',
-                    'slurm_partition': 'compute',
-                    'slurm_account': 'default',
-                    'slurm_qos': 'normal',
-                    'lsf_time': '12:00',
-                    'lsf_mem': '8000',
-                    'lsf_queue': 'medium'
-                }
-            },
-            {
-                'template': str(components_dir / "script_header.sh.template"),
-                'context': {
-                    'script_type': f'HPC ({scheduler.upper()})',
-                    'process_id': self.process_id,
-                    'execution_mode_desc': 'using a Python virtual environment',
-                    'scheduler_desc': f'on {scheduler.upper()} scheduler',
-                    'usage_command': f'sbatch run_venv.sh [--env KEY=VALUE...] [--bind PATH=EXTERNAL_PATH...] [arguments to pass to main.py]' if scheduler == 'slurm' else
-                                    f'qsub run_venv.sh [--env KEY=VALUE...] [--bind PATH=EXTERNAL_PATH...] [arguments to pass to main.py]' if scheduler == 'pbs' else
-                                    f'bsub run_venv.sh [--env KEY=VALUE...] [--bind PATH=EXTERNAL_PATH...] [arguments to pass to main.py]',
-                    'environment_variables_comment': env_vars_comment,
-                    'bind_paths_comment': bind_paths_comment,
-                    'author': self.author,
-                    'creation_date': datetime.datetime.now().strftime("%Y-%m-%d")
-                }
-            },
-            {
-                'template': str(components_dir / "variable_setup.sh.template"),
-                'context': {
-                    'dir_levels': '3',
-                    'dir_path': '../../..',
-                    'process_id': self.process_id,
-                    'process_name': self.process_name,
-                    'resource_path_var': 'VENV_PATH',
-                    'resource_path': str(self._paths.get_venv_path(self.process_id)),
-                    'script_var': 'MAIN_SCRIPT',
-                    'script_path': 'main.py',
-                    'other_vars': 'INSTALL_SCRIPT="install_requirements.sh"',
-                    'script_header': f'HPC {scheduler.upper()} Venv',
-                    'execution_mode_desc': 'with virtual environment',
-                    'scheduler_echo': f'echo "Running on {scheduler.upper()} scheduler"',
-                    'environment_variables_export': env_vars_export
-                }
-            }
-        ]
-        
-        # Add scheduler-specific setup if needed
-        if scheduler_setup_component:
-            venv_components.append({
-                'template': scheduler_setup_component,
-                'context': {}
-            })
-            
-        venv_components.extend([
-            {
-                'template': str(components_dir / "arg_parsing.sh.template"),
-                'context': {
-                    'singularity_args_init': '# No singularity args for venv mode'
-                }
-            },
-            {
-                'template': str(components_dir / "venv_validation.sh.template"),
-                'context': {}
-            },
-            {
-                'template': str(components_dir / "env_var_processing.sh.template"),
-                'context': {}
-            },
-            {
-                'template': str(components_dir / "venv_bind_paths.sh.template"),
-                'context': {
-                    'symbolic_links_setup': symbolic_links_setup
-                }
-            },
-            {
-                'template': str(components_dir / "venv_execution.sh.template"),
-                'context': {
-                    'symbolic_links_cleanup': symbolic_links_cleanup
-                }
-            }
-        ])
-        
-        venv_script = assemble_script(venv_components)
-        venv_path = hpc_dir / "run_venv.sh"
-        with open(venv_path, "w") as f:
-            f.write(venv_script)
-        os.chmod(venv_path, 0o755)
     
     def _populate_script_paths(self, process_dir: Path) -> None:
         """
@@ -1644,24 +1361,8 @@ echo "Virtual environment created and requirements installed successfully at: ${
                     "venv": None
                 },
                 "execute": {
-                    "local": {
-                        "container": None,
-                        "venv": None
-                    },
-                    "hpc": {
-                        "slurm": {
-                            "container": None,
-                            "venv": None
-                        },
-                        "pbs": {
-                            "container": None,
-                            "venv": None
-                        },
-                        "lsf": {
-                            "container": None,
-                            "venv": None
-                        }
-                    }
+                    "container": None,
+                    "venv": None
                 }
             }
             
@@ -1706,52 +1407,14 @@ echo "Virtual environment created and requirements installed successfully at: ${
         # Populate execution scripts
         execute_dir = process_dir / "execute"
         if execute_dir.exists():
-            # Local execution scripts
-            local_dir = execute_dir / "local"
-            if local_dir.exists():
-                container_script = local_dir / "run_container.sh"
-                if container_script.exists():
-                    self.script_paths["execute"]["local"]["container"] = container_script
+            # Execution scripts
+            container_script = execute_dir / "run_container.sh"
+            if container_script.exists():
+                self.script_paths["execute"]["container"] = container_script
 
-                script_script = local_dir / "run_venv.sh"
-                if script_script.exists():
-                    self.script_paths["execute"]["local"]["venv"] = script_script
-
-            # HPC execution scripts for different schedulers
-            hpc_dir = execute_dir / "hpc"
-            if hpc_dir.exists():
-                # SLURM
-                slurm_dir = hpc_dir / "slurm"
-                if slurm_dir.exists():
-                    slurm_container = slurm_dir / "run_container.sh"
-                    if slurm_container.exists():
-                        self.script_paths["execute"]["hpc"]["slurm"]["container"] = slurm_container
-
-                    slurm_script = slurm_dir / "run_venv.sh"
-                    if slurm_script.exists():
-                        self.script_paths["execute"]["hpc"]["slurm"]["venv"] = slurm_script
-
-                # PBS
-                pbs_dir = hpc_dir / "pbs"
-                if pbs_dir.exists():
-                    pbs_container = pbs_dir / "run_container.sh"
-                    if pbs_container.exists():
-                        self.script_paths["execute"]["hpc"]["pbs"]["container"] = pbs_container
-
-                    pbs_script = pbs_dir / "run_venv.sh"
-                    if pbs_script.exists():
-                        self.script_paths["execute"]["hpc"]["pbs"]["venv"] = pbs_script
-
-                # LSF
-                lsf_dir = hpc_dir / "lsf"
-                if lsf_dir.exists():
-                    lsf_container = lsf_dir / "run_container.sh"
-                    if lsf_container.exists():
-                        self.script_paths["execute"]["hpc"]["lsf"]["container"] = lsf_container
-
-                    lsf_script = lsf_dir / "run_venv.sh"
-                    if lsf_script.exists():
-                        self.script_paths["execute"]["hpc"]["lsf"]["venv"] = lsf_script
+            script_script = execute_dir / "run_venv.sh"
+            if script_script.exists():
+                self.script_paths["execute"]["venv"] = script_script
 
     def _save_model_json(self, process_dir: Path) -> None:
         """Save the complete model JSON for reproducibility."""
@@ -1991,25 +1654,20 @@ echo "Virtual environment created and requirements installed successfully at: ${
             raise ValueError(f"Invalid scheduler: {scheduler}. Must be local, slurm, pbs, or lsf.")
         
         # Determine script path - Using working_dir directly to find the scripts
-        if scheduler == "local":
-            script_dir = self.working_dir / "execute" / "local"
-            script_name = "run_container.sh" if execution_mode == "container" else "run_venv.sh"
-            script_path = script_dir / script_name
-            scheduler_cmd = ""  # No scheduler command for local execution
+        # All execution scripts are now directly in the execute directory
+        script_dir = self.working_dir / "execute"
+        script_name = "run_container.sh" if execution_mode == "container" else "run_venv.sh"
+        script_path = script_dir / script_name
+        
+        # Set appropriate scheduler command if needed
+        if scheduler == "slurm":
+            scheduler_cmd = "sbatch"
+        elif scheduler == "pbs":
+            scheduler_cmd = "qsub"
+        elif scheduler == "lsf":
+            scheduler_cmd = "bsub"
         else:
-            script_dir = self.working_dir / "execute" / "hpc" / scheduler
-            script_name = "run_container.sh" if execution_mode == "container" else "run_venv.sh"
-            script_path = script_dir / script_name
-            
-            # For HPC scripts, use the appropriate scheduler command
-            if scheduler == "slurm":
-                scheduler_cmd = "sbatch"
-            elif scheduler == "pbs":
-                scheduler_cmd = "qsub"
-            elif scheduler == "lsf":
-                scheduler_cmd = "bsub"
-            else:
-                scheduler_cmd = ""
+            scheduler_cmd = ""  # No scheduler command for local execution
         
         # Check if script exists - use only the path part, not the scheduler command
         if not script_path.exists():
