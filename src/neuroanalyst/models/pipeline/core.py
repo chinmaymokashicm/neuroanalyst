@@ -134,6 +134,12 @@ class NeuPipelineStep(BaseModel):
     name: str = Field(description="Name of the pipeline step")
     description: Optional[str] = Field(default=None, description="Description of the step")
     
+    # Process executions within this step
+    process_execs: List[NeuProcessExec] = Field(
+        default_factory=list,
+        description="Process execution instances to run in parallel in this step"
+    )
+    
     def __str__(self) -> str:
         """Return a human-readable string representation of the NeuPipelineStep."""
         processes = len(getattr(self, 'processes', [])) if hasattr(self, 'processes') else 0
@@ -155,12 +161,6 @@ class NeuPipelineStep(BaseModel):
         return f"NeuPipelineStep(name='{self.name}', "\
                f"description='{self.description if self.description else 'None'}', "\
                f"processes={process_ids})"
-    
-    # Process executions within this step
-    process_execs: List[NeuProcessExec] = Field(
-        default_factory=list,
-        description="Process execution instances to run in parallel in this step"
-    )
     
     @model_validator(mode='after')
     def validate_process_execs(self) -> 'NeuPipelineStep':
@@ -249,15 +249,15 @@ class NeuPipeline(BaseModel):
         #        f"steps={'\n'.join(step_details)}, scheduler={self.scheduler.value})"
         
         return f"""
-    NeuPipeline Details:
-    Name: {name}
-    ID: {self.pipeline_id}
-    Scheduler: {self.scheduler.value}
-    Steps:
-    {'\n\t'.join(step_details) if step_details else 'None'}
-    BIDS Root: {self.bids_root}
-    About: {self.about if self.about else 'None'}
-    Execution Command: {self.execution_command if self.execution_command else 'Not generated yet'}
+NeuPipeline Details:
+Name: {name}
+ID: {self.pipeline_id}
+Scheduler: {self.scheduler.value}
+Steps:
+{'\t\n'.join(step_details) if step_details else 'None'}
+BIDS Root: {self.bids_root}
+About: {self.about if self.about else 'None'}
+Execution Command: {self.execution_command if self.execution_command else 'Not generated yet'}
     """
     
     @property
@@ -939,7 +939,7 @@ class NeuPipeline(BaseModel):
         df_steps = pd.DataFrame(step_info)
         
         # Step 2: Assign each sidecar filepath to the relevant step and process exec ID.
-        sidecar_mappings: dict = {step_idx: {process_exec_id: [] for process_exec_id in step.process_execs} for step_idx, step in enumerate(self.steps)}
+        sidecar_mappings: dict = {step_idx: {process_exec_id: [] for process_exec_id in [pe.exec_id for pe in step.process_execs]} for step_idx, step in enumerate(self.steps)}
         for sidecar_filepath in derivatives_dir.rglob("*.json"):
             if sidecar_filepath.name == "dataset_description.json":
                 continue  # Skip dataset_description.json
