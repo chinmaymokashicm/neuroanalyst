@@ -309,6 +309,17 @@ class NeuPipeline(BaseModel):
                     bids_filters["scope"] = "raw"
                     proc_exec.set_env_var_value("BIDS_FILTERS", json.dumps(bids_filters))
         
+        # For the process execs in the remaining steps, ensure they have scope="<pipeline_name>"
+        starting_step_idx = 1 if self.start_from_raw_bids else 0
+        for step in self.steps[starting_step_idx:]:
+            for proc_exec in step.process_execs:
+                # Check if scope is set in BIDS_FILTERS. If not, set it.
+                bids_filters_str: str = proc_exec.env_var_values.get("BIDS_FILTERS", "{}")
+                bids_filters: dict = json.loads(bids_filters_str) if bids_filters_str else {}
+                if "scope" not in bids_filters or bids_filters["scope"] != self.about.name:
+                    bids_filters["scope"] = self.about.name
+                    proc_exec.set_env_var_value("BIDS_FILTERS", json.dumps(bids_filters))
+
         for step in self.steps:
             for proc_exec in step.process_execs:
                 # Apply the pipeline's scheduler to each process exec
