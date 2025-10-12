@@ -1457,7 +1457,7 @@ echo "Virtual environment created and requirements installed successfully at: ${
                     'slurm_qos': 'normal',
                     'lsf_time': '12:00',
                     'lsf_mem': '8000',
-                    'lsf_queue': 'short'
+                    'lsf_queue': 'medium'
                 }
             },
             {
@@ -1544,7 +1544,7 @@ echo "Virtual environment created and requirements installed successfully at: ${
                     'slurm_qos': 'normal',
                     'lsf_time': '12:00',
                     'lsf_mem': '8000',
-                    'lsf_queue': 'normal'
+                    'lsf_queue': 'medium'
                 }
             },
             {
