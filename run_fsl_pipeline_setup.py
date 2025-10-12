@@ -95,6 +95,7 @@ for dir in [bet_dir, fast_dir, threshold_dir]:
     dir.config.bootstrap_method = "localimage"
     dir.config.base_image = BASE_IMAGE
     dir.config.command_flags = ["--fakeroot"]
+    dir.config.max_workers = 2
 
 bet_dir.generate()
 fast_dir.generate()
