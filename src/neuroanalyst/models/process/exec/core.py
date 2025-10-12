@@ -525,19 +525,19 @@ class NeuProcessExec(BaseModel):
         if not self.error_path:
             self.error_path = log_dir / f"{self.exec_id}.err"
         
-        # Construct the final command
+        # Construct the final command. Include creation of log directory if it doesn't exist within the command.
         if self.scheduler == HPCScheduler.LOCAL:
-            # cmd = f"{cmd_prefix} {self.script_path}{script_args} > {self.log_path} 2> {self.error_path}"
-            cmd = f"{cmd_prefix} {bash_script_path} > {self.log_path} 2> {self.error_path}"
+            cmd = "mkdir -p " + str(log_dir) + " && "
+            cmd += f"{cmd_prefix} {bash_script_path} > {self.log_path} 2> {self.error_path}"
         elif self.scheduler == HPCScheduler.LSF:
-            # cmd = f"{cmd_prefix} -o {self.log_path} -e {self.error_path} -J {self.exec_id} bash {self.script_path}{script_args}"
-            cmd = f"{cmd_prefix} -o {self.log_path} -e {self.error_path} -J {self.exec_id} {bash_script_path}"
+            cmd = "mkdir -p " + str(log_dir) + " && "
+            cmd += f"{cmd_prefix} -o {self.log_path} -e {self.error_path} -J {self.exec_id} {bash_script_path}"
         elif self.scheduler == HPCScheduler.SLURM:
-            # cmd = f"{cmd_prefix} --output={self.log_path} --error={self.error_path} {self.script_path}{script_args}"
-            cmd = f"{cmd_prefix} --output={self.log_path} --error={self.error_path} {bash_script_path}"
+            cmd = "mkdir -p " + str(log_dir) + " && "
+            cmd += f"{cmd_prefix} --output={self.log_path} --error={self.error_path} {bash_script_path}"
         elif self.scheduler == HPCScheduler.PBS:
-            # cmd = f"{cmd_prefix} -o {self.log_path} -e {self.error_path} {self.script_path}{script_args}"
-            cmd = f"{cmd_prefix} -o {self.log_path} -e {self.error_path} {bash_script_path}"
+            cmd = "mkdir -p " + str(log_dir) + " && "
+            cmd += f"{cmd_prefix} -o {self.log_path} -e {self.error_path} {bash_script_path}"
         else:
             raise ValueError(f"Unsupported scheduler: {self.scheduler}")
         
