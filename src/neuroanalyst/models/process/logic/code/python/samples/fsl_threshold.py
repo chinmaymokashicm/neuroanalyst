@@ -27,6 +27,7 @@ def fsl_threshold(input_filepath: str):
     """
     # Step 1: Prepare environment and paths
     threshold: int = int(os.getenv("THRESHOLD", "0.5"))
+    print(f"Using threshold value: {threshold}")
     
     DATA_DIR = "/data"  # shared data dir bind
     fsl_img_name = os.getenv("FSL_IMG_NAME")
@@ -44,6 +45,7 @@ def fsl_threshold(input_filepath: str):
     if img_data.ndim != 4 or img_data.shape[3] < 3:
         print(f"Input NIfTI file must be a 4D file with at least 3 channels (CSF, GM, WM).")
         raise ValueError("Input NIfTI file must be a 4D file with at least 3 channels (CSF, GM, WM).")
+    
     csf_data = img_data[:, :, :, 0]
     gm_data = img_data[:, :, :, 1]
     wm_data = img_data[:, :, :, 2]
@@ -102,12 +104,6 @@ fslmaths {wm_temp_path} -thr {threshold} -bin {wm_output_path}
         tissue_data = tissue_img.get_fdata()
         tissue_data_list.append(tissue_data)
 
-    # Forced outputs - files that are saved are by the application but not NeuroAnalyst-compliant
-    forced_outputs = {
-        "CSF": csf_output_path,
-        "GM": gm_output_path,
-        "WM": wm_output_path
-    }
     output_data = np.stack(tissue_data_list, axis=-1)  # shape will be (X, Y, Z, 3)
     print(f"Stacked output data shape: {output_data.shape}")
     
@@ -131,5 +127,8 @@ fslmaths {wm_temp_path} -thr {threshold} -bin {wm_output_path}
         "suffix": "mask",
         "extension": ".nii.gz"
     }
+    
+    # Forced outputs - files that are saved are by the application but not NeuroAnalyst-compliant
+    forced_outputs: list = [csf_output_path, gm_output_path, wm_output_path]
 
     return output_data, metrics, output_entities, forced_outputs
