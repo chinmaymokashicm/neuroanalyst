@@ -30,8 +30,9 @@ def fsl_bet(input_filepath: str):
 
     # Step 2: Define output file paths - this is necessary because BET creates two outputs automatically.
     # We need to pass the output data to the NeuroAnalyst wrapper, so that it can be saved correctly with exhaustive metadata.
-    output_filepath = str(Path(output_dir) / (input_filepath.replace(".nii.gz", "") + "_brain.nii.gz"))
-    mask_filepath = str(Path(output_dir) / (input_filepath.replace(".nii.gz", "") + "_brain_mask.nii.gz"))
+    input_filename = input_filepath.split("/")[-1]
+    output_filepath = str(Path(output_dir) / (input_filename.replace(".nii.gz", "_brain.nii.gz")))
+    mask_filepath = str(Path(output_dir) / (input_filename.replace(".nii.gz", "_brain_mask.nii.gz")))
 
     # Step 3: Build and run the Apptainer/Singularity command. This runs FSL BET inside an Apptainer container.
     internal_bash_command: str = f"""

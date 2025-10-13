@@ -55,7 +55,8 @@ def fsl_fast(input_filepath: str):
     brain_mask = img_data[:, :, :, 1]  # assuming second channel is brain mask
     if not (brain_mask > 0).any():
         raise ValueError("Brain mask contains no non-zero values.")
-    brain_temp_path = os.path.join(output_dir, input_filepath.split("/")[-1].replace(".nii.gz", "_brain_temp.nii.gz"))
+    input_filename = input_filepath.split("/")[-1]
+    brain_temp_path = os.path.join(output_dir, input_filename.replace(".nii.gz", "_brain_temp.nii.gz"))
     nib.save(nib.Nifti1Image(brain_data, img.affine, img.header), brain_temp_path)
 
     input_filename_stem: str = brain_temp_path.split("/")[-1].replace(".nii.gz", "")

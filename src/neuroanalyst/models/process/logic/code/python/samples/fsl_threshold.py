@@ -47,9 +47,10 @@ def fsl_threshold(input_filepath: str):
     wm_data = img_data[:, :, :, 2]
     
     # Save temporary files for each tissue type
-    csf_temp_path = os.path.join(output_dir, input_filepath.split("/")[-1].replace(".nii.gz", "_csf_temp.nii.gz"))
-    gm_temp_path = os.path.join(output_dir, input_filepath.split("/")[-1].replace(".nii.gz", "_gm_temp.nii.gz"))
-    wm_temp_path = os.path.join(output_dir, input_filepath.split("/")[-1].replace(".nii.gz", "_wm_temp.nii.gz"))
+    input_filename = input_filepath.split("/")[-1]
+    csf_temp_path = os.path.join(output_dir, input_filename.replace(".nii.gz", "_csf_temp.nii.gz"))
+    gm_temp_path = os.path.join(output_dir, input_filename.replace(".nii.gz", "_gm_temp.nii.gz"))
+    wm_temp_path = os.path.join(output_dir, input_filename.replace(".nii.gz", "_wm_temp.nii.gz"))
 
     for data, path in zip([csf_data, gm_data, wm_data], [csf_temp_path, gm_temp_path, wm_temp_path]):
         nib.save(nib.Nifti1Image(data, img.affine, img.header), path)
