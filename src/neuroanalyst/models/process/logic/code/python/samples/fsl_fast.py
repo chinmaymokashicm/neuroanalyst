@@ -41,6 +41,7 @@ def fsl_fast(input_filepath: str):
     fsl_img_path = f"/opt/fsl_images/{fsl_img_name}"  # path to FSL Singularity image inside container
 
     output_dir = os.path.join(DATA_DIR, "tmp")
+    os.makedirs(output_dir, exist_ok=True)
 
     # Step 2: Define output file paths - this is necessary because FAST creates multiple outputs automatically.
     # These outputs will then be deleted by the NeuroAnalyst wrapper.
