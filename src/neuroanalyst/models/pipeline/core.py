@@ -564,31 +564,31 @@ Execution Command: {self.execution_command if self.execution_command else 'Not g
     def print_pipeline_status(self) -> None:
         """Print a formatted report of the current pipeline status."""
         try:
-            status_data = self.get_pipeline_status()
+            status_data: NeuPipelineStatus = self.get_pipeline_status()
             
             print(f"\n{'='*80}")
-            print(f"Pipeline Status: {status_data['pipeline_id']}")
+            print(f"Pipeline Status: {status_data.pipeline_id}")
             print(f"{'='*80}")
-            print(f"Created: {status_data['created_at']}")
-            print(f"Last Updated: {status_data['last_updated']}")
-            print(f"Overall Status: {status_data['status']}")
+            print(f"Created: {status_data.created_at}")
+            print(f"Last Updated: {status_data.last_updated}")
+            print(f"Overall Status: {status_data.status}")
             print(f"{'-'*80}")
-            
-            for step in status_data["steps"]:
-                print(f"\nStep {step['step_id'] + 1}: {step['name']} - {step['status']}")
-                
-                if step["status"] == ProcessStatus.RUNNING.value and step["started_at"]:
-                    print(f"  Started: {step['started_at']}")
-                
-                if step["status"] == ProcessStatus.COMPLETE.value:
-                    print(f"  Completed: {step['completed_at']}")
-                
-                if step["status"] == ProcessStatus.FAILED.value:
-                    print(f"  Failed: {step['completed_at']}")
-                    print(f"  Error: {step['error']}")
-                
+
+            for step in status_data.steps:
+                print(f"\nStep {step.step_id + 1}: {step.name} - {step.status}")
+
+                if step.status == ProcessStatus.RUNNING.value and step.started_at:
+                    print(f"  Started: {step.started_at}")
+
+                if step.status == ProcessStatus.COMPLETE.value:
+                    print(f"  Completed: {step.completed_at}")
+
+                if step.status == ProcessStatus.FAILED.value:
+                    print(f"  Failed: {step.completed_at}")
+                    print(f"  Error: {step.error}")
+
                 print("  Processes:")
-                for proc in step["processes"]:
+                for proc in step.processes:
                     status_indicator = {
                         ProcessStatus.NOT_STARTED.value: "⬜",
                         ProcessStatus.RUNNING.value: "🔄",
