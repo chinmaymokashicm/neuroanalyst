@@ -203,25 +203,10 @@ Error message: {str(func_error)}
                         )
                 else:
                     forced_outputs = None
-
-                # ! If there was an error in the function, instead of preparing metadata, an exception will be raised.
-                # if error_in_func:
-                #     # Prepare error metadata
-                #     validated_result = NeuProcessOutput(
-                #         data=None,
-                #         description=f"Error in {config.pipeline_name}",
-                #         metadata={
-                #             "error": func_error_message,
-                #             "function_name": func.__name__,
-                #             "function_module": func.__module__,
-                #             "input_filepath": str(input_filepath)
-                #         }
-                #     )
-                #     forced_outputs = None
-                #     print(f"Error during function execution: {func_error_message}")
                 
                 # Construct output filepath using PyBIDS
                 output_entities = validated_result.metadata.get('output_bids_entities', {})
+                print(f"Output BIDS entities from function: {output_entities}")
                 output_filepath = _construct_output_path(
                     input_path=input_path,
                     config=config,
@@ -362,8 +347,20 @@ def _construct_output_path(
     output_entities: Dict[str, str] = {}
     
 ) -> Path:
-    input_path = Path(input_path)
+    """
+    Construct BIDS-compliant output path using PyBIDS.
     
+    Args:
+        input_path: Path to the input file
+        config: NeuProcessDecoratorConfig with BIDS layout and root
+        output_entities: Additional or overriding BIDS entities for output file
+        
+    Returns:
+        Path: The constructed output file path
+        
+    Raises:
+        ValueError: If output path cannot be constructed
+    """
     # Extract entities from input path
     entities = parse_file_entities(str(input_path))
     
@@ -373,6 +370,7 @@ def _construct_output_path(
     bids_layout: BIDSLayout = config.bids_layout
     
     output_filename: str = bids_layout.build_path(entities, validate=False, strict=False, absolute_paths=False)
+    print(f"Constructed output filename before desc check: {output_filename}")
     
     # Include 'desc' entity if provided in output_entities but not appearing in output_filename.
     # This can happen if 'desc' is not part of the original input file, or if the entire BIDS layout does not have it.
@@ -390,8 +388,12 @@ def _construct_output_path(
         extension = new_output_entities.get('extension', '')
         base_name = output_filename.replace(f"{suffix}{extension}", "").rstrip("_")
         output_filename = f"{base_name}_desc-{output_entities['desc']}_{suffix}{extension}"
+        print(f"Updated output filename with desc: {output_filename}")
 
-    return Path(config.bids_root) / "derivatives" / config.pipeline_name / output_filename
+    output_filepath = Path(config.bids_root) / "derivatives" / config.pipeline_name / output_filename
+    print(f"Final constructed output filepath: {output_filepath}")
+
+    return output_filepath
 
 def _write_output_data(data: Any, output_filepath: Union[str, Path]) -> None:
     """
