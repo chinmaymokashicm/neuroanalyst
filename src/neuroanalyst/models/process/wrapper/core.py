@@ -20,6 +20,7 @@ from functools import wraps
 from pydantic import BaseModel, Field
 from bids import BIDSLayout
 from bids.layout import parse_file_entities
+from bids_validator import BIDSValidator
 
 from pydantic import BaseModel, Field
 import numpy as np
@@ -107,7 +108,7 @@ class NeuProcessDecoratorConfig(BaseModel):
     create_sidecar: bool = Field(default=True, description="Whether to create sidecar JSON files")
     derivatives_dir: Optional[str] = Field(default=CONFIG.DERIVATIVES_DIR, description="Custom derivatives directory name")
     bids_layout: Optional[Any] = Field(default=None, description="Pre-initialized BIDSLayout object", exclude=True)
-    bids_validate: bool = Field(default=False, description="Whether to validate BIDS compliance")
+    bids_validate: bool = Field(default=True, description="Whether to validate BIDS compliance")
     
     def __str__(self) -> str:
         """Return a human-readable string representation of the NeuProcessDecoratorConfig."""
@@ -258,7 +259,6 @@ Error message: {str(func_error)}
                 output_entities = validated_result.metadata.get('output_bids_entities', {})
                 output_filepath = _construct_output_path(
                     input_path=input_path,
-                    config=config,
                     output_entities=output_entities
                 )
                 print(f"Input file: {input_path}")
@@ -455,195 +455,32 @@ def _extract_bids_entities(input_path: Path, config: NeuProcessDecoratorConfig) 
     entities = {k: str(v) for k, v in parsed_entities.items() if v is not None}
     
     # Also try to get entities from the layout
-    if config.bids_layout:
-        try:
-            file_obj = config.bids_layout.get_file(str(input_path))
-            if file_obj:
-                layout_entities = file_obj.get_entities()
-                # Merge with parsed entities, preferring layout entities
-                entities.update({k: str(v) for k, v in layout_entities.items() if v is not None})
-        except Exception:
-            pass  # Continue with parsed entities only
+    
+    file_obj = config.bids_layout.get_file(str(input_path))
+    if file_obj:
+        layout_entities = file_obj.get_entities()
+        # Merge with parsed entities, preferring layout entities
+        entities.update({k: str(v) for k, v in layout_entities.items() if v is not None})
     
     return entities
 
 
 def _construct_output_path(
     input_path: Path, 
-    config: NeuProcessDecoratorConfig, 
-    output_entities: Optional[Dict[str, str]] = None,
-    suffix: Optional[str] = None,
-    extension: Optional[str] = None
+    output_entities: Dict[str, str] = {}
+    
 ) -> Path:
-    """
-    Construct BIDS-compliant output path using PyBIDS with entity override support.
-    
-    This function creates output paths by:
-    1. Extracting entities from the input file path
-    2. Allowing functions to override/add entities via output_entities
-    3. Using intelligent defaults when entities are not specified
-    4. Constructing BIDS-compliant paths using PyBIDS or manual fallback
-    
-    Args:
-        input_path: Input file path
-        config: Decorator configuration
-        output_entities: Dict of entities from function output to override/add to input entities.
-                        Common entities include:
-                        - 'desc': Description suffix (e.g., 'preprocessed', 'smoothed')
-                        - 'space': Coordinate space (e.g., 'MNI152', 'T1w')
-                        - 'datatype': BIDS datatype directory (e.g., 'anat', 'func', 'dwi')
-                        - 'extension': File extension (e.g., '.nii.gz', '.json')
-                        - Any other BIDS entities (e.g., 'res', 'atlas', 'fwhm')
-        suffix: Legacy parameter - will be overridden by output_entities['desc'] if present
-        extension: Legacy parameter - will be overridden by output_entities['extension'] if present
-        
-    Returns:
-        Path: BIDS-compliant output file path
-        
-    Examples:
-        # Function specifies custom entities
-        output_entities = {
-            'desc': 'preprocessed',
-            'space': 'MNI152', 
-            'extension': '.nii.gz'
-        }
-        # Result: derivatives/pipeline/sub-01/func/sub-01_space-MNI152_desc-preprocessed_bold.nii.gz
-        
-        # Function changes datatype
-        output_entities = {
-            'desc': 'transformed',
-            'datatype': 'anat'
-        }
-        # Result: derivatives/pipeline/sub-01/anat/sub-01_desc-transformed_T1w.nii.gz
-        
-        # No entities specified - uses pipeline_name as desc
-        output_entities = {}
-        # Result: derivatives/pipeline/sub-01/func/sub-01_desc-pipeline_name_bold.nii.gz
-    """
-    
     # Extract entities from input path
-    entities = _extract_bids_entities(input_path, config)
+    entities = parse_file_entities(str(input_path))
     
     # Override/add entities from function output
-    if output_entities:
-        entities.update(output_entities)
+    entities.update(output_entities)
     
-    # Handle legacy suffix parameter - only use if 'desc' not in output_entities
-    if 'desc' not in entities:
-        if suffix is not None:
-            entities['desc'] = suffix
-        else:
-            # Only use pipeline_name as default if no desc entity provided
-            entities['desc'] = config.pipeline_name
+    bids_layout: BIDSLayout = config.bids_layout
     
-    # Handle legacy extension parameter - only use if 'extension' not in output_entities
-    if 'extension' not in entities:
-        if extension is not None:
-            entities['extension'] = extension
-        else:
-            entities['extension'] = input_path.suffix
+    output_filename: str = bids_layout.build_path(entities)
     
-    # Use PyBIDS build_path
-    if config.bids_layout:
-        try:
-            # Determine derivatives directory - use pipeline_name if derivatives_dir is default
-            if config.derivatives_dir == CONFIG.DERIVATIVES_DIR:
-                derivatives_name = config.pipeline_name
-            else:
-                derivatives_name = config.derivatives_dir or config.pipeline_name
-            
-            # Add pipeline to entities for path construction
-            entities['pipeline'] = derivatives_name
-            
-            # Build the path
-            built_path = config.bids_layout.build_path(
-                entities,
-                path_patterns=[
-                    'derivatives/{pipeline}/sub-{subject}/[ses-{session}/]{datatype}/sub-{subject}[_ses-{session}][_task-{task}][_acq-{acquisition}][_run-{run}][_space-{space}]_desc-{desc}{extension}',
-                    'derivatives/{pipeline}/sub-{subject}/[ses-{session}/]func/sub-{subject}[_ses-{session}][_task-{task}][_acq-{acquisition}][_run-{run}][_space-{space}]_desc-{desc}_bold{extension}',
-                    'derivatives/{pipeline}/sub-{subject}/[ses-{session}/]anat/sub-{subject}[_ses-{session}][_acq-{acquisition}][_run-{run}][_space-{space}]_desc-{desc}_T1w{extension}'
-                ],
-                validate=False,
-                absolute_paths=True
-            )
-            
-            if built_path:
-                return Path(built_path)
-                
-        except Exception:
-            pass  # Fall back to manual construction
-    
-    # Manual path construction as fallback
-    # Determine derivatives directory - use pipeline_name if derivatives_dir is default
-    if config.derivatives_dir == CONFIG.DERIVATIVES_DIR:
-        derivatives_name = config.pipeline_name
-    else:
-        derivatives_name = config.derivatives_dir or config.pipeline_name
-    derivatives_path = Path(config.bids_root) / "derivatives" / derivatives_name
-    
-    # Build subject directory path
-    subject_id = entities.get('sub') or entities.get('subject', 'unknown')
-    subject_dir = derivatives_path / f"sub-{subject_id}"
-    
-    # Add session directory if present
-    session_id = entities.get('ses') or entities.get('session')
-    if session_id:
-        subject_dir = subject_dir / f"ses-{session_id}"
-    
-    # Determine datatype (use extracted entities first, then infer from input path)
-    datatype = entities.get('datatype', 'func')  # Use extracted datatype if available
-    if datatype == 'func' and 'datatype' not in entities:  # Only infer if not already determined
-        if 'anat' in str(input_path):
-            datatype = 'anat'
-        elif 'dwi' in str(input_path):
-            datatype = 'dwi'
-        elif 'fmap' in str(input_path):
-            datatype = 'fmap'
-        elif any(x in str(input_path).lower() for x in ['t1w', 't2w', 'flair', 'pd']):
-            datatype = 'anat'
-        elif any(x in str(input_path).lower() for x in ['bold', 'task-']):
-            datatype = 'func'
-    
-    output_dir = subject_dir / datatype
-    
-    # Construct filename
-    filename_parts = [f"sub-{subject_id}"]
-    
-    # Add entities in BIDS order
-    entity_order = ['ses', 'task', 'acq', 'run', 'space']
-    entity_map = {
-        'ses': entities.get('ses') or entities.get('session'),
-        'task': entities.get('task'),
-        'acq': entities.get('acq') or entities.get('acquisition'),
-        'run': entities.get('run'),
-        'space': entities.get('space')
-    }
-    
-    for entity in entity_order:
-        value = entity_map[entity]
-        if value:
-            filename_parts.append(f"{entity}-{value}")
-    
-    # Add description suffix
-    desc_value = entities.get('desc')
-    if desc_value:
-        filename_parts.append(f"desc-{desc_value}")
-    
-    # Add modality suffix (infer from input or use generic)
-    if datatype == 'func':
-        filename_parts.append('bold')
-    elif datatype == 'anat':
-        if 'T1w' in input_path.name:
-            filename_parts.append('T1w')
-        elif 'T2w' in input_path.name:
-            filename_parts.append('T2w')
-        else:
-            filename_parts.append('T1w')  # Default
-    
-    extension_value = entities.get('extension', input_path.suffix)
-    filename = "_".join(filename_parts) + extension_value
-    
-    return output_dir / filename
+    return Path(config.bids_root) / "derivatives" / config.pipeline_name / output_filename
 
 
 def _infer_datatype(input_path: Path) -> str:
