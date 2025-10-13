@@ -286,6 +286,10 @@ Error message: {str(func_error)}
                             if f.exists():
                                 f.unlink()
                                 print(f"Deleted forced output file: {f}")
+                            # Delete folder if empty
+                            if f.parent.exists() and not any(f.parent.iterdir()):
+                                f.parent.rmdir()
+                                print(f"Deleted empty directory: {f.parent}")
                         except Exception:
                             pass  # Ignore errors during forced file deletion
                 
