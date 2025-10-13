@@ -956,14 +956,35 @@ Execution Command: {self.execution_command if self.execution_command else 'Not g
                     continue
         
         # Step 3: For each step and process exec ID, aggregate metrics from the associated sidecar files. Also create a sheet for metadata.
+        
+        # Create metadata sheet first
+        metadata = {
+            "Pipeline ID": self.pipeline_id,
+            "Pipeline Name": self.about.name,
+            "Version": self.about.version,
+            "Author": self.about.author,
+            "Description": self.about.description if self.about.description else "",
+            "BIDS Root": str(self.bids_root),
+            "Generated On": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "Number of Steps": len(self.steps),
+            "Scheduler": self.scheduler.value
+        }
+        df_metadata = pd.DataFrame(list(metadata.items()), columns=["Key", "Value"])
+        
+        # Variable to track if at least one sheet has been created
+        sheets_created = False
+        
         with pd.ExcelWriter(summary_path, engine='openpyxl') as writer:
+            # Always write the metadata sheet first to ensure at least one sheet exists
+            df_metadata.to_excel(writer, sheet_name="Metadata", index=False)
+            sheets_created = True
+            
             for step_idx, process_execs in sidecar_mappings.items():
                 step = self.steps[step_idx]
                 for process_exec_id, filepaths in process_execs.items():
                     if filepaths:
                         df_metrics = self.aggregate_metrics(filepaths)
                         if not df_metrics.empty:
-                            df_metadata["step_idx"] = step_idx
                             df_metrics["step_number"] = step_idx + 1
                             df_metrics["step_name"] = step.name
                             
@@ -978,22 +999,7 @@ Execution Command: {self.execution_command if self.execution_command else 'Not g
                                 left_on=["step_number", "process_id", "process_exec_id"],
                                 right_on=["step_number", "process_id", "process_exec_id"]
                             ).to_excel(writer, sheet_name=sheet_name, index=False)
-                
-            
-            # Create metadata sheet
-            metadata = {
-                "Pipeline ID": self.pipeline_id,
-                "Pipeline Name": self.about.name,
-                "Version": self.about.version,
-                "Author": self.about.author,
-                "Description": self.about.description if self.about.description else "",
-                "BIDS Root": str(self.bids_root),
-                "Generated On": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                "Number of Steps": len(self.steps),
-                "Scheduler": self.scheduler.value
-            }
-            df_metadata = pd.DataFrame(list(metadata.items()), columns=["Key", "Value"])
-            df_metadata.to_excel(writer, sheet_name="Metadata", index=False)
+                            sheets_created = True
 
         return summary_path
     
