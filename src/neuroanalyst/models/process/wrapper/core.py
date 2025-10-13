@@ -476,6 +476,8 @@ def _construct_output_path(
     output_entities: Dict[str, str] = {}
     
 ) -> Path:
+    input_path = Path(input_path)
+    
     # Extract entities from input path
     entities = parse_file_entities(str(input_path))
     
@@ -483,11 +485,9 @@ def _construct_output_path(
     entities.update(output_entities)
     
     bids_layout: BIDSLayout = config.bids_layout
-    
-    output_filename: str = bids_layout.build_path(entities)
+    output_filename: str = bids_layout.build_path(entities, validate=False, strict=False, absolute_paths=False)
     
     return Path(config.bids_root) / "derivatives" / config.pipeline_name / output_filename
-
 
 def _infer_datatype(input_path: Path) -> str:
     """
