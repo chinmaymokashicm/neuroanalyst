@@ -201,6 +201,7 @@ def neuprocess_decorator(config: NeuProcessDecoratorConfig):
 Traceback: {traceback.format_exc()}
 Error message: {str(func_error)}
                     """
+                    raise RuntimeError(func_error_message)
                     # func_error_message = str(func_error)
 
                 # Validate the result format using NeuProcessOutput
@@ -237,20 +238,21 @@ Error message: {str(func_error)}
                 else:
                     forced_outputs = None
 
-                if error_in_func:
-                    # Prepare error metadata
-                    validated_result = NeuProcessOutput(
-                        data=None,
-                        description=f"Error in {config.pipeline_name}",
-                        metadata={
-                            "error": func_error_message,
-                            "function_name": func.__name__,
-                            "function_module": func.__module__,
-                            "input_filepath": str(input_filepath)
-                        }
-                    )
-                    forced_outputs = None
-                    print(f"Error during function execution: {func_error_message}")
+                # ! If there was an error in the function, instead of preparing metadata, an exception will be raised.
+                # if error_in_func:
+                #     # Prepare error metadata
+                #     validated_result = NeuProcessOutput(
+                #         data=None,
+                #         description=f"Error in {config.pipeline_name}",
+                #         metadata={
+                #             "error": func_error_message,
+                #             "function_name": func.__name__,
+                #             "function_module": func.__module__,
+                #             "input_filepath": str(input_filepath)
+                #         }
+                #     )
+                #     forced_outputs = None
+                #     print(f"Error during function execution: {func_error_message}")
                 
                 # Construct output filepath using PyBIDS
                 output_entities = validated_result.metadata.get('output_bids_entities', {})
@@ -305,16 +307,6 @@ Error message: {str(func_error)}
                     # 'BIDSDatasetDescription': str(desc_path),
                     **validated_result.metadata  # Include any additional metadata
                 }
-                
-                # Add PyBIDS dataset information if available
-                # if config.bids_layout:
-                #     try:
-                #         dataset_desc = config.bids_layout.get_dataset_description()
-                #         if dataset_desc:
-                #             metadata['DatasetName'] = dataset_desc.get('Name', 'Unknown')
-                #             metadata['BIDSVersion'] = dataset_desc.get('BIDSVersion', 'Unknown')
-                #     except Exception:
-                #         pass  # Continue without dataset info
                 
                 # Create sidecar JSON file if enabled
                 sidecar_filepath = None
