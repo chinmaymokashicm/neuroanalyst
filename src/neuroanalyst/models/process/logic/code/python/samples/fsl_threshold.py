@@ -25,6 +25,7 @@ def fsl_threshold(input_filepath: str):
         output_entities (dict): Dictionary of BIDS entities for the output file.
         forced_outputs (list): List of file paths that are saved as outputs but not BIDS-compliant.
     """
+    print(f"Input file path: {input_filepath}")
     # Step 1: Prepare environment and paths
     threshold: int = int(os.getenv("THRESHOLD", "0.5"))
     print(f"Using threshold value: {threshold}")
