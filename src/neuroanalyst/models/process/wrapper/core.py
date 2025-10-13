@@ -98,28 +98,8 @@ class NeuProcessDecoratorConfig(BaseModel):
                 "name": "bids_with_desc",
                 "entities": [ 
                     {
-                    "name": "subject",
-                    "pattern": "sub-(?P<subject>[a-zA-Z0-9]+)"
-                    },
-                    {
-                    "name": "session",
-                    "pattern": "ses-(?P<session>[a-zA-Z0-9]+)"
-                    },
-                    {
-                    "name": "acquisition",
-                    "pattern": "acq-(?P<acquisition>[a-zA-Z0-9]+)"
-                    },
-                    {
-                    "name": "run",
-                    "pattern": "run-(?P<run>[0-9]+)"
-                    },
-                    {
-                    "name": "desc",
-                    "pattern": "desc-(?P<desc>[a-zA-Z0-9]+)"
-                    },
-                    {
-                    "name": "suffix",
-                    "pattern": "(?P<suffix>[a-zA-Z0-9]+)"
+                        "name": "desc",
+                        "pattern": "desc-(?P<desc>[a-zA-Z0-9]+)"
                     }
                 ],
                 "default_path_patterns": [
