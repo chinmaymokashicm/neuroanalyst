@@ -259,6 +259,7 @@ Error message: {str(func_error)}
                 output_entities = validated_result.metadata.get('output_bids_entities', {})
                 output_filepath = _construct_output_path(
                     input_path=input_path,
+                    config=config,
                     output_entities=output_entities
                 )
                 print(f"Input file: {input_path}")
@@ -471,6 +472,7 @@ def _extract_bids_entities(input_path: Path, config: NeuProcessDecoratorConfig) 
 
 def _construct_output_path(
     input_path: Path, 
+    config: NeuProcessDecoratorConfig,
     output_entities: Dict[str, str] = {}
     
 ) -> Path:
