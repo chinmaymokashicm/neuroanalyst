@@ -71,7 +71,7 @@ fast -t {image_type} -n {n_classes} -H {hyper} -I {iter} -l {lowpass} -B -o {out
     cmd = [
         "apptainer", "exec",
         fsl_img_path,
-        "bash", "-c", f"'{internal_bash_command}'"
+        "bash", "-c", internal_bash_command
     ]
     print(f"Running command: {' '.join(cmd)}")
     
