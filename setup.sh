@@ -41,4 +41,4 @@ echo "Required packages installed."
 source set_envs.sh
 
 # Set up BIDS configuration
-source set_config.sh
+# source set_config.sh
