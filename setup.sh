@@ -39,3 +39,6 @@ echo "Required packages installed."
 
 # Set environment variables
 source set_envs.sh
+
+# Set up BIDS configuration
+source set_config.sh

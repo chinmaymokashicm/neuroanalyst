@@ -50,6 +50,8 @@ class NeuroAnalystPaths:
                                os.path.join(self._home, 'virtual_environments'))
         self._process_execs = os.getenv('NEUROANALYST_PROCESS_EXECS',
                                       os.path.join(self._home, 'process_execs'))
+        self._config = os.getenv('NEUROANALYST_CONFIG',
+                                os.path.join(self._home, 'config'))
         
         # MongoDB configuration
         self._db_host = os.getenv('NEUROANALYST_DB_HOST', 'localhost')
@@ -110,7 +112,12 @@ class NeuroAnalystPaths:
     def process_execs(self) -> Path:
         """Directory for process execution instances."""
         return Path(self._process_execs)
-    
+
+    @property
+    def config(self) -> Path:
+        """Directory for configuration files."""
+        return Path(self._config)
+
     @property
     def db_host(self) -> str:
         """MongoDB host."""
@@ -137,14 +144,14 @@ class NeuroAnalystPaths:
             self.home,
             self.images,
             self.base_images,
-            # self.images,
             self.docs,
             self.workdir,
             self.reports,
             self.logs,
             self.datasets,
             self.venvs,
-            self.process_execs
+            self.process_execs,
+            self.config,
         ]
         
         for directory in directories:
@@ -296,6 +303,10 @@ class NeuroAnalystConfig:
     # Logging
     LOG_FORMAT = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
     LOG_DATE_FORMAT = '%Y-%m-%d %H:%M:%S'
+    
+    # Custom BIDS config file name
+    CUSTOM_BIDS_CONFIG_FILE = 'bids_with_desc.json'
+    CUSTOM_BIDS_CONFIG_PATH = PATHS.config / CUSTOM_BIDS_CONFIG_FILE
 
 
 # Global config instance
@@ -310,6 +321,7 @@ def ensure_directories() -> None:
     the directory structure is properly set up.
     """
     PATHS.create_directories()
+    
 
 
 def get_template_path(template_name: str) -> Path:
