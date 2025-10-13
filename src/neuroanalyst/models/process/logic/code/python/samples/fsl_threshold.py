@@ -32,7 +32,7 @@ def fsl_threshold(input_filepath: str):
     fsl_img_name = os.getenv("FSL_IMG_NAME")
     fsl_img_path = f"/opt/fsl_images/{fsl_img_name}"  # path to FSL Singularity image inside container
     
-    output_dir = f"/tmp/"
+    output_dir = os.path.join(DATA_DIR, "tmp")
 
     # Step 2: Define output file paths - this is necessary because fslmaths creates outputs automatically.
     # These outputs will then be deleted by the NeuroAnalyst wrapper.
@@ -82,7 +82,11 @@ fslmaths {wm_temp_path} -thr {threshold} -bin {wm_output_path}
     
     print(f"=== Command Error (if any) ===\n{result.stderr}\n===================")
     print(result.stderr)
-    
+
+
+    if result.returncode != 0:
+        raise RuntimeError(f"FSL fslmaths command failed with return code {result.returncode}")
+
     # Step 4: Load output data and prepare return values
     # This is necessary because the NeuroAnalyst wrapper expects the output data to be returned from this function.
     # The wrapper will then save the data to the appropriate NeuroAnalyst-compliant location with metadata.

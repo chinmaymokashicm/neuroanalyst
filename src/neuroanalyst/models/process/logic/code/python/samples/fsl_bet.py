@@ -24,9 +24,10 @@ def fsl_bet(input_filepath: str):
         forced_outputs (list): List of file paths that are saved as outputs but not BIDS-compliant.
     """
     # Step 1: Prepare environment and paths
+    DATA_DIR = "/data"  # shared data dir bind
     fsl_img_name = os.getenv("FSL_IMG_NAME")
     fsl_img_path = f"/opt/fsl_images/{fsl_img_name}"  # path to FSL Singularity image inside container
-    output_dir: str = "/tmp/"  # Temporary directory for outputs; will be cleaned up by NeuroAnalyst wrapper
+    output_dir: str = os.path.join(DATA_DIR, "tmp")  # Temporary directory for outputs; will be cleaned up by NeuroAnalyst wrapper
 
     # Step 2: Define output file paths - this is necessary because BET creates two outputs automatically.
     # We need to pass the output data to the NeuroAnalyst wrapper, so that it can be saved correctly with exhaustive metadata.
@@ -54,6 +55,9 @@ bet {input_filepath} {output_filepath} -m
     
     print(f"=== Command Error (if any) ===\n{result.stderr}\n===================")
     print(result.stderr)
+    
+    if result.returncode != 0:
+        raise RuntimeError(f"FSL BET command failed with return code {result.returncode}")
 
     # Step 4: Load output data (brain and brain mask) and prepare return values
     # This is necessary because the NeuroAnalyst wrapper expects the output data to be returned from this function.

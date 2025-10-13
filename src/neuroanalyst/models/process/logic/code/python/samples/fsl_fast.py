@@ -39,8 +39,8 @@ def fsl_fast(input_filepath: str):
     DATA_DIR = "/data"  # shared data dir bind
     fsl_img_name = os.getenv("FSL_IMG_NAME")
     fsl_img_path = f"/opt/fsl_images/{fsl_img_name}"  # path to FSL Singularity image inside container
-    
-    output_dir = f"/tmp/"
+
+    output_dir = os.path.join(DATA_DIR, "tmp")
 
     # Step 2: Define output file paths - this is necessary because FAST creates multiple outputs automatically.
     # These outputs will then be deleted by the NeuroAnalyst wrapper.
@@ -83,6 +83,9 @@ fast -t {image_type} -n {n_classes} -H {hyper} -I {iter} -l {lowpass} -B -o {out
     
     print(f"=== Command Error (if any) ===\n{result.stderr}\n===================")
     print(result.stderr)
+    
+    if result.returncode != 0:
+        raise RuntimeError(f"FSL FAST command failed with return code {result.returncode}")
     
     # Step 4: Load output data and prepare return values
     # This is necessary because the NeuroAnalyst wrapper expects the output data to be returned from this function.
