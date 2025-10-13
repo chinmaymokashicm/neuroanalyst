@@ -596,7 +596,7 @@ Execution Command: {self.execution_command if self.execution_command else 'Not g
                         ProcessStatus.FAILED.value: "❌"
                     }.get(proc.status, "?")
 
-                    print(f"  {status_indicator} Process {proc.process_id + 1}: {proc.name} - {proc.status}")
+                    print(f"  {status_indicator} Process {proc.process_id}: {proc.name} - {proc.status}")
 
                     if proc.status == ProcessStatus.RUNNING.value and proc.started_at:
                         print(f"    Started: {proc.started_at}")
