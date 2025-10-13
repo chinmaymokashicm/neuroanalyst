@@ -94,11 +94,48 @@ class NeuProcessDecoratorConfig(BaseModel):
         
         # Initialize BIDSLayout if not provided
         if self.bids_layout is None:
+            custom_config: dict = {
+                "name": "bids_with_desc",
+                "entities": [ 
+                    {
+                    "name": "subject",
+                    "pattern": "sub-(?P<subject>[a-zA-Z0-9]+)"
+                    },
+                    {
+                    "name": "session",
+                    "pattern": "ses-(?P<session>[a-zA-Z0-9]+)"
+                    },
+                    {
+                    "name": "acquisition",
+                    "pattern": "acq-(?P<acquisition>[a-zA-Z0-9]+)"
+                    },
+                    {
+                    "name": "run",
+                    "pattern": "run-(?P<run>[0-9]+)"
+                    },
+                    {
+                    "name": "desc",
+                    "pattern": "desc-(?P<desc>[a-zA-Z0-9]+)"
+                    },
+                    {
+                    "name": "suffix",
+                    "pattern": "(?P<suffix>[a-zA-Z0-9]+)"
+                    }
+                ],
+                "default_path_patterns": [
+                    "[sub-{subject}/][ses-{session}/]{datatype}/sub-{subject}_[ses-{session}_][acq-{acquisition}_][run-{run}_][desc-{desc}_]{suffix}{extension}"
+                ]
+                }
+            # Save custom config to a temporary JSON file and use the path
+            with open("bids_config_temp.json", "w") as f:
+                json.dump(custom_config, f, indent=2)
+
+            absolute_config_path = str(Path.cwd() / "bids_config_temp.json")
             self.bids_layout = BIDSLayout(
                 root=str(self.bids_root),
                 validate=self.bids_validate,
                 derivatives=True,
-                config=["bids", CONFIG.CUSTOM_BIDS_CONFIG_PATH]
+                config=["bids", absolute_config_path]
             )
 
 
