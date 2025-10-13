@@ -39,42 +39,6 @@ from ..logic.core import NeuProcessLogic
 
 # =======================Wrapper Models=======================
 
-class BIDSGeneratedByToolInfo(BaseModel):
-    """Tool information for BIDS dataset_description.json GeneratedBy field."""
-    Name: str = Field(..., description="Name of the tool that generated this dataset")
-    Version: str = Field(..., description="Version of the tool")
-    CodeURL: Optional[str] = Field(default=None, description="URL where the code for the tool can be found")
-    Container: Optional[Dict[str, str]] = Field(default=None, description="Container information")
-
-
-class BIDSDatasetDescription(BaseModel):
-    """
-    BIDS dataset_description.json model as per BIDS specification.
-    
-    This model ensures all required fields are present according to BIDS spec.
-    Reference: https://bids-specification.readthedocs.io/en/stable/03-modality-agnostic-files.html#dataset_descriptionjson
-    """
-    Name: str = Field(..., description="Name of the dataset")
-    BIDSVersion: str = Field("1.8.0", description="The version of the BIDS standard that was used")
-    DatasetType: str = Field("derivative", description="Type of the dataset, must be 'derivative' for processed data")
-    GeneratedBy: List[BIDSGeneratedByToolInfo] = Field(
-        ..., 
-        description="A list of tools that generated this dataset"
-    )
-    
-    # Optional fields
-    License: Optional[str] = Field(default=None, description="The license for the dataset")
-    Authors: Optional[List[str]] = Field(default=None, description="List of individuals who contributed to the dataset")
-    Acknowledgements: Optional[str] = Field(default=None, description="Text acknowledging contributions of individuals or institutions")
-    HowToAcknowledge: Optional[str] = Field(default=None, description="Instructions on how to acknowledge this dataset")
-    Funding: Optional[List[str]] = Field(default=None, description="List of funding sources")
-    EthicsApprovals: Optional[List[str]] = Field(default=None, description="List of ethics committee approvals")
-    ReferencesAndLinks: Optional[List[str]] = Field(default=None, description="List of references and links")
-    DatasetDOI: Optional[str] = Field(default=None, description="The DOI of the dataset if available")
-    
-    class Config:
-        extra = "allow"  # Allow additional fields for forward compatibility
-
 
 class NeuProcessOutput(BaseModel):
     """Model for validating the expected output from a NeuProcessLogic function."""
@@ -264,6 +228,9 @@ Error message: {str(func_error)}
                 )
                 print(f"Input file: {input_path}")
                 print(f"Output file: {output_filepath}")
+                
+                if input_filepath == output_filepath:
+                    raise ValueError("Input and output file paths cannot be the same.")
 
                 # Create output directory if it doesn't exist
                 output_filepath.parent.mkdir(parents=True, exist_ok=True)
@@ -274,10 +241,6 @@ Error message: {str(func_error)}
                 
                 # Write output data
                 _write_output_data(validated_result.data, output_filepath)
-                
-                #! HOLD: dataset_description.json should be created at a pipeline level, not process level. Skip for now.
-                # Ensure dataset_description.json exists in the derivatives directory
-                # desc_path = ensure_dataset_description(config, output_filepath)
                 
                 # Delete files under forced_outputs if specified
                 if forced_outputs:
@@ -309,7 +272,6 @@ Error message: {str(func_error)}
                     'BIDSEntities': bids_entities,
                     'FunctionName': func.__name__,
                     'FunctionModule': func.__module__,
-                    # 'BIDSDatasetDescription': str(desc_path),
                     **validated_result.metadata  # Include any additional metadata
                 }
                 
@@ -373,83 +335,6 @@ Error message: {str(func_error)}
     return decorator
 
 
-def ensure_dataset_description(config: NeuProcessDecoratorConfig, output_path: Optional[Path] = None) -> Path:
-    """
-    Ensure a valid dataset_description.json exists in the derivatives directory.
-    If one doesn't exist, create it with BIDS-compliant fields.
-    
-    Args:
-        config: Decorator configuration with pipeline details
-        output_path: Optional path to output file to determine derivatives directory
-        
-    Returns:
-        Path to the dataset_description.json file
-    """
-    # Determine derivatives directory
-    if config.derivatives_dir == CONFIG.DERIVATIVES_DIR:
-        derivatives_name = config.pipeline_name
-    else:
-        derivatives_name = config.derivatives_dir or config.pipeline_name
-    
-    if output_path:
-        # If output_path is provided, use its parent directories to find derivatives
-        parts = output_path.parts
-        if 'derivatives' in parts and derivatives_name in parts:
-            idx = parts.index('derivatives')
-            if idx + 1 < len(parts) and parts[idx + 1] == derivatives_name:
-                derivatives_path = Path(*parts[:idx+2])  # Include derivatives and pipeline name
-            else:
-                derivatives_path = Path(config.bids_root) / "derivatives" / derivatives_name
-        else:
-            derivatives_path = Path(config.bids_root) / "derivatives" / derivatives_name
-    else:
-        # Default path construction
-        derivatives_path = Path(config.bids_root) / "derivatives" / derivatives_name
-    
-    # Create derivatives directory if it doesn't exist
-    derivatives_path.mkdir(parents=True, exist_ok=True)
-    
-    # Path to dataset_description.json
-    desc_path = derivatives_path / "dataset_description.json"
-    
-    # Only create if it doesn't exist
-    if not desc_path.exists():
-        # Get system info for container
-        system_info = {
-            "Type": "singularity" if Path("/singularity").exists() else "host",
-            "OS": f"{platform.system()} {platform.release()}",
-            "Version": platform.version()
-        }
-        
-        # Create dataset description
-        # dataset_desc = BIDSDatasetDescription(
-        #     Name=f"{config.pipeline_name} derivatives",
-        #     BIDSVersion="1.8.0",  # Current BIDS version
-        #     DatasetType="derivative",
-        #     GeneratedBy=[
-        #         BIDSGeneratedByToolInfo(
-        #             Name="NeuroAnalyst",
-        #             Version="1.0.0",  # Could be made configurable
-        #             CodeURL="https://github.com/chinmaymokashicm/neuroanalyst",  # Optional
-        #             Container=system_info
-        #         )
-        #     ],
-        #     License=None,  # Optional fields
-        #     Authors=None,
-        #     Acknowledgements=None,
-        #     HowToAcknowledge=None,
-        #     Funding=None,
-        #     ReferencesAndLinks=None,
-        #     DatasetDOI=None
-        # )
-        
-        # # Write the file
-        # with open(desc_path, 'w') as f:
-        #     json.dump(dataset_desc.model_dump(exclude_none=True), f, indent=2)
-    
-    return desc_path
-
-
 def _extract_bids_entities(input_path: Path, config: NeuProcessDecoratorConfig) -> Dict[str, str]:
     """Extract BIDS entities from input path using PyBIDS."""
     entities = {}
@@ -488,30 +373,6 @@ def _construct_output_path(
     output_filename: str = bids_layout.build_path(entities, validate=False, strict=False, absolute_paths=False)
     
     return Path(config.bids_root) / "derivatives" / config.pipeline_name / output_filename
-
-def _infer_datatype(input_path: Path) -> str:
-    """
-    Infer BIDS datatype from input path.
-    
-    Args:
-        input_path: Input file path
-        
-    Returns:
-        BIDS datatype (e.g., 'anat', 'func', 'dwi')
-    """
-    path_str = str(input_path).lower()
-    
-    if 'anat' in path_str or any(x in path_str for x in ['t1w', 't2w', 'flair', 'pd']):
-        return 'anat'
-    elif 'func' in path_str or any(x in path_str for x in ['bold', 'task-']):
-        return 'func'
-    elif 'dwi' in path_str or any(x in path_str for x in ['dwi', 'bval', 'bvec']):
-        return 'dwi'
-    elif 'fmap' in path_str:
-        return 'fmap'
-    else:
-        return 'derivatives'  # Default for processed data
-
 
 def _write_output_data(data: Any, output_filepath: Union[str, Path]) -> None:
     """
@@ -593,66 +454,6 @@ def _write_output_data(data: Any, output_filepath: Union[str, Path]) -> None:
 
     else:
         raise ValueError(f"Unsupported file extension: {suffix}")
-
-
-def _create_sidecar_file(
-    output_filepath: Path,
-    function_metadata: Dict[str, Any],
-    metrics: Dict[str, Any],
-    config: NeuProcessDecoratorConfig,
-    execution_time: float,
-    input_filepath: Path,
-    forced_outputs: Optional[List[str]] = None
-) -> Path:
-    """
-    Create sidecar JSON file with metadata.
-    
-    Args:
-        output_filepath: Path to the output file
-        function_metadata: Metadata about the function
-        metrics: Metrics from the process
-        config: Decorator configuration
-        execution_time: Time taken for execution
-        input_filepath: Path to the input file
-        forced_outputs: List of forced output filepaths
-        
-    Returns:
-        Path to the created sidecar file
-    """
-    # Create sidecar path - if output is already .json, add '_meta' to distinguish
-    if output_filepath.suffix.lower() == '.json':
-        sidecar_path = output_filepath.with_suffix('.meta.json')
-    else:
-        sidecar_path = output_filepath.with_suffix('.json')
-    
-    sidecar_data = {
-        "GeneratedBy": {
-            "Name": config.pipeline_name,
-            "Version": "1.0.0",  # Could be made configurable
-            "Description": function_metadata.get("function_docstring", ""),
-            "CodeURL": function_metadata.get("module", ""),
-        },
-        "SourceDatasets": [
-            {
-                "URL": str(input_filepath),
-                "Version": "unknown"
-            }
-        ],
-        "ProcessingDetails": {
-            "FunctionName": function_metadata["function_name"],
-            "ExecutionTime": execution_time,
-            "Timestamp": time.strftime("%Y-%m-%dT%H:%M:%S"),
-            "Configuration": config.model_dump(exclude={"bids_root"}),
-        },
-        "Metrics": metrics,
-        "OutputFiles": [str(output_filepath)],
-        "ForcedOutputFiles": forced_outputs or [],
-    }
-    
-    with open(sidecar_path, 'w') as f:
-        json.dump(sidecar_data, f, indent=2)
-    
-    return sidecar_path
 
 
 # =======================Convenience Functions=======================
