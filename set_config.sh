@@ -1,21 +1,21 @@
 #!/bin/bash
 # filepath: setup_bids_config.sh
 
-# Check if NEUROANALYST_CONFIG environment variable is set
-if [ -z "$NEUROANALYST_CONFIG" ]; then
-    echo "Error: NEUROANALYST_CONFIG environment variable is not set."
-    echo "Please set it to the directory where configuration files should be stored."
-    exit 1
-fi
+# # Check if NEUROANALYST_CONFIG environment variable is set
+# if [ -z "$NEUROANALYST_CONFIG" ]; then
+#     echo "Error: NEUROANALYST_CONFIG environment variable is not set."
+#     echo "Please set it to the directory where configuration files should be stored."
+#     exit 1
+# fi
 
-# Ensure the directory exists
-if [ ! -d "$NEUROANALYST_CONFIG" ]; then
-    echo "Creating directory $NEUROANALYST_CONFIG"
-    mkdir -p "$NEUROANALYST_CONFIG"
-fi
+# # Ensure the directory exists
+# if [ ! -d "$NEUROANALYST_CONFIG" ]; then
+#     echo "Creating directory $NEUROANALYST_CONFIG"
+#     mkdir -p "$NEUROANALYST_CONFIG"
+# fi
 
 # Define the output file path
-CONFIG_FILE="$NEUROANALYST_CONFIG/bids_with_desc.json"
+CONFIG_FILE="bids_with_desc.json"
 
 # Check if the file already exists
 if [ -f "$CONFIG_FILE" ]; then

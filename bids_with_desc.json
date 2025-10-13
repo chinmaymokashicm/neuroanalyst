@@ -1,0 +1,13 @@
+{
+  "entities": {
+    "subject": {"pattern": "sub-(?P<subject>[a-zA-Z0-9]+)"},
+    "session": {"pattern": "ses-(?P<session>[a-zA-Z0-9]+)"},
+    "acquisition": {"pattern": "acq-(?P<acquisition>[a-zA-Z0-9]+)"},
+    "run": {"pattern": "run-(?P<run>[0-9]+)"},
+    "desc": {"pattern": "desc-(?P<desc>[a-zA-Z0-9]+)"},
+    "suffix": {"pattern": "(?P<suffix>[a-zA-Z0-9]+)"}
+  },
+  "path_patterns": [
+    "[sub-{subject}/][ses-{session}/]{datatype}/sub-{subject}_[ses-{session}_][acq-{acquisition}_][run-{run}_][desc-{desc}_]{suffix}{extension}"
+  ]
+}

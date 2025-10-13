@@ -305,8 +305,7 @@ class NeuroAnalystConfig:
     LOG_DATE_FORMAT = '%Y-%m-%d %H:%M:%S'
     
     # Custom BIDS config file name
-    CUSTOM_BIDS_CONFIG_FILE = 'bids_with_desc.json'
-    CUSTOM_BIDS_CONFIG_PATH = PATHS.config / CUSTOM_BIDS_CONFIG_FILE
+    CUSTOM_BIDS_CONFIG_PATH = 'bids_with_desc.json'
 
 
 # Global config instance
