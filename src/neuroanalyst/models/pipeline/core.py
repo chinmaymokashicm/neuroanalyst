@@ -594,22 +594,22 @@ Execution Command: {self.execution_command if self.execution_command else 'Not g
                         ProcessStatus.RUNNING.value: "🔄",
                         ProcessStatus.COMPLETE.value: "✅",
                         ProcessStatus.FAILED.value: "❌"
-                    }.get(proc["status"], "?")
-                    
-                    print(f"  {status_indicator} Process {proc['process_id'] + 1}: {proc['name']} - {proc['status']}")
-                    
-                    if proc["status"] == ProcessStatus.RUNNING.value and proc["started_at"]:
-                        print(f"    Started: {proc['started_at']}")
-                    
-                    if proc["status"] == ProcessStatus.COMPLETE.value:
-                        print(f"    Completed: {proc['completed_at']}")
-                    
-                    if proc["status"] == ProcessStatus.FAILED.value:
-                        print(f"    Failed: {proc['completed_at']}")
-                        print(f"    Error: {proc['error']}")
-                    
-                    if proc["scheduler_job_id"]:
-                        print(f"    Job ID: {proc['scheduler_job_id']}")
+                    }.get(proc.status, "?")
+
+                    print(f"  {status_indicator} Process {proc.process_id + 1}: {proc.name} - {proc.status}")
+
+                    if proc.status == ProcessStatus.RUNNING.value and proc.started_at:
+                        print(f"    Started: {proc.started_at}")
+
+                    if proc.status == ProcessStatus.COMPLETE.value:
+                        print(f"    Completed: {proc.completed_at}")
+
+                    if proc.status == ProcessStatus.FAILED.value:
+                        print(f"    Failed: {proc.completed_at}")
+                        print(f"    Error: {proc.error}")
+
+                    if proc.scheduler_job_id:
+                        print(f"    Job ID: {proc.scheduler_job_id}")
             
             print(f"\n{'='*80}\n")
             
