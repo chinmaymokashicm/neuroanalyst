@@ -316,7 +316,8 @@ Execution Command: {self.execution_command if self.execution_command else 'Not g
                 # Check if scope is set in BIDS_FILTERS. If not, set it.
                 bids_filters_str: str = proc_exec.env_var_values.get("BIDS_FILTERS", "{}")
                 bids_filters: dict = json.loads(bids_filters_str) if bids_filters_str else {}
-                if "scope" not in bids_filters or bids_filters["scope"] != self.about.name:
+                # if "scope" not in bids_filters or bids_filters["scope"] != self.about.name:
+                if "scope" not in bids_filters:
                     bids_filters["scope"] = self.about.name
                     proc_exec.set_env_var_value("BIDS_FILTERS", json.dumps(bids_filters))
 
