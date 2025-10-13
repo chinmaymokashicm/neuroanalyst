@@ -135,7 +135,7 @@ fsl_img_path: str = FSL_IMG
 fsl_img_dir: str = str(Path(fsl_img_path).parent)
 fsl_img_name: str = str(Path(fsl_img_path).name)
 
-scheduler_flags: dict = {"-n": 2, "-q": "medium"} # LSF-specific flags - memory 8GB, 2 cores, medium queue
+scheduler_flags: dict = {"-n": 2, "-q": "medium", "-M": "20GB", "-W": "12:00"} # LSF-specific flags - memory 20GB, 2 cores, medium queue
 bet_exec: NeuProcessExec = NeuProcessExec(
     process=bet_process,
     execution_mode=EXECUTION_MODE,
