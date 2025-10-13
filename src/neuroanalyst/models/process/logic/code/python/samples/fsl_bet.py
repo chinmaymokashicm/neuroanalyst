@@ -79,10 +79,15 @@ bet {input_filepath} {output_filepath} -m
         "mask_coverage": float((mask_data > 0).sum()) / mask_data.size,
         "tool": "FSL BET",
         "version": "6.0.5",
+        "output_channels": [
+            "brain",
+            "brain_mask"
+        ],
         "parameters": {
             "options": "-m"
         }
     }
+    
     output_entities: dict = {
         "desc": "bet",
         "suffix": "T1w",

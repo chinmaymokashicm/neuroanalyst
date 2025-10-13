@@ -138,6 +138,14 @@ fast -t {image_type} -n {n_classes} -H {hyper} -I {iter} -l {lowpass} -B -o {out
         "cnr": float(cnr),
         "tool": "FSL FAST",
         "version": "6.0.5",  # Ideally, we would extract the actual version from the FSL image.
+        "output_channels": [
+            *(["CSF"] if n_classes > 0 else []),
+            *(["GM"] if n_classes > 1 else []),
+            *(["WM"] if n_classes > 2 else []),
+            "HMRF_segmentation",
+            "mixeltype",
+            "restored_image"
+        ],
         "parameters": {
             "image_type": image_type,
             "n_classes": n_classes,

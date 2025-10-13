@@ -47,6 +47,7 @@ def fsl_threshold(input_filepath: str):
     csf_data = img_data[:, :, :, 0]
     gm_data = img_data[:, :, :, 1]
     wm_data = img_data[:, :, :, 2]
+    print(f"Loaded tissue data shapes: CSF {csf_data.shape}, GM {gm_data.shape}, WM {wm_data.shape}")
     
     # Save temporary files for each tissue type
     input_filename = input_filepath.split("/")[-1]
@@ -117,6 +118,11 @@ fslmaths {wm_temp_path} -thr {threshold} -bin {wm_output_path}
         "gm_volume": int((output_data[..., 1] > 0).sum()),
         "wm_volume": int((output_data[..., 2] > 0).sum()),
         "tool": "FSL fslmaths",
+        "output_channels": [
+            "CSF",
+            "GM",
+            "WM"
+        ],
         "threshold": threshold
     }
     
