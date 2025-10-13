@@ -72,7 +72,7 @@ fslmaths {wm_temp_path} -thr {threshold} -bin {wm_output_path}
         fsl_img_path,
         "bash", "-c", f"'{internal_bash_command}'"
     ]
-    print(f"Running command: {' \\ '.join(cmd)}")
+    print(f"Running command: {' '.join(cmd)}")
     
     result = subprocess.run(cmd, check=True)
     print(f"FSL fslmaths command finished with return code {result.returncode}")
