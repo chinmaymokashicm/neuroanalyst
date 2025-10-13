@@ -1,4 +1,5 @@
 {
+  "name": "bids_with_desc",
   "entities": {
     "subject": {"pattern": "sub-(?P<subject>[a-zA-Z0-9]+)"},
     "session": {"pattern": "ses-(?P<session>[a-zA-Z0-9]+)"},
