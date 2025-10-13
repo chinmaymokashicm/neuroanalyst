@@ -42,6 +42,7 @@ def fsl_threshold(input_filepath: str):
     img = nib.load(input_filepath)
     img_data = img.get_fdata()
     if img_data.ndim != 4 or img_data.shape[3] < 3:
+        print(f"Input NIfTI file must be a 4D file with at least 3 channels (CSF, GM, WM).")
         raise ValueError("Input NIfTI file must be a 4D file with at least 3 channels (CSF, GM, WM).")
     csf_data = img_data[:, :, :, 0]
     gm_data = img_data[:, :, :, 1]
@@ -55,6 +56,7 @@ def fsl_threshold(input_filepath: str):
 
     for data, path in zip([csf_data, gm_data, wm_data], [csf_temp_path, gm_temp_path, wm_temp_path]):
         nib.save(nib.Nifti1Image(data, img.affine, img.header), path)
+        print(f"Saved temporary tissue image to {path}")
 
     # Temporary output paths
     csf_output_path = csf_temp_path.replace("_temp", "_thresh")

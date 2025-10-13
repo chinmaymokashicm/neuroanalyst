@@ -29,7 +29,6 @@ def fsl_fast(input_filepath: str):
     """
     
     # Step 1: Prepare environment and paths
-    n_channels: int = int(os.getenv("N_CHANNELS", "1"))  # number of input channels
     image_type: int = int(os.getenv("IMAGE_TYPE", "1"))  # 1=T1, 2=T2, 3=PD
     n_classes: int = int(os.getenv("N_CLASSES", "3"))  # number of tissue-type classes
     hyper: float = float(os.getenv("HYPER", "0.1"))  # spatial smoothness
@@ -50,15 +49,18 @@ def fsl_fast(input_filepath: str):
     # Load brain-extracted image and save it temporarily. Use this temporary file as input to FAST.
     img = nib.load(input_filepath)
     img_data = img.get_fdata()
-    if img_data.ndim != 4 or img_data.shape[3] != n_channels:
-        raise ValueError(f"Input NIfTI file must be a 4D file with {n_channels} channels.")
+    if img_data.ndim != 4:
+        print(f"Input NIfTI file must be a 4D file.")
+        raise ValueError(f"Input NIfTI file must be a 4D file.")
     brain_data = img_data[:, :, :, 0]  # assuming first channel is brain
     brain_mask = img_data[:, :, :, 1]  # assuming second channel is brain mask
     if not (brain_mask > 0).any():
+        print(f"Brain mask contains no non-zero values.")
         raise ValueError("Brain mask contains no non-zero values.")
     input_filename = input_filepath.split("/")[-1]
     brain_temp_path = os.path.join(output_dir, input_filename.replace(".nii.gz", "_brain_temp.nii.gz"))
     nib.save(nib.Nifti1Image(brain_data, img.affine, img.header), brain_temp_path)
+    print(f"Saved temporary brain-extracted image to {brain_temp_path}")
 
     input_filename_stem: str = brain_temp_path.split("/")[-1].replace(".nii.gz", "")
     output_filename_stem: str = input_filename_stem + "_FSL_FAST"
@@ -137,7 +139,6 @@ fast -t {image_type} -n {n_classes} -H {hyper} -I {iter} -l {lowpass} -B -o {out
         "tool": "FSL FAST",
         "version": "6.0.5",  # Ideally, we would extract the actual version from the FSL image.
         "parameters": {
-            "n_channels": n_channels,
             "image_type": image_type,
             "n_classes": n_classes,
             "hyper": hyper,
