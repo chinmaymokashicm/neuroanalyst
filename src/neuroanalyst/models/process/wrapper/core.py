@@ -97,7 +97,8 @@ class NeuProcessDecoratorConfig(BaseModel):
             self.bids_layout = BIDSLayout(
                 root=str(self.bids_root),
                 validate=self.bids_validate,
-                derivatives=True
+                derivatives=True,
+                # config=["bids", CONFIG.CUSTOM_BIDS_CONFIG_PATH]
             )
 
 
@@ -370,8 +371,26 @@ def _construct_output_path(
     entities.update(output_entities)
     
     bids_layout: BIDSLayout = config.bids_layout
+    
     output_filename: str = bids_layout.build_path(entities, validate=False, strict=False, absolute_paths=False)
     
+    # Include 'desc' entity if provided in output_entities but not appearing in output_filename.
+    # This can happen if 'desc' is not part of the original input file, or if the entire BIDS layout does not have it.
+    if 'desc' in output_entities and 'desc-' not in output_filename:
+        # Insert 'desc-{desc}_' before the suffix
+        # Example filename: sub-01_ses-01_T1w.nii.gz -> sub-01_ses-01_desc-{desc}_T1w.nii.gz
+        
+        # Ensure that output_entities['desc'] is a valid string
+        if not isinstance(output_entities['desc'], str) or not output_entities['desc'] or any(c in output_entities['desc'] for c in r'\/:*?"<>| '):
+            raise ValueError(f"Invalid 'desc' value in output_entities: {output_entities['desc']}")
+        
+        # Re-parse to get suffix and extension
+        new_output_entities: dict = parse_file_entities(output_filename)
+        suffix = new_output_entities.get('suffix', '')
+        extension = new_output_entities.get('extension', '')
+        base_name = output_filename.replace(f"{suffix}{extension}", "").rstrip("_")
+        output_filename = f"{base_name}_desc-{output_entities['desc']}_{suffix}{extension}"
+
     return Path(config.bids_root) / "derivatives" / config.pipeline_name / output_filename
 
 def _write_output_data(data: Any, output_filepath: Union[str, Path]) -> None:
