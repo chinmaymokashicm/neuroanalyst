@@ -98,7 +98,7 @@ class NeuProcessDecoratorConfig(BaseModel):
                 root=str(self.bids_root),
                 validate=self.bids_validate,
                 derivatives=True,
-                # config=["bids", CONFIG.CUSTOM_BIDS_CONFIG_PATH]
+                config=["bids", CONFIG.CUSTOM_BIDS_CONFIG_PATH]
             )
 
 
@@ -342,7 +342,7 @@ def _extract_bids_entities(input_path: Path, config: NeuProcessDecoratorConfig) 
 
 
 def _construct_output_path(
-    input_path: Path, 
+    input_path: str | Path, 
     config: NeuProcessDecoratorConfig,
     output_entities: Dict[str, str] = {}
     
