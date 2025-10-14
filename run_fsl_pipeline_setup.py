@@ -122,9 +122,9 @@ bet_process: NeuProcess = NeuProcess.from_process_id(bet_dir.process_id)
 fast_process: NeuProcess = NeuProcess.from_process_id(fast_dir.process_id)
 threshold_process: NeuProcess = NeuProcess.from_process_id(threshold_dir.process_id)
 
-bet_process.build_image()
-fast_process.build_image()
-threshold_process.build_image()
+# bet_process.build_image()
+# fast_process.build_image()
+# threshold_process.build_image()
 
 # %% [markdown]
 # ### Create NeuProcessExec instances
@@ -136,50 +136,101 @@ fsl_img_dir: str = str(Path(fsl_img_path).parent)
 fsl_img_name: str = str(Path(fsl_img_path).name)
 
 scheduler_flags: dict = {"-n": 2, "-q": "medium", "-M": "20GB", "-W": "12:00"} # LSF-specific flags - memory 20GB, 2 cores, medium queue
-bet_exec: NeuProcessExec = NeuProcessExec(
-    process=bet_process,
-    execution_mode=EXECUTION_MODE,
-    env_var_values={"FSL_IMG_NAME": fsl_img_name, "BIDS_FILTERS": json.dumps({"subject": "M2001",
+
+subjects_part_1: list[str] = ["M2001", "M2002", "M2003", "M2004", "M2005", "M2006", "M2007"]
+subjects_part_2: list[str] = ["M2009", "M2011", "M2012", "M2013", "M2014", "M2015", "M2016", "M2017"]
+
+bids_filters: dict = {
+    "bet": {
         "desc": None,
         "suffix": "T1w",
         "extension": ".nii.gz"
-    })},
-    bind_path_values={"/opt/fsl_images": fsl_img_dir},
-    scheduler_flags=scheduler_flags
-)
-
-fast_exec: NeuProcessExec = NeuProcessExec(
-    process=fast_process,
-    # process=bet_process,
-    execution_mode=EXECUTION_MODE,
-    env_var_values={"FSL_IMG_NAME": fsl_img_name, "BIDS_FILTERS": json.dumps({
+    },
+    "fast": {
         "desc": "bet",
         "suffix": "T1w",
         "extension": ".nii.gz"
-    })},
-    bind_path_values={"/opt/fsl_images": fsl_img_dir},
-    scheduler_flags=scheduler_flags
-)
-
-threshold_exec: NeuProcessExec = NeuProcessExec(
-    process=threshold_process,
-    # process=bet_process,
-    execution_mode=EXECUTION_MODE,
-    env_var_values={"FSL_IMG_NAME": fsl_img_name, "BIDS_FILTERS": json.dumps({
+    },
+    "threshold": {
         "desc": "fast",
         "suffix": "seg",
         "extension": ".nii.gz"
-    })},
-    bind_path_values={"/opt/fsl_images": fsl_img_dir},
-    scheduler_flags=scheduler_flags
-)
+    }
+}
+
+
+# bet_exec: NeuProcessExec = NeuProcessExec(
+#     process=bet_process,
+#     execution_mode=EXECUTION_MODE,
+#     env_var_values={"FSL_IMG_NAME": fsl_img_name, "BIDS_FILTERS": json.dumps({"subject": "M2001",
+#         "desc": None,
+#         "suffix": "T1w",
+#         "extension": ".nii.gz"
+#     })},
+#     bind_path_values={"/opt/fsl_images": fsl_img_dir},
+#     scheduler_flags=scheduler_flags
+# )
+
+# fast_exec: NeuProcessExec = NeuProcessExec(
+#     process=fast_process,
+#     # process=bet_process,
+#     execution_mode=EXECUTION_MODE,
+#     env_var_values={"FSL_IMG_NAME": fsl_img_name, "BIDS_FILTERS": json.dumps({
+#         "desc": "bet",
+#         "suffix": "T1w",
+#         "extension": ".nii.gz"
+#     })},
+#     bind_path_values={"/opt/fsl_images": fsl_img_dir},
+#     scheduler_flags=scheduler_flags
+# )
+
+# threshold_exec: NeuProcessExec = NeuProcessExec(
+#     process=threshold_process,
+#     # process=bet_process,
+#     execution_mode=EXECUTION_MODE,
+#     env_var_values={"FSL_IMG_NAME": fsl_img_name, "BIDS_FILTERS": json.dumps({
+#         "desc": "fast",
+#         "suffix": "seg",
+#         "extension": ".nii.gz"
+#     })},
+#     bind_path_values={"/opt/fsl_images": fsl_img_dir},
+#     scheduler_flags=scheduler_flags
+# )
 
 # bet_exec.get_configuration_status()
 # fast_exec.get_configuration_status()
 # threshold_exec.get_configuration_status()
 
-threshold_exec.print_configuration_status()
+# threshold_exec.print_configuration_status()
 
+bet_execs: list[NeuProcessExec] = []
+fast_execs: list[NeuProcessExec] = []
+threshold_execs: list[NeuProcessExec] = []
+
+for subjects, exec_list, process, bids_filter in [
+    (subjects_part_1, bet_execs, bet_process, bids_filters["bet"]),
+    (subjects_part_2, bet_execs, bet_process, bids_filters["bet"]),
+    (subjects_part_1, fast_execs, fast_process, bids_filters["fast"]),
+    (subjects_part_2, fast_execs, fast_process, bids_filters["fast"]),
+    (subjects_part_1, threshold_execs, threshold_process, bids_filters["threshold"]),
+    (subjects_part_2, threshold_execs, threshold_process, bids_filters["threshold"]),
+]:
+    exec_instance: NeuProcessExec = NeuProcessExec(
+        process=process,
+        execution_mode=EXECUTION_MODE,
+        env_var_values={
+            "FSL_IMG_NAME": fsl_img_name,
+            "BIDS_FILTERS": json.dumps({"subject": subjects} | bids_filter)
+        },
+        bind_path_values={"/opt/fsl_images": fsl_img_dir},
+        scheduler_flags=scheduler_flags
+    )
+    exec_list.append(exec_instance)
+    print(f"Created exec for subjects {', '.join(subjects)} with process {process.process_id}")
+
+print(f"Total BET execs: {len(bet_execs)}")
+print(f"Total FAST execs: {len(fast_execs)}")
+print(f"Total Threshold execs: {len(threshold_execs)}")
 
 # %% [markdown]
 # ### Prepare NeuPipeline
@@ -191,23 +242,24 @@ scheduler: HPCScheduler = HPCScheduler.LSF
 bet_step: NeuPipelineStep = NeuPipelineStep(
     name="Brain Extraction",
     description="Perform brain extraction using FSL BET",
-    process_execs=[bet_exec]
+    process_execs=bet_execs
 )
 fast_step: NeuPipelineStep = NeuPipelineStep(
     name="Tissue Segmentation",
     description="Perform tissue segmentation using FSL FAST",
-    process_execs=[fast_exec]
+    process_execs=fast_execs
 )
 threshold_step: NeuPipelineStep = NeuPipelineStep(
     name="Thresholding",
     description="Apply thresholding using FSL Threshold",
-    process_execs=[threshold_exec]
+    process_execs=threshold_execs
 )
 
 timestamp: str = time.strftime("%Y%m%d-%H%M%S")
 
 about_fsl_pipeline: About = About(
-    name=f"FSL_Real_T1w_Preprocessing_{timestamp}",
+    # name=f"FSL_Real_T1w_Preprocessing_{timestamp}",
+    name="fsl_t1w_preprocessing",
     description="A pipeline for preprocessing T1-weighted MRI images using FSL tools.",
     version="1.0.0",
     author="Chinmay Mokashi"
