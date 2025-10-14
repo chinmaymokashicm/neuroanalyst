@@ -38,16 +38,6 @@ class NeuProcess(BaseModel):
     for execution-related functionality.
     """
     
-    def __str__(self) -> str:
-        """Return a human-readable string representation of the NeuProcess."""
-        return f"NeuProcess(id='{self.process_id}', name='{self.process_dir.name}')"    
-    
-    def __repr__(self) -> str:
-        """Return a detailed string representation of the NeuProcess."""
-        return f"NeuProcess(id='{self.process_id}', name='{self.process_dir.name}', "\
-               f"dir_path='{self.process_dir.process_dir}', "\
-               f"execution_modes={self.process_dir.get_available_execution_modes()})"
-    
     # Basic information
     process_id: str = Field(default_factory=generate_process_id, 
                           description="Unique identifier for the process")
@@ -65,6 +55,16 @@ class NeuProcess(BaseModel):
 
     # Class variables
     _paths: ClassVar[NeuroAnalystPaths] = NeuroAnalystPaths()
+    
+    def __str__(self) -> str:
+        """Return a human-readable string representation of the NeuProcess."""
+        return f"NeuProcess(id='{self.process_id}', name='{self.process_dir.name}')"    
+    
+    def __repr__(self) -> str:
+        """Return a detailed string representation of the NeuProcess."""
+        return f"NeuProcess(id='{self.process_id}', name='{self.process_dir.name}', "\
+               f"dir_path='{self.process_dir.process_dir}', "\
+               f"execution_modes={self.process_dir.get_available_execution_modes()})"
     
     def model_post_init(self, __context):
         """Post-initialization processing."""

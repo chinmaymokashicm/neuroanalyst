@@ -48,6 +48,31 @@ class NeuProcessDirConfig(BaseModel):
     parallel_execution: bool = Field(default=True, 
                                    description="Whether to enable parallel execution")
     max_workers: int = Field(default=1, description="Maximum number of parallel workers")
+    
+    bids_validate: bool = Field(default=True, 
+                              description="Whether to validate BIDS data")
+    
+    # Container-related configuration
+    base_image: str = Field(default="python:3.12-slim", 
+                          description="Base image for Singularity container")
+    bootstrap_method: str = Field(default="docker", 
+                                description="Singularity bootstrap method")
+    
+    # Environment variables
+    environment_variables: List[str] = Field(default_factory=list, 
+                                           description="Names of environment variables required by the process")
+    
+    # Bind paths
+    bind_paths: List[str] = Field(default_factory=list,
+                                description="Internal paths that need to be mounted/aliased at runtime")
+    
+    # Command flags
+    command_flags: List[str] = Field(default_factory=list,
+                                   description="Additional command-line flags for the process (e.g., '--verbose', '--fakeroot')")
+    
+    # Additional configuration
+    additional_config: Dict[str, Any] = Field(default_factory=dict, 
+                                            description="Additional configuration options")
                                    
     @field_validator('command_flags')
     @classmethod
@@ -73,31 +98,6 @@ class NeuProcessDirConfig(BaseModel):
         return f"NeuProcessDirConfig(language_packages={self.language_packages}, "\
                f"system_packages={self.system_packages}, "\
                f"parallel_execution={self.parallel_execution}, max_workers={self.max_workers})"
-    bids_validate: bool = Field(default=True, 
-                              description="Whether to validate BIDS data")
-    
-    # Container-related configuration
-    base_image: str = Field(default="python:3.12-slim", 
-                          description="Base image for Singularity container")
-    bootstrap_method: str = Field(default="docker", 
-                                description="Singularity bootstrap method")
-    
-    # Environment variables
-    environment_variables: List[str] = Field(default_factory=list, 
-                                           description="Names of environment variables required by the process")
-    
-    # Bind paths
-    bind_paths: List[str] = Field(default_factory=list,
-                                description="Internal paths that need to be mounted/aliased at runtime")
-    
-    # Command flags
-    command_flags: List[str] = Field(default_factory=list,
-                                   description="Additional command-line flags for the process (e.g., '--verbose', '--fakeroot')")
-    
-    # Additional configuration
-    additional_config: Dict[str, Any] = Field(default_factory=dict, 
-                                            description="Additional configuration options")
-
 
 class NeuProcessDir(BaseModel):
     """
