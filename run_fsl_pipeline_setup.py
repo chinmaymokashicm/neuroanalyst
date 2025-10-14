@@ -137,8 +137,9 @@ fsl_img_name: str = str(Path(fsl_img_path).name)
 
 scheduler_flags: dict = {"-n": 2, "-q": "medium", "-M": "20GB", "-W": "12:00"} # LSF-specific flags - memory 20GB, 2 cores, medium queue
 
-subjects_part_1: list[str] = ["M2001", "M2002", "M2003", "M2004", "M2005", "M2006", "M2007"]
-subjects_part_2: list[str] = ["M2009", "M2011", "M2012", "M2013", "M2014", "M2015", "M2016", "M2017"]
+subjects_part_1: list[str] = ["M2001", "M2002", "M2003", "M2004", "M2005"]
+subjects_part_2: list[str] = ["M2006", "M2007", "M2009", "M2011", "M2012"]
+subjects_part_3: list[str] = ["M2013", "M2014", "M2015", "M2016", "M2017"]
 
 bids_filters: dict = {
     "bet": {
@@ -210,10 +211,13 @@ threshold_execs: list[NeuProcessExec] = []
 for subjects, exec_list, process, bids_filter in [
     (subjects_part_1, bet_execs, bet_process, bids_filters["bet"]),
     (subjects_part_2, bet_execs, bet_process, bids_filters["bet"]),
+    (subjects_part_3, bet_execs, bet_process, bids_filters["bet"]),
     (subjects_part_1, fast_execs, fast_process, bids_filters["fast"]),
     (subjects_part_2, fast_execs, fast_process, bids_filters["fast"]),
+    (subjects_part_3, fast_execs, fast_process, bids_filters["fast"]),
     (subjects_part_1, threshold_execs, threshold_process, bids_filters["threshold"]),
     (subjects_part_2, threshold_execs, threshold_process, bids_filters["threshold"]),
+    (subjects_part_3, threshold_execs, threshold_process, bids_filters["threshold"]),
 ]:
     exec_instance: NeuProcessExec = NeuProcessExec(
         process=process,
