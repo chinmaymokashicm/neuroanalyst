@@ -915,12 +915,12 @@ Execution Command: {self.execution_command if self.execution_command else 'Not g
 
     def generate_summary(self) -> Path:
         """Generate a summary report of the pipeline configuration.
-        This will be an Excel file containing the following sheets:
-        - One sheet per process. Each sheet will extract numeric values from the metrics in the sidecar files for output files.
-            - Each row will represent the output file to each sidecar file.
-            - Columns - subject, session (if applicable), directory, file path, process ID, process exec ID, and all numeric values from the sidecar file (within the key 'metrics').
-        - [HOLD THIS FOR NOW] A summary sheet that aggregates all the individual step sheets. Include a column indicating the step name in the beginning.
-        - A metadata sheet that includes pipeline ID, name, version, author, description, BIDS root path, date of execution, and any other relevant metadata.
+        This method creates an Excel file summarizing the pipeline steps, processes, and aggregated metrics.
+        Steps:
+            1. List all steps and the unique process IDs within each step. Convert this into a Pandas DataFrame.
+            2. Assign each sidecar filepath to the relevant step and process ID.
+            3. For each step and process ID, aggregate metrics from the associated sidecar files. Also create a sheet for metadata.
+            4. Write all DataFrames to an Excel file with appropriate sheet names.
         
         Returns:
             Path: The path to the generated summary file.
@@ -928,38 +928,41 @@ Execution Command: {self.execution_command if self.execution_command else 'Not g
         derivatives_dir: Path = self.bids_root / "derivatives" / self.about.name
         summary_path: Path = derivatives_dir / "pipeline_summary.xlsx"
         
-        # Step 1: List all steps and the process IDs and process exec IDs within each step. Convert this into a Pandas DataFrame.
+        # Step 1: List all steps and the unique process IDs within each step. Convert this into a Pandas DataFrame.
         step_info = []
         for i, step in enumerate(self.steps):
-            for proc_exec in step.process_execs:
+            # Get unique process IDs in this step
+            process_ids: list[str] = list(set([pe.process.process_id for pe in step.process_execs]))
+            for process_id in process_ids:
                 step_info.append({
+                    "step_idx": i,
                     "step_number": i + 1,
                     "step_name": step.name,
                     "step_description": step.description if step.description else "",
-                    "process_id": proc_exec.process.process_id if hasattr(proc_exec, 'process') else proc_exec.exec_id,
-                    "process_exec_id": proc_exec.exec_id
+                    "process_id": process_id,
                 })
         df_steps = pd.DataFrame(step_info)
         
-        # Step 2: Assign each sidecar filepath to the relevant step and process exec ID.
-        sidecar_mappings: dict = {step_idx: {process_exec_id: [] for process_exec_id in [pe.exec_id for pe in step.process_execs]} for step_idx, step in enumerate(self.steps)}
+        # Step 2: Assign each sidecar filepath to the relevant step and process ID.
+        sidecar_mappings: dict = {step_idx: {process_id: [] for process_id in [pe.process.process_id for pe in step.process_execs]} for step_idx, step in enumerate(self.steps)}
         for sidecar_filepath in derivatives_dir.rglob("*.json"):
             if sidecar_filepath.name == "dataset_description.json":
                 continue  # Skip dataset_description.json
             with open(sidecar_filepath, "r") as f:
                 try:
                     data = json.load(f)
-                    if "ProcessExecID" in data:
+                    if "ProcessExecID" in data and "ProcessID" in data:
                         process_exec_id = data["ProcessExecID"]
+                        process_id = data["ProcessID"]
                         step_idx: int = next((i for i, step in enumerate(self.steps) if any(pe.exec_id == process_exec_id for pe in step.process_execs)), None)
                         if step_idx is not None:
-                            sidecar_mappings[step_idx][process_exec_id].append(sidecar_filepath)
+                            sidecar_mappings[step_idx][process_id].append(sidecar_filepath)
                 except json.JSONDecodeError:
                     print(f"Warning: Could not decode JSON from {sidecar_filepath}. Skipping.")
                     continue
-        
-        # Step 3: For each step and process exec ID, aggregate metrics from the associated sidecar files. Also create a sheet for metadata.
-        
+
+        # Step 3: For each step and process ID, aggregate metrics from the associated sidecar files. Also create a sheet for metadata.
+
         # Create metadata sheet first
         metadata = {
             "Pipeline ID": self.pipeline_id,
@@ -974,36 +977,33 @@ Execution Command: {self.execution_command if self.execution_command else 'Not g
         }
         df_metadata = pd.DataFrame(list(metadata.items()), columns=["Key", "Value"])
         
-        # Variable to track if at least one sheet has been created
-        sheets_created = False
-        
         with pd.ExcelWriter(summary_path, engine='openpyxl') as writer:
             # Always write the metadata sheet first to ensure at least one sheet exists
             df_metadata.to_excel(writer, sheet_name="Metadata", index=False)
-            sheets_created = True
             
-            for step_idx, process_execs in sidecar_mappings.items():
+            for step_idx, process_sidecars in sidecar_mappings.items():
                 step = self.steps[step_idx]
-                for process_exec_id, filepaths in process_execs.items():
-                    if filepaths:
-                        df_metrics = self.aggregate_metrics(filepaths)
-                        if not df_metrics.empty:
-                            df_metrics["step_number"] = step_idx + 1
-                            df_metrics["step_name"] = step.name
-                            
-                            process_exec: NeuProcessExec = NeuProcessExec.from_exec_id(process_exec_id)
-                            process_id: str = process_exec.process.process_id if hasattr(process_exec, 'process') else process_exec.exec_id
-                            
-                            sheet_name = f"{step.name[:20]}_{process_id[:20]}".replace(" ", "_")
-                            pd.merge(
-                                df_steps,
-                                df_metrics,
-                                how="inner",
-                                left_on=["step_number", "process_id", "process_exec_id"],
-                                right_on=["step_number", "process_id", "process_exec_id"]
-                            ).to_excel(writer, sheet_name=sheet_name, index=False)
-                            sheets_created = True
-
+                
+                for process_id, filepaths in process_sidecars.items():
+                    df_metrics: pd.DataFrame = self.aggregate_metrics(filepaths)
+                    if df_metrics.empty:
+                        continue
+                    df_metrics["step_idx"] = step_idx
+                    df_merged: pd.DataFrame = pd.merge(
+                        df_steps,
+                        df_metrics,
+                        how="left",
+                        left_on=["step_idx", "process_id"],
+                        right_on=["step_idx", "process_id"]
+                    )
+                    try:
+                        logic_name: Optional[str] = NeuProcess.from_process_id(process_id).process_dir.logic.about.name
+                    except Exception:
+                        logic_name = process_id
+                    process_name: str = logic_name
+                    sheet_name = f"{step.name[:20]}_{process_name[:20]}".replace(" ", "_")
+                    df_merged.to_excel(writer, sheet_name=sheet_name, index=False)
+                    
         return summary_path
     
     def post_execution(self, logger: logging.Logger) -> None:
