@@ -996,6 +996,7 @@ Execution Command: {self.execution_command if self.execution_command else 'Not g
                         left_on=["step_idx", "process_id"],
                         right_on=["step_idx", "process_id"]
                     )
+                    df_merged = df_merged.drop(columns=["step_idx"])
                     try:
                         logic_name: Optional[str] = NeuProcess.from_process_id(process_id).process_dir.logic.about.name
                     except Exception:
