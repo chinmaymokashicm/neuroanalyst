@@ -1002,7 +1002,7 @@ Execution Command: {self.execution_command if self.execution_command else 'Not g
                     except Exception:
                         logic_name = process_id
                     process_name: str = logic_name
-                    sheet_name = f"{step.name[:20]}_{process_name[:20]}".replace(" ", "_")
+                    sheet_name = f"{step.name[:20]}-{process_name[:20]}".replace(" ", "_")
                     df_merged.to_excel(writer, sheet_name=sheet_name, index=False)
                     
         return summary_path
