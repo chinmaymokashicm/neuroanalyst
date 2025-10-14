@@ -25,4 +25,5 @@ logger.addHandler(file_handler)
 
 pipeline: NeuPipeline = NeuPipeline.from_pipeline_id(pipeline_id)
 
-result: str = pipeline.execute_via_python(logger=logger, resume=True)
+if __name__ == "__main__":
+    result: str = pipeline.execute_via_python(logger=logger, resume=True)

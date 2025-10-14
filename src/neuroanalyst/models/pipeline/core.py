@@ -16,9 +16,11 @@ import json
 import time
 import subprocess
 import logging
+import concurrent.futures
 from enum import Enum
 from pathlib import Path
 from datetime import datetime
+from threading import Lock
 from typing import Optional, List, Dict, Any, Union, Set, ClassVar, Literal
 
 from pydantic import BaseModel, Field, model_validator
@@ -1041,43 +1043,92 @@ Execution Command: {self.execution_command if self.execution_command else 'Not g
             step = self.steps[step_index]
             logger.info(f"Executing Step {step_index + 1}/{len(self.steps)}: {step.name}")
             
-            for proc_exec in step.process_execs:
-                logger.info(f"Executing Process: {proc_exec.exec_id}")
-
-                # Execute the process based on the scheduler
-                if self.scheduler == HPCScheduler.LSF:
-                    executor = LSFExecutor(proc_exec.exec_command)
-                elif self.scheduler == HPCScheduler.SLURM:
-                    executor = SLURMExecutor(proc_exec.exec_command)
-                elif self.scheduler == HPCScheduler.PBS:
-                    executor = PBSExecutor(proc_exec.exec_command)
-                else:
-                    executor = LocalExecutor(proc_exec.exec_command)
-
+            # Execute all processes in this step concurrently
+            
+            executors = {}
+            status_lock = Lock()  # For thread-safe status updates
+            failure = False
+            failure_message = ""
+            
+            def execute_and_monitor_process(proc_exec):
+                nonlocal failure, failure_message
+                
                 try:
+                    logger.info(f"Executing Process: {proc_exec.exec_id}")
+                    
+                    # Execute the process based on the scheduler
+                    if self.scheduler == HPCScheduler.LSF:
+                        executor = LSFExecutor(proc_exec.exec_command)
+                    elif self.scheduler == HPCScheduler.SLURM:
+                        executor = SLURMExecutor(proc_exec.exec_command)
+                    elif self.scheduler == HPCScheduler.PBS:
+                        executor = PBSExecutor(proc_exec.exec_command)
+                    else:
+                        executor = LocalExecutor(proc_exec.exec_command)
+                    
+                    executors[proc_exec.exec_id] = executor
+                    
                     executor.submit()
-                    logger.info(f"Submitted with Job ID: {executor.job_id}")
-                    # Update status to RUNNING
-                    self.update_pipeline_status(step_index, proc_exec.exec_id, ProcessStatus.RUNNING, scheduler_job_id=executor.job_id)
+                    logger.info(f"Submitted process {proc_exec.exec_id} with Job ID: {executor.job_id}")
+                    
+                    with status_lock:
+                        # Update status to RUNNING
+                        self.update_pipeline_status(step_index, proc_exec.exec_id, ProcessStatus.RUNNING, scheduler_job_id=executor.job_id)
                     
                     # Poll until done
-                    while not executor.is_done():
+                    while not executor.is_done() and not failure:
                         executor.poll_status()
-                        logger.info(f"Status: {executor.status.value}")
+                        logger.info(f"Process {proc_exec.exec_id} Status: {executor.status.value}")
                         time.sleep(10)  # Polling interval
+                    
+                    if failure:  # Another process has already failed
+                        logger.warning(f"Process {proc_exec.exec_id} terminated due to failure in another process")
+                        return False
                     
                     if executor.is_success():
                         logger.info(f"Process {proc_exec.exec_id} completed successfully.")
-                        self.update_pipeline_status(step_index, proc_exec.exec_id, ProcessStatus.COMPLETE)
+                        with status_lock:
+                            self.update_pipeline_status(step_index, proc_exec.exec_id, ProcessStatus.COMPLETE)
+                        return True
                     else:
                         logger.error(f"Process {proc_exec.exec_id} failed.")
-                        self.update_pipeline_status(step_index, proc_exec.exec_id, ProcessStatus.FAILED, error_msg="Process failed during execution.")
-                        return f"Pipeline {self.pipeline_id} execution halted due to failure."
+                        with status_lock:
+                            self.update_pipeline_status(step_index, proc_exec.exec_id, ProcessStatus.FAILED, error_msg="Process failed during execution.")
+                        failure = True
+                        failure_message = f"Pipeline {self.pipeline_id} execution halted due to failure in process {proc_exec.exec_id}."
+                        return False
                 
                 except Exception as e:
                     logger.error(f"Error executing process {proc_exec.exec_id}: {e}")
-                    self.update_pipeline_status(step_index, proc_exec.exec_id, ProcessStatus.FAILED, error_msg=str(e))
-                    return f"Pipeline {self.pipeline_id} execution halted due to error."
+                    with status_lock:
+                        self.update_pipeline_status(step_index, proc_exec.exec_id, ProcessStatus.FAILED, error_msg=str(e))
+                    failure = True
+                    failure_message = f"Pipeline {self.pipeline_id} execution halted due to error in process {proc_exec.exec_id}: {e}"
+                    return False
+            
+            # Start all processes in this step concurrently
+            with concurrent.futures.ThreadPoolExecutor(max_workers=len(step.process_execs)) as executor:
+                futures = {executor.submit(execute_and_monitor_process, proc_exec): proc_exec.exec_id for proc_exec in step.process_execs}
+                
+                # Wait for all processes to complete
+                all_succeeded = True
+                for future in concurrent.futures.as_completed(futures):
+                    proc_id = futures[future]
+                    try:
+                        success = future.result()
+                        all_succeeded = all_succeeded and success
+                    except Exception as e:
+                        logger.error(f"Exception in process {proc_id}: {e}")
+                        all_succeeded = False
+                
+                if not all_succeeded:
+                    # If any process failed, cancel all other running processes
+                    for exec_id, exec_obj in executors.items():
+                        if not exec_obj.is_done():
+                            logger.warning(f"Terminating process {exec_id} due to failure in other process")
+                            # Here we would ideally cancel the job, but that's specific to each scheduler
+                    
+                    return failure_message if failure_message else f"Pipeline {self.pipeline_id} execution halted due to failure."
 
             logger.info(f"Step {step_index + 1} completed.")
         
