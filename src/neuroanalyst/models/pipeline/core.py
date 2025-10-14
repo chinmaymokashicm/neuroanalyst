@@ -992,7 +992,7 @@ Execution Command: {self.execution_command if self.execution_command else 'Not g
                     df_merged: pd.DataFrame = pd.merge(
                         df_steps,
                         df_metrics,
-                        how="left",
+                        how="inner",
                         left_on=["step_idx", "process_id"],
                         right_on=["step_idx", "process_id"]
                     )
