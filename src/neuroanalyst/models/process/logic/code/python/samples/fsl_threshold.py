@@ -128,6 +128,6 @@ fslmaths {wm_temp_path} -thr {threshold} -bin {wm_output_path}
     }
     
     # Forced outputs - files that are saved are by the application but not NeuroAnalyst-compliant
-    forced_outputs: list = [csf_output_path, gm_output_path, wm_output_path]
+    forced_outputs: list = [csf_temp_path, gm_temp_path, wm_temp_path] + [csf_output_path, gm_output_path, wm_output_path]
 
     return output_data, metrics, output_entities, forced_outputs
