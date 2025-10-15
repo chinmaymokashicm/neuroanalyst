@@ -20,8 +20,11 @@ import subprocess
 from enum import Enum
 from pathlib import Path
 from typing import Optional, List, Dict, Any, Union, ClassVar
+from typing_extensions import Self
 import tempfile
 import string
+
+
 from pydantic import BaseModel, Field, field_validator, model_validator, validator, root_validator
 
 from ....utils.constants import NeuroAnalystPaths
@@ -131,6 +134,12 @@ class NeuProcessDir(BaseModel):
     _paths: ClassVar[NeuroAnalystPaths] = NeuroAnalystPaths()
     _template_dir: ClassVar[Path] = Path(__file__).parent / "templates"
     
+    @model_validator(mode="after")
+    def set_working_dir(self) -> Self:
+        """Set the working directory if the process_id is provided or has been generated."""
+        self.working_dir: Path = self._paths.workdir / self.process_id
+        return self
+    
     def __str__(self) -> str:
         """Return a human-readable string representation of the NeuProcessDir."""
         return f"NeuProcessDir(name='{self.name}', id='{self.process_id}')"
@@ -141,7 +150,7 @@ class NeuProcessDir(BaseModel):
         return f"NeuProcessDir(name='{self.name}', id='{self.process_id}', "\
                f"path='{self.process_dir if hasattr(self, 'process_dir') else None}', "\
                f"modes={modes})"
-    
+
     # Configuration modification methods
     def add_environment_variables(self, variables: Union[str, List[str]]) -> None:
         """
@@ -530,80 +539,74 @@ class NeuProcessDir(BaseModel):
         
         return cls(logic=logic, config=config)
     
-    @classmethod
-    def from_scripts(cls, 
-                    main_script: Path,
-                    install_script: Optional[Path] = None,
-                    metadata: Optional[Path] = None,
-                    additional_scripts: Optional[Dict[str, Path]] = None,
-                    config: Optional[NeuProcessDirConfig] = None) -> 'NeuProcessDir':
-        """
-        Create a NeuProcessDir from custom scripts.
+    # @classmethod
+    # def from_scripts(cls, 
+    #                 main_script: Path,
+    #                 install_script: Optional[Path] = None,
+    #                 metadata: Optional[Path] = None,
+    #                 additional_scripts: Optional[Dict[str, Path]] = None,
+    #                 config: Optional[NeuProcessDirConfig] = None) -> 'NeuProcessDir':
+    #     """
+    #     Create a NeuProcessDir from custom scripts.
         
-        Args:
-            main_script: Path to the main execution script
-            install_script: Path to the installation script (optional)
-            metadata: Path to metadata JSON file (optional)
-            additional_scripts: Dictionary of additional scripts (optional)
-            config: Optional configuration for the directory
+    #     Args:
+    #         main_script: Path to the main execution script
+    #         install_script: Path to the installation script (optional)
+    #         metadata: Path to metadata JSON file (optional)
+    #         additional_scripts: Dictionary of additional scripts (optional)
+    #         config: Optional configuration for the directory
             
-        Returns:
-            A new NeuProcessDir instance
-        """
-        script_paths = {"main": main_script}
+    #     Returns:
+    #         A new NeuProcessDir instance
+    #     """
+    #     script_paths = {"main": main_script}
         
-        if install_script:
-            script_paths["install"] = install_script
+    #     if install_script:
+    #         script_paths["install"] = install_script
             
-        if metadata:
-            script_paths["metadata"] = metadata
+    #     if metadata:
+    #         script_paths["metadata"] = metadata
             
-        if additional_scripts:
-            script_paths.update(additional_scripts)
+    #     if additional_scripts:
+    #         script_paths.update(additional_scripts)
             
-        if config is None:
-            config = NeuProcessDirConfig()
+    #     if config is None:
+    #         config = NeuProcessDirConfig()
             
-        return cls(script_paths=script_paths, config=config)
+    #     return cls(script_paths=script_paths, config=config)
     
     # Generation methods
-    def generate(self, target_dir: Optional[Path] = None) -> Path:
+    def generate(self) -> Path:
         """
         Generate the working directory structure.
         
-        Args:
-            target_dir: Target directory to create the process directory in.
-                      If None, uses the default workdir from NeuroAnalystPaths.
-                      
         Returns:
             Path to the generated working directory
         """
-        # Determine target directory
-        if target_dir is None:
-            target_dir = self._paths.workdir
+        if self.working_dir is None:
+            raise ValueError("Working directory is not set.")
             
         # Create process-specific working directory
-        process_dir = target_dir / self.process_id
-        process_dir.mkdir(parents=True, exist_ok=True)
-        self.working_dir = process_dir
+        self.working_dir.mkdir(parents=True, exist_ok=True)
         
         # Generate files based on source type
         if self.logic:
-            self._generate_from_logic(process_dir)
+            self._generate_from_logic(self.working_dir)
         elif self.script_paths:
-            self._generate_from_scripts(process_dir)
+            # self._generate_from_scripts(process_dir)
+            raise NotImplementedError("Generation from custom scripts is not yet implemented.")
             
         # Initialize script_paths dictionary if it doesn't exist
         if self.script_paths is None:
             self.script_paths = {}
             
         # Populate script_paths with all generated scripts
-        self._populate_script_paths(process_dir)
+        self._populate_script_paths(self.working_dir)
             
         # Save model JSON for reproducibility
-        self._save_model_json(process_dir)
-        
-        return process_dir
+        self._save_model_json(self.working_dir)
+
+        return self.working_dir
     
     def _generate_from_logic(self, process_dir: Path) -> None:
         """
@@ -625,6 +628,8 @@ class NeuProcessDir(BaseModel):
         if self.logic.language == ProgrammingLanguage.PYTHON:
             self._generate_python_main(process_dir)
         # Add support for other languages as needed
+        else:
+            raise NotImplementedError(f"Language {self.logic.language} not yet supported.")
         
         # Generate Singularity definition file
         self._generate_singularity_def(process_dir)
