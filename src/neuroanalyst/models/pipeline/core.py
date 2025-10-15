@@ -868,7 +868,6 @@ Execution Command: {self.execution_command if self.execution_command else 'Not g
                         "processing_date": data.get("ProcessingDate", ""),
                         "process_id": data.get("ProcessID", ""),
                         "process_exec_id": data.get("ProcessExecID", ""),
-                        "directory": data.get("Directory", ""),
                         "input_file": data.get("InputFile", ""),
                         "output_file": data.get("OutputFile", ""),
                         **bids_entities
