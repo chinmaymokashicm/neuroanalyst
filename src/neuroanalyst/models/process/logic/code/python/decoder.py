@@ -22,6 +22,8 @@ class PythonFunctionExtractor(ast.NodeVisitor):
         self.functions = []
         self.imports = []
         self.current_function = None
+        self.has_metrics = False
+        self.output_entities = {}
     
     def visit_Import(self, node):
         """Extract import statements."""
@@ -55,6 +57,9 @@ class PythonFunctionExtractor(ast.NodeVisitor):
                 source_lines = ast.unparse(node)  # Default fallback
             except Exception:
                 pass  # Will use ast.unparse(node) as fallback
+        
+        # Analyze function body for metrics and output_entities
+        self._analyze_function_body(node)
                 
         func_info = {
             'name': node.name,
@@ -63,10 +68,47 @@ class PythonFunctionExtractor(ast.NodeVisitor):
             'body': source_lines if source_lines else ast.unparse(node),
             'decorators': [ast.unparse(dec) for dec in node.decorator_list],
             'returns': ast.unparse(node.returns) if node.returns else None,
-            'lineno': node.lineno
+            'lineno': node.lineno,
+            'has_metrics': self.has_metrics,
+            'output_entities': self.output_entities
         }
         self.functions.append(func_info)
         self.generic_visit(node)
+    
+    def _analyze_function_body(self, node):
+        """Analyze function body to check for metrics dict and output_entities dict."""
+        self.has_metrics = False
+        self.output_entities = {}
+        
+        # Look for variable assignments in the function body
+        for stmt in ast.walk(node):
+            # Check for assignments
+            if isinstance(stmt, ast.Assign):
+                # Look for metrics dictionary
+                for target in stmt.targets:
+                    if isinstance(target, ast.Name) and target.id == 'metrics':
+                        # Check if it's assigned a dictionary
+                        if isinstance(stmt.value, ast.Dict):
+                            self.has_metrics = True
+                        elif isinstance(stmt.value, ast.Call) and isinstance(stmt.value.func, ast.Name) and stmt.value.func.id == 'dict':
+                            self.has_metrics = True
+                    
+                    # Look for output_entities dictionary
+                    if isinstance(target, ast.Name) and target.id == 'output_entities':
+                        if isinstance(stmt.value, ast.Dict):
+                            # Extract key-value pairs if it's a literal dictionary
+                            self._extract_dict_items(stmt.value)
+    
+    def _extract_dict_items(self, dict_node):
+        """Extract items from a dictionary node."""
+        if not isinstance(dict_node, ast.Dict):
+            return
+        
+        # Process each key-value pair
+        for key, value in zip(dict_node.keys, dict_node.values):
+            # Only extract string keys and string values
+            if isinstance(key, ast.Constant) and isinstance(key.value, str) and isinstance(value, ast.Constant) and isinstance(value.value, str):
+                self.output_entities[key.value] = value.value
     
     def _extract_arguments(self, args_node):
         """Extract function arguments with types and defaults."""
@@ -275,12 +317,32 @@ class PythonDecoder(BaseDecoder):
         else:
             clean_source = self._remove_imports_from_code(source)
         
+        # Try to parse the source code to extract metrics and output_entities
+        is_metrics_available = False
+        output_entities = {}
+        
+        try:
+            tree = ast.parse(source)
+            extractor = PythonFunctionExtractor()
+            extractor.visit(tree)
+            
+            if extractor.has_metrics:
+                is_metrics_available = True
+            
+            if extractor.output_entities:
+                output_entities = extractor.output_entities
+        except:
+            # If parsing fails, use regex-based detection for metrics
+            is_metrics_available = bool(re.search(r'\bmetrics\s*=\s*{', source) or re.search(r'\bmetrics\s*=\s*dict\(', source))
+        
         return NeuProcessLogic(
             about=about,
             language=ProgrammingLanguage.PYTHON,
             code=clean_source,
             import_statements=imports,
-            arguments=arguments
+            arguments=arguments,
+            is_metrics_available=is_metrics_available,
+            output_entities=output_entities
         )
     
     def validate_code(self, code: str) -> bool:
@@ -385,13 +447,19 @@ class PythonDecoder(BaseDecoder):
                 # Fallback to standard import removal
                 clean_code = self._remove_imports_from_function_body(func_info['body'])
         
+        # Get metrics and output_entities info
+        is_metrics_available = func_info.get('has_metrics', False)
+        output_entities = func_info.get('output_entities', {})
+        
         return NeuProcessLogic(
             about=about,
             language=ProgrammingLanguage.PYTHON,
             code=clean_code,
             import_statements=imports,
             arguments=arguments,
-            logic_kind=logic_kind
+            logic_kind=logic_kind,
+            is_metrics_available=is_metrics_available,
+            output_entities=output_entities
         )
     
     def _fallback_decode(self, code: str, function_name: Optional[str] = None) -> NeuProcessLogic:
@@ -423,12 +491,19 @@ class PythonDecoder(BaseDecoder):
             version="1.0.0"
         )
         
+        # For fallback mode, try to detect metrics and output_entities with regex
+        is_metrics_available = bool(re.search(r'\bmetrics\s*=\s*{', code) or re.search(r'\bmetrics\s*=\s*dict\(', code))
+        
+        # For output_entities, we can't reliably extract key-value pairs with regex in fallback mode
+        
         return NeuProcessLogic(
             about=about,
             language=ProgrammingLanguage.PYTHON,
             code=code,  # Keep original code as-is
             import_statements=[],  # Cannot reliably extract imports with regex
-            arguments=[]  # Cannot reliably extract arguments with regex
+            arguments=[],  # Cannot reliably extract arguments with regex
+            is_metrics_available=is_metrics_available,
+            output_entities={}  # Empty dict for fallback mode
         )
     
     def _extract_imports_from_code(self, code: str) -> List[str]:
