@@ -11,6 +11,7 @@ mkdir -p $HOME/neuroanalyst/logs
 mkdir -p $HOME/neuroanalyst/datasets
 mkdir -p $HOME/neuroanalyst/virtual_environments
 mkdir -p $HOME/neuroanalyst/config
+mkdir -p $HOME/neuroanalyst/functions
 
 # Function to check and add environment variable
 add_env_var() {
@@ -36,6 +37,7 @@ add_env_var "NEUROANALYST_REPORTS" "export NEUROANALYST_REPORTS=\$NEUROANALYST_H
 add_env_var "NEUROANALYST_LOGS" "export NEUROANALYST_LOGS=\$NEUROANALYST_HOME/logs"
 add_env_var "NEUROANALYST_DATASETS" "export NEUROANALYST_DATASETS=\$NEUROANALYST_HOME/datasets"
 add_env_var "NEUROANALYST_CONFIG" "export NEUROANALYST_CONFIG=\$NEUROANALYST_HOME/config"
+add_env_var "NEUROANALYST_FUNCTIONS" "export NEUROANALYST_FUNCTIONS=\$NEUROANALYST_HOME/functions"
 add_env_var "NEUROANALYST_DB_HOST" "export NEUROANALYST_DB_HOST=localhost"
 add_env_var "NEUROANALYST_DB_PORT" "export NEUROANALYST_DB_PORT=27017"
 add_env_var "NEUROANALYST_DB_NAME" "export NEUROANALYST_DB_NAME=neuroanalyst"
