@@ -86,18 +86,20 @@ class PythonFunctionExtractor(ast.NodeVisitor):
             if isinstance(stmt, ast.Assign):
                 # Look for metrics dictionary
                 for target in stmt.targets:
-                    if isinstance(target, ast.Name) and target.id == 'metrics':
-                        # Check if it's assigned a dictionary
-                        if isinstance(stmt.value, ast.Dict):
+                    if isinstance(target, ast.Name):
+                        if target.id == 'metrics':
+                            # Any assignment to 'metrics' is considered a metrics dictionary
                             self.has_metrics = True
-                        elif isinstance(stmt.value, ast.Call) and isinstance(stmt.value.func, ast.Name) and stmt.value.func.id == 'dict':
-                            self.has_metrics = True
-                    
-                    # Look for output_entities dictionary
-                    if isinstance(target, ast.Name) and target.id == 'output_entities':
-                        if isinstance(stmt.value, ast.Dict):
-                            # Extract key-value pairs if it's a literal dictionary
-                            self._extract_dict_items(stmt.value)
+                        
+                        # Look for output_entities dictionary
+                        elif target.id == 'output_entities':
+                            if isinstance(stmt.value, ast.Dict):
+                                # Extract key-value pairs if it's a literal dictionary
+                                self._extract_dict_items(stmt.value)
+                            # Handle variable references too
+                            elif isinstance(stmt.value, ast.Name):
+                                # Can't extract the contents directly, but note that it exists
+                                pass
     
     def _extract_dict_items(self, dict_node):
         """Extract items from a dictionary node."""
@@ -106,9 +108,50 @@ class PythonFunctionExtractor(ast.NodeVisitor):
         
         # Process each key-value pair
         for key, value in zip(dict_node.keys, dict_node.values):
-            # Only extract string keys and string values
-            if isinstance(key, ast.Constant) and isinstance(key.value, str) and isinstance(value, ast.Constant) and isinstance(value.value, str):
-                self.output_entities[key.value] = value.value
+            # Check for string keys first
+            if isinstance(key, ast.Constant) and isinstance(key.value, str):
+                # Extract the value using our helper method that handles nested structures
+                extracted_value = self._extract_value(value)
+                self.output_entities[key.value] = extracted_value
+    
+    def _extract_value(self, value_node):
+        """
+        Recursively extract value from an AST node, preserving structure for dictionaries.
+        This handles nested dictionaries, lists, and other complex structures.
+        """
+        # Handle different types of values
+        if isinstance(value_node, ast.Constant):
+            # Direct values (strings, numbers, booleans, etc.)
+            return str(value_node.value)
+            
+        elif isinstance(value_node, ast.Dict):
+            # Handle nested dictionaries by recursively processing them
+            result = {}
+            for k, v in zip(value_node.keys, value_node.values):
+                if isinstance(k, ast.Constant) and isinstance(k.value, str):
+                    result[k.value] = self._extract_value(v)
+            return result
+            
+        elif isinstance(value_node, ast.List):
+            # Handle lists by recursively processing each element
+            result = []
+            for item in value_node.elts:
+                result.append(self._extract_value(item))
+            return str(result)  # Convert the final list to a string
+            
+        elif isinstance(value_node, ast.Name):
+            # Variable references
+            return f"var:{value_node.id}"
+            
+        elif isinstance(value_node, ast.Call):
+            # Function calls
+            if isinstance(value_node.func, ast.Name):
+                return f"func:{value_node.func.id}()"
+            return "function_call"
+            
+        else:
+            # For any other expressions
+            return "expression"
     
     def _extract_arguments(self, args_node):
         """Extract function arguments with types and defaults."""
@@ -318,7 +361,7 @@ class PythonDecoder(BaseDecoder):
             clean_source = self._remove_imports_from_code(source)
         
         # Try to parse the source code to extract metrics and output_entities
-        is_metrics_available = False
+        has_metrics = False
         output_entities = {}
         
         try:
@@ -327,13 +370,16 @@ class PythonDecoder(BaseDecoder):
             extractor.visit(tree)
             
             if extractor.has_metrics:
-                is_metrics_available = True
+                has_metrics = True
             
             if extractor.output_entities:
                 output_entities = extractor.output_entities
-        except:
+        except Exception as e:
+            if self.config.verbose:
+                print(f"Warning: Error parsing source for metrics detection: {e}")
             # If parsing fails, use regex-based detection for metrics
-            is_metrics_available = bool(re.search(r'\bmetrics\s*=\s*{', source) or re.search(r'\bmetrics\s*=\s*dict\(', source))
+            # Any assignment to 'metrics' is considered a metrics dictionary
+            has_metrics = bool(re.search(r'\bmetrics\s*=', source))
         
         return NeuProcessLogic(
             about=about,
@@ -341,7 +387,7 @@ class PythonDecoder(BaseDecoder):
             code=clean_source,
             import_statements=imports,
             arguments=arguments,
-            is_metrics_available=is_metrics_available,
+            has_metrics=has_metrics,
             output_entities=output_entities
         )
     
@@ -448,8 +494,8 @@ class PythonDecoder(BaseDecoder):
                 clean_code = self._remove_imports_from_function_body(func_info['body'])
         
         # Get metrics and output_entities info
-        is_metrics_available = func_info.get('has_metrics', False)
-        output_entities = func_info.get('output_entities', {})
+        has_metrics: bool = func_info.get('has_metrics', False)
+        output_entities: dict = func_info.get('output_entities', {})
         
         return NeuProcessLogic(
             about=about,
@@ -457,8 +503,8 @@ class PythonDecoder(BaseDecoder):
             code=clean_code,
             import_statements=imports,
             arguments=arguments,
-            logic_kind=logic_kind,
-            is_metrics_available=is_metrics_available,
+            kind=logic_kind,  # Use "kind" instead of "logic_kind"
+            has_metrics=has_metrics,  # Keep original parameter name
             output_entities=output_entities
         )
     
@@ -492,7 +538,8 @@ class PythonDecoder(BaseDecoder):
         )
         
         # For fallback mode, try to detect metrics and output_entities with regex
-        is_metrics_available = bool(re.search(r'\bmetrics\s*=\s*{', code) or re.search(r'\bmetrics\s*=\s*dict\(', code))
+        # Any assignment to 'metrics' is considered a metrics dictionary
+        has_metrics = bool(re.search(r'\bmetrics\s*=', code))
         
         # For output_entities, we can't reliably extract key-value pairs with regex in fallback mode
         
@@ -502,7 +549,7 @@ class PythonDecoder(BaseDecoder):
             code=code,  # Keep original code as-is
             import_statements=[],  # Cannot reliably extract imports with regex
             arguments=[],  # Cannot reliably extract arguments with regex
-            is_metrics_available=is_metrics_available,
+            has_metrics=has_metrics,
             output_entities={}  # Empty dict for fallback mode
         )
     
