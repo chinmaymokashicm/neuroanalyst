@@ -17,9 +17,11 @@ from pathlib import Path
 from typing import Optional, List, Dict, Any, Union, ClassVar
 
 from pydantic import BaseModel, Field, field_validator, model_validator
+from bids import BIDSLayout
 
 from ....utils.constants import NeuroAnalystPaths
 from ....utils.id_generators import generate_process_exec_id
+from ....utils.bids import split_by_subject_session
 from ..process.core import NeuProcess
 from ..dir.core import ExecutionMode
 
@@ -70,16 +72,16 @@ class NeuProcessExec(BaseModel):
                                           description="Values for bind paths, keyed by bind path name")
     env_var_values: Dict[str, str] = Field(default_factory=dict,
                                          description="Values for environment variables, keyed by variable name")
+    command_flags: Optional[List[str]] = Field(default=None,
+                                                description="Additional command-line flags for the process. E.g., ['--verbose', '--fakeroot']")
+    scheduler_flags: Dict[str, int | float | str] = Field(default_factory=dict,
+                                         description="Scheduler-specific flags to pass to the scheduler command. E.g., {'queue': 'normal', 'mem': '4GB'}")
     
     # Execution options
     execution_mode: ExecutionMode = Field(default=ExecutionMode.CONTAINER,
                                         description="Mode of execution (venv, container, auto)")
     scheduler: HPCScheduler = Field(default=HPCScheduler.LSF,
                                   description="HPC scheduler to use (lsf, slurm, pbs, none)")
-    command_flags: Optional[List[str]] = Field(default=None,
-                                                description="Additional command-line flags for the process. E.g., ['--verbose', '--fakeroot']")
-    scheduler_flags: Dict[str, int | float | str] = Field(default_factory=dict,
-                                         description="Scheduler-specific flags to pass to the scheduler command. E.g., {'queue': 'normal', 'mem': '4GB'}")
 
     # Command storage
     script_path: Optional[Path] = Field(default=None,
@@ -187,26 +189,42 @@ class NeuProcessExec(BaseModel):
         except Exception as e:
             raise ValueError(f"Failed to load NeuProcessExec from disk: {e}")
     
+    @staticmethod
+    def spawn_optimized_execs(process: NeuProcess, bids_filters: dict, bids_layout: BIDSLayout, max_chunk_size: int = 5) -> List["NeuProcessExec"]:
+        """
+        Create multiple NeuProcessExec instances by splitting BIDS filters into optimized chunks.
+        This method uses the split_by_subject_session function to divide the BIDS query
+        into chunks that each return <= max_chunk_size files, while maintaining subject-session integrity.
+        
+        Args:
+            process: NeuProcess instance to execute
+            bids_filters: Base BIDS filters to apply (should not include 'subject' or 'session')
+            bids_layout: BIDSLayout object for querying the BIDS dataset
+            max_chunk_size: Maximum number of files per chunk (default: 5)
+        Returns:
+            List of NeuProcessExec instances, each configured with a chunk of BIDS filters
+        """
+        process_execs: list[NeuProcessExec] = []
+        for chunk in split_by_subject_session(bids_layout=bids_layout, bids_filters=bids_filters, max_chunk_size=max_chunk_size):
+            bids_filters: dict = chunk["bids_filters"]
+            process_exec: NeuProcessExec = NeuProcessExec.from_process(process)
+            process_exec.env_var_values["BIDS_FILTERS"] = json.dumps(bids_filters)
+            process_execs.append(process_exec)
+        return process_execs
+
     def __str__(self) -> str:
         """Return a human-readable string representation of the NeuProcessExec."""
-        if hasattr(self, 'process') and hasattr(self.process, 'process_id'):
-            process_id = self.process.process_id
-        else:
-            process_id = 'unknown'
-        
-        if hasattr(self, 'execution_id'):
-            exec_id = self.execution_id
-        else:
-            exec_id = 'unknown'
-            
-        return f"NeuProcessExec(id='{exec_id}', process_id='{process_id}')"
-    
+        process_id: str = self.process.process_id if hasattr(self, 'process') else 'unknown'
+        process_exec_id: str = self.exec_id if hasattr(self, 'exec_id') else 'unknown'
+
+        return f"NeuProcessExec(id='{process_exec_id}', process_id='{process_id}')"
+
     def __repr__(self) -> str:
         """Return a detailed string representation of the NeuProcessExec."""
         scheduler = getattr(self, 'scheduler', 'unknown')
         mode = getattr(self, 'execution_mode', 'unknown')
         
-        return f"NeuProcessExec(id='{getattr(self, 'execution_id', 'unknown')}', "\
+        return f"NeuProcessExec(id='{getattr(self, 'exec_id', 'unknown')}', "\
                f"process_id='{getattr(self.process, 'process_id', 'unknown') if hasattr(self, 'process') else 'unknown'}', "\
                f"mode='{mode}', scheduler='{scheduler}')"
     

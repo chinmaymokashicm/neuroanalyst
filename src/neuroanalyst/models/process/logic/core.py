@@ -59,7 +59,7 @@ else:
     ]
     
 # Remove 'subject' and 'session' from allowed keys as it's always handled separately
-forbidden_keys = ["subject", "session"]
+forbidden_keys = ["subject", "session", "scope"]
 for key in forbidden_keys:
     if key in ALLOWED_PYBIDS_ENTITY_KEYS:
         ALLOWED_PYBIDS_ENTITY_KEYS.remove(key)
@@ -153,10 +153,17 @@ class NeuProcessLogic(BaseModel):
                 
         return v
     
-    @model_validator("after")
-    def register_function(self) -> Self:
-        self.register()
-        return self
+    @classmethod
+    def from_func_name(cls, func_name: str) -> Self:
+        function_dir: Path = PATHS.get_function_workdir(func_name)
+        if not function_dir.exists():
+            raise FileNotFoundError(f"Function directory does not exist: {function_dir}")
+        model_file = function_dir / "model.json"
+        if not model_file.exists():
+            raise FileNotFoundError(f"Model file does not exist: {model_file}")
+        with model_file.open("r") as f:
+            model_data = json.load(f)
+        return cls.model_validate(model_data)
     
     def register(self) -> Path:
         """
@@ -169,13 +176,20 @@ class NeuProcessLogic(BaseModel):
         
         function_dir: Path = PATHS.get_function_workdir(self.about.name)
         if function_dir.exists():
-           raise FileExistsError(f"Function directory already exists: {function_dir}. Use a different function name or delete the existing directory.") 
+           raise FileExistsError(f"Function directory already exists: {function_dir} . Use a different function name or delete the existing directory.") 
         
         function_dir.mkdir(parents=True, exist_ok=False)
         
-        # Save the function code to a file
+        # Save the entire function (include imports) to a .py file
         function_file = function_dir / f"{self.about.name}.py"
         with function_file.open("w") as f:
+            # Write import statements
+            if self.import_statements:
+                for imp in self.import_statements:
+                    f.write(f"{imp}\n")
+                f.write("\n\n")  # Add some space after imports
+            
+            # Write the main code
             f.write(self.code)
             
         # Save the model to a JSON file

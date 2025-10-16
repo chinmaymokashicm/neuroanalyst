@@ -176,19 +176,6 @@ class NeuProcess(BaseModel):
         """Get the process configuration."""
         return self.process_dir.config
     
-    # Note: bind_paths and environment_variables are now explicit fields, so we don't need property methods for them.
-    # The properties below are kept for backwards compatibility and are now deprecated.
-    
-    @property
-    def process_bind_paths(self) -> List[str]:
-        """Get the bind paths from the underlying process_dir. Deprecated, use bind_paths field directly."""
-        return self.process_dir.config.bind_paths if self.process_dir.config else []
-    
-    @property
-    def process_environment_variables(self) -> List[str]:
-        """Get the environment variables from the underlying process_dir. Deprecated, use environment_variables field directly."""
-        return self.process_dir.config.environment_variables if self.process_dir.config else []
-    
     @property
     def process_name(self) -> str:
         """Get the process name."""

@@ -82,7 +82,7 @@ class PythonFunctionExtractor(ast.NodeVisitor):
         
         # Look for variable assignments in the function body
         for stmt in ast.walk(node):
-            # Check for assignments
+            # Check for regular assignments
             if isinstance(stmt, ast.Assign):
                 # Look for metrics dictionary
                 for target in stmt.targets:
@@ -100,6 +100,24 @@ class PythonFunctionExtractor(ast.NodeVisitor):
                             elif isinstance(stmt.value, ast.Name):
                                 # Can't extract the contents directly, but note that it exists
                                 pass
+            
+            # Check for annotated assignments (variables with type annotations)
+            elif isinstance(stmt, ast.AnnAssign):
+                if isinstance(stmt.target, ast.Name):
+                    # Check if this is a metrics variable with type annotation
+                    if stmt.target.id == 'metrics':
+                        # Any annotated assignment to 'metrics' is also considered a metrics dictionary
+                        self.has_metrics = True
+                    
+                    # Check if this is an output_entities variable with type annotation
+                    elif stmt.target.id == 'output_entities':
+                        if isinstance(stmt.value, ast.Dict):
+                            # Extract key-value pairs from the dictionary
+                            self._extract_dict_items(stmt.value)
+                        # Handle variable references for annotated assignments too
+                        elif isinstance(stmt.value, ast.Name):
+                            # Can't extract the contents directly, but note that it exists
+                            pass
     
     def _extract_dict_items(self, dict_node):
         """Extract items from a dictionary node."""
@@ -211,6 +229,7 @@ class PythonDecoder(BaseDecoder):
         """
         if not self.validate_code(code):
             if self.config.fallback_on_syntax_error:
+                print("Warning: Invalid Python syntax. Using fallback decoder.")
                 return self._fallback_decode(code, function_name)
             else:
                 raise ValueError("Invalid Python code")
@@ -282,6 +301,7 @@ class PythonDecoder(BaseDecoder):
                 raise ValueError(f"Invalid Python syntax: {e}")
             else:
                 # Try to extract what we can with regex fallback
+                print(f"Warning: Syntax error encountered: {e}. Using fallback decoder.")
                 return self._fallback_decode(code, function_name)
     
     def decode_from_file(self, file_path: Union[str, Path], 
@@ -378,8 +398,8 @@ class PythonDecoder(BaseDecoder):
             if self.config.verbose:
                 print(f"Warning: Error parsing source for metrics detection: {e}")
             # If parsing fails, use regex-based detection for metrics
-            # Any assignment to 'metrics' is considered a metrics dictionary
-            has_metrics = bool(re.search(r'\bmetrics\s*=', source))
+            # Detect both regular assignments and type-annotated assignments to metrics
+            has_metrics = bool(re.search(r'\bmetrics\s*(?::\s*\w+\s*)?=', source))
         
         return NeuProcessLogic(
             about=about,
@@ -441,7 +461,8 @@ class PythonDecoder(BaseDecoder):
         about = About(
             name=name,
             description=description,
-            version=version
+            version=version,
+            author="Unknown"  # Author extraction can be added if needed
         )
         
         # Use original function code if available to preserve formatting
@@ -534,12 +555,13 @@ class PythonDecoder(BaseDecoder):
         about = About(
             name=target_name,
             description=f"Function {target_name} (parsed with fallback method)",
-            version="1.0.0"
+            version="1.0.0",
+            author="Unknown"
         )
         
         # For fallback mode, try to detect metrics and output_entities with regex
-        # Any assignment to 'metrics' is considered a metrics dictionary
-        has_metrics = bool(re.search(r'\bmetrics\s*=', code))
+        # Detect both regular assignments and type-annotated assignments to metrics
+        has_metrics = bool(re.search(r'\bmetrics\s*(?::\s*\w+\s*)?=', code))
         
         # For output_entities, we can't reliably extract key-value pairs with regex in fallback mode
         

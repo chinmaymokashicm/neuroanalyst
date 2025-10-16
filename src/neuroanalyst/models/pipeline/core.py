@@ -25,12 +25,13 @@ from typing import Optional, List, Dict, Any, Union, Set, ClassVar, Literal
 
 from pydantic import BaseModel, Field, model_validator
 import pandas as pd
+from bids import BIDSLayout
 
 from ...utils.constants import NeuroAnalystPaths
 from ...utils.id_generators import generate_id
 from ..about import About
 from ..bids import BIDSDatasetDescription, BIDSGeneratedByToolInfo, PipelineDescriptionSpec
-from ..process.exec.core import NeuProcessExec, HPCScheduler
+from ..process.exec.core import NeuProcessExec, HPCScheduler, ExecutionMode
 from ..process.process.core import NeuProcess
 from .executor import ProcessStatus, LSFExecutor, SLURMExecutor, PBSExecutor, LocalExecutor
 
@@ -144,35 +145,41 @@ class NeuPipelineStep(BaseModel):
     
     def __str__(self) -> str:
         """Return a human-readable string representation of the NeuPipelineStep."""
-        processes = len(getattr(self, 'processes', [])) if hasattr(self, 'processes') else 0
-        # return f"NeuPipelineStep(name='{self.name}', processes={processes})"
+        process_execs_count = len(getattr(self, 'process_execs', [])) if hasattr(self, 'process_execs') else 0
+        # return f"NeuPipelineStep(name='{self.name}', process_execs={process_execs_count})"
         detailed_info: str = f"""
         Name: {self.name}
         Description: {self.description if self.description else 'None'}
-        Processes: {processes}
-        Steps: {getattr(self, 'process_execs', []) if hasattr(self, 'process_execs') else 'None'}
+        Process Execs: {process_execs_count}
+        Process Execs: {getattr(self, 'process_execs', []) if hasattr(self, 'process_execs') else 'None'}
         Status: {getattr(self, 'status', 'None') if hasattr(self, 'status') else 'None'}
         """
         return detailed_info
 
     def __repr__(self) -> str:
         """Return a detailed string representation of the NeuPipelineStep."""
-        processes = getattr(self, 'processes', []) if hasattr(self, 'processes') else []
-        process_ids = [p.execution_id for p in processes] if processes else []
+        process_execs = getattr(self, 'process_execs', []) if hasattr(self, 'process_execs') else []
+        process_exec_ids = [p.exec_id for p in process_execs] if process_execs else []
         
         return f"NeuPipelineStep(name='{self.name}', "\
                f"description='{self.description if self.description else 'None'}', "\
-               f"processes={process_ids})"
+               f"process_execs={process_exec_ids})"
     
     @model_validator(mode='after')
     def validate_process_execs(self) -> 'NeuPipelineStep':
         """Validate that there is at least one process exec in the step."""
-        # For testing purposes, we're temporarily disabling this validation
-        # In production code, uncomment the following check
-        # if not self.process_execs:
-        #     raise ValueError("Pipeline step must contain at least one process execution")
+        if not self.process_execs:
+            raise ValueError("Pipeline step must contain at least one process execution")
         return self
-
+    
+    def add_process_exec(self, proc_exec: NeuProcessExec) -> None:
+        """Add a NeuProcessExec instance to the step."""
+        if not isinstance(proc_exec, NeuProcessExec):
+            raise TypeError("proc_exec must be an instance of NeuProcessExec")
+        if proc_exec in self.process_execs:
+            print(f"ProcessExec {proc_exec.exec_id} already in step {self.name}")
+            return
+        self.process_execs.append(proc_exec)
 
 class NeuPipeline(BaseModel):
     """
@@ -243,7 +250,7 @@ class NeuPipeline(BaseModel):
         step_details = []
         for i, step in enumerate(steps):
             proc_execs = getattr(step, 'process_execs', []) if hasattr(step, 'process_execs') else []
-            step_details.append(f"Step {i+1}: {step.name}, Processes: {[f"{proc_exec.process.process_id} - {proc_exec.exec_id}" for proc_exec in proc_execs]}")
+            step_details.append(f"Step {i+1}: {step.name}, Process Executions: {[f"{proc_exec.process.process_id} - {proc_exec.exec_id}" for proc_exec in proc_execs]}")
         
         name = getattr(self.about, 'name', 'unnamed') if hasattr(self, 'about') else 'unnamed'
         
@@ -295,6 +302,247 @@ Execution Command: {self.execution_command if self.execution_command else 'Not g
                 raise ValueError("Pipeline execution script has not been generated yet. "
                                 "Call create_pipeline_dir() first.")
         return self.execution_command
+
+    @classmethod
+    def constructor(
+        cls,
+        about_pipeline: About | dict,
+        bids_root: str | Path,
+        step_defs: List[List[str | List[str]]],
+        starting_bids_filters: dict[str, str],
+        execution_mode: str | ExecutionMode,
+        scheduler: HPCScheduler,
+        starting_scope: str = "raw"
+    ):
+        """
+        Construct a NeuPipeline instance from high-level definitions.
+        Args:
+            about_pipeline (About | dict): Metadata about the pipeline. If dict, requires keys: name, description, version, author.
+            bids_root (str | Path): Path to the BIDS dataset root directory.
+            step_defs (List[List[str | List[str]]]): List of steps, each defined by [name, description, process_ids].
+            starting_bids_filters (dict): BIDS filters to apply to the first step.
+            execution_mode (ExecutionMode): Execution mode for all processes (CONTAINER or VENV).
+            starting_scope (str): Scope to use for the first step.
+            scheduler (HPCScheduler): HPC scheduler to use for all processes.
+            
+        Returns:
+            NeuPipeline: The constructed NeuPipeline instance.
+        """
+        # Define default scheduler flags for each scheduler
+        default_scheduler_flags = {
+            HPCScheduler.LSF : {"-n": 2, "-q": "medium", "-M": "20GB", "-W": "12:00"},
+            HPCScheduler.SLURM : {"--cpus-per-task": 2, "--partition": "medium", "--mem": "20G", "--time": "12:00:00"},
+            HPCScheduler.PBS : {"-l": "nodes=1:ppn=2,mem=20gb,walltime=12:00:00", "-q": "medium"},
+            HPCScheduler.LOCAL : {}
+        }
+        bids_root: str = str(bids_root)
+        execution_mode: ExecutionMode = execution_mode if isinstance(execution_mode, ExecutionMode) else ExecutionMode(execution_mode)
+        
+        # Validate structure of step_defs
+        paths = NeuroAnalystPaths()
+        for step_idx, step_def in enumerate(step_defs):
+            if len(step_def) != 3:
+                raise ValueError(f"Step {step_idx} must contain exactly 3 elements: Name, Description, Process IDs")
+            if not all(isinstance(item, str) for item in step_def[:2]):
+                raise ValueError(f"Step {step_idx} name and description must be strings")
+            if not all(isinstance(item, (str, list)) for item in step_def[2]):
+                raise ValueError(f"Step {step_idx} process IDs must be strings or lists of strings")
+            # Check if all process IDs in the step are unique and exist
+            if len(step_def[2]) != len(set(step_def[2])):
+                print(f"Step definition: {step_def}")
+                raise ValueError(f"Step {step_idx} contains duplicate process IDs")
+            # Check if all process IDs are unique in the step
+            if len(step_def[2]) != len(set(step_def[2])):
+                raise ValueError(f"Step {step_idx} contains duplicate process IDs")
+            # Check if all process IDs exist
+            for proc_id in step_def[2]:
+                if not paths.get_process_workdir(proc_id).exists():
+                    raise ValueError(f"Process ID '{proc_id}' in step {step_idx} does not exist")
+            
+        bids_layout: BIDSLayout = BIDSLayout(bids_root, derivatives=True)
+        about_pipeline: About = About.model_validate(about_pipeline) if isinstance(about_pipeline, dict) else about_pipeline
+        
+        steps: List[NeuPipelineStep] = []
+        for step_idx, step_def in enumerate(step_defs):
+            step_name, step_description, process_ids = step_def
+            step_proc_execs: list[NeuProcessExec] = []
+            bids_filters: dict = starting_bids_filters
+            for proc_id in process_ids:
+                process: NeuProcess = NeuProcess.from_process_id(proc_id)
+                if execution_mode == ExecutionMode.CONTAINER:
+                    # Check if process image exists
+                    if not paths.get_process_image_path(proc_id).exists():
+                        raise ValueError(f"Process ID '{proc_id}' does not have a container image")
+                elif execution_mode == ExecutionMode.VENV:
+                    # Check if process venv exists
+                    if not paths.get_venv_path(proc_id).exists():
+                        raise ValueError(f"Process ID '{proc_id}' does not have a virtual environment")
+                else:
+                    raise ValueError(f"Invalid execution mode: {execution_mode}")
+                
+                # Apply BIDS filters to all processes.
+                process_execs: list[NeuProcessExec] = NeuProcessExec.spawn_optimized_execs(process, bids_filters, bids_layout)
+                for proc_exec in process_execs:
+                    # Set scope in BIDS filters
+                    bids_filters_str: str = proc_exec.env_var_values.get("BIDS_FILTERS", "{}")
+                    bids_filters: dict = json.loads(bids_filters_str) if bids_filters_str else {}
+                    if "scope" in bids_filters:
+                        raise ValueError(f"'scope' should not be set in BIDS filters for process exec {proc_exec.exec_id}. It is handled separately.")
+                    if step_idx == 0:
+                        # First step - use starting_scope
+                        bids_filters["scope"] = starting_scope
+                    else:
+                        bids_filters["scope"] = about_pipeline.name
+                    proc_exec.set_env_var_value("BIDS_FILTERS", json.dumps(bids_filters))
+                    
+                    # Set default scheduler flags if not already set
+                    if not proc_exec.scheduler_flags:
+                        proc_exec.set_scheduler_flags(default_scheduler_flags[scheduler])
+                        
+                    # Set /data bind path if not already set
+                    if "/data" not in proc_exec.bind_path_values:
+                        proc_exec.set_bind_path_value("/data", bids_root)
+
+                    # Set execution mode
+                    proc_exec.execution_mode = execution_mode
+
+                    step_proc_execs.append(proc_exec)
+                
+                # Update bids_filters for the next process in the step
+                # Assume that the output scope of the current process becomes the input scope for the next
+                first_proc_id: NeuProcess = NeuProcess.from_process_id(process_ids[0])
+                bids_filters = first_proc_id.process_dir.logic.output_entities if first_proc_id.process_dir and first_proc_id.process_dir.logic else {}
+            
+            step: NeuPipelineStep = NeuPipelineStep(
+                name=step_name,
+                description=step_description,
+                process_execs=step_proc_execs
+            )
+            steps.append(step)
+            
+        pipeline: NeuPipeline = NeuPipeline(
+            about=about_pipeline,
+            steps=steps,
+            scheduler=scheduler,
+            bids_root=bids_root
+        )
+        return pipeline
+                
+    def add_step(self, step: NeuPipelineStep) -> None:
+        """Add a NeuPipelineStep instance to the pipeline."""
+        if not isinstance(step, NeuPipelineStep):
+            raise TypeError("step must be an instance of NeuPipelineStep")
+        self.steps.append(step)
+
+    def add_bind_path(self, container_path: str, host_path: str, step_idx: Optional[int] = None, exec_id: Optional[str] = None) -> None:
+        """
+        Add a bind-mount path to a specific process execution in a step.
+        
+        Args:
+            container_path: The path inside the container
+            host_path: The path on the host machine
+            step_idx: The index of the step in the pipeline. If None, apply to all steps.
+            exec_id: The execution ID of the specific process to modify. If None and step_ids is not None, apply to all processes in the step.
+            
+        Raises:
+            IndexError: If step_idx is out of range
+            ValueError: If exec_id is not found in the specified step
+        """
+        if step_idx is not None:
+            if step_idx < 0 or step_idx >= len(self.steps):
+                raise IndexError("step_idx out of range")
+
+        # If step_idx is None, apply to all steps
+        if step_idx is None:
+            for idx in range(len(self.steps)):
+                self.add_bind_path(container_path, host_path, idx, exec_id)
+            return
+        
+        step: NeuPipelineStep = self.steps[step_idx]
+        
+        # If exec_id is None, add the bind path to all process execs in the step
+        if exec_id is None:
+            for proc_exec in step.process_execs:
+                proc_exec.set_bind_path_value(container_path, host_path)
+            return
+        for proc_exec in step.process_execs:
+            if proc_exec.exec_id == exec_id:
+                proc_exec.set_bind_path_value(container_path, host_path)
+                return
+        raise ValueError(f"exec_id '{exec_id}' not found in step {step_idx}")
+    
+    def add_env_var(self, var_name: str, var_value: str, step_idx: Optional[int] = None, exec_id: Optional[str] = None) -> None:
+        """
+        Add an environment variable to a specific process execution in a step.
+        
+        Args:
+            var_name: The name of the environment variable
+            var_value: The value of the environment variable to set
+            step_idx: The index of the step in the pipeline. If None, apply to all steps.
+            exec_id: The execution ID of the specific process to modify. If None and step_ids is not None, apply to all processes in the step.
+            
+        Raises:
+            IndexError: If step_idx is out of range
+            ValueError: If exec_id is not found in the specified step
+        """
+        if step_idx is not None:
+            if step_idx < 0 or step_idx >= len(self.steps):
+                raise IndexError("step_idx out of range")
+        
+        # If step_idx is None, apply to all steps
+        if step_idx is None:
+            for idx in range(len(self.steps)):
+                self.add_env_var(var_name, var_value, idx, exec_id)
+            return
+        
+        step: NeuPipelineStep = self.steps[step_idx]
+        
+        # If exec_id is None, add the env var to all process execs in the step
+        if exec_id is None:
+            for proc_exec in step.process_execs:
+                proc_exec.set_env_var_value(var_name, var_value)
+            return
+        for proc_exec in step.process_execs:
+            if proc_exec.exec_id == exec_id:
+                proc_exec.set_env_var_value(var_name, var_value)
+                return
+        raise ValueError(f"exec_id '{exec_id}' not found in step {step_idx}")
+
+    def add_scheduler_flags(self, flags: dict, step_idx: Optional[int] = None, exec_id: Optional[str] = None) -> None:
+        """
+        Add scheduler flags to a specific process execution in a step.
+        
+        Args:
+            flags: A dictionary of scheduler flags to set
+            step_idx: The index of the step in the pipeline. If None, apply to all steps.
+            exec_id: The execution ID of the specific process to modify. If None and step_ids is not None, apply to all processes in the step.
+            
+        Raises:
+            IndexError: If step_idx is out of range
+            ValueError: If exec_id is not found in the specified step
+        """
+        if step_idx is not None:
+            if step_idx < 0 or step_idx >= len(self.steps):
+                raise IndexError("step_idx out of range")
+        
+        # If step_idx is None, apply to all steps
+        if step_idx is None:
+            for idx in range(len(self.steps)):
+                self.add_scheduler_flags(flags, idx, exec_id)
+            return
+        
+        step: NeuPipelineStep = self.steps[step_idx]
+        
+        # If exec_id is None, add the flags to all process execs in the step
+        if exec_id is None:
+            for proc_exec in step.process_execs:
+                proc_exec.set_scheduler_flags(flags)
+            return
+        for proc_exec in step.process_execs:
+            if proc_exec.exec_id == exec_id:
+                proc_exec.set_scheduler_flags(flags)
+                return
+        raise ValueError(f"exec_id '{exec_id}' not found in step {step_idx}")
 
     def apply_standard_exec_params(self):
         """Apply standard execution parameters to all processes in the pipeline."""
@@ -349,7 +597,7 @@ Execution Command: {self.execution_command if self.execution_command else 'Not g
         """Create the pipeline directory structure."""
         # Create the main pipeline directory
         pipeline_dir = self.pipeline_dir_path
-        pipeline_dir.mkdir(parents=True, exist_ok=True)
+        pipeline_dir.mkdir(parents=True, exist_ok=False)
         
         # Initialize status tracking
         self._initialize_status_tracking()
@@ -477,9 +725,9 @@ Execution Command: {self.execution_command if self.execution_command else 'Not g
                 lines.append(step.description)
                 lines.append("")
             
-            lines.append("Processes:")
+            lines.append("Process Executions:")
             for j, proc_exec in enumerate(step.process_execs):
-                lines.append(f"- **Process {j+1}:** {proc_exec.exec_id}")
+                lines.append(f"- **Process Execution {j+1}:** {proc_exec.exec_id}")
         
         # Add usage instructions
         lines.append("")
@@ -838,7 +1086,6 @@ Execution Command: {self.execution_command if self.execution_command else 'Not g
             - process exec ID
             - processing time
             - processing date
-            - directory
             - input file path
             - output file path
             - BIDS entities (subject, session, etc.)
