@@ -5,6 +5,7 @@ This module defines the FastAPI router for the NeuProcess endpoints.
 It provides endpoints to create and manage NeuProcess instances.
 """
 
+import json
 from fastapi import APIRouter, HTTPException, Query, Depends
 from pydantic import BaseModel
 from typing import Dict, Any, List, Optional
@@ -65,7 +66,7 @@ async def get_all_processes(
         else:
             # If database not connected, list processes from filesystem
             workdir = PATHS.workdir
-            image_dir = PATHS.images
+            image_dir = PATHS.process_images
             
             # List all process directories
             process_dirs = []
@@ -121,7 +122,7 @@ async def get_all_processes(
 
 
 @router.get("/{process_id}", response_model=Dict[str, Any])
-async def get_process(process_id: str, db_client: MongoDBClient = Depends(get_db_client)):
+async def get_process(process_id: str, db_client: MongoDBClient = Depends(get_db_client)) -> Dict[str, Any]:
     """
     Get details of a specific NeuProcess.
     
@@ -137,40 +138,15 @@ async def get_process(process_id: str, db_client: MongoDBClient = Depends(get_db
         process_data = None
         if db_client.is_connected():
             process_data = db_client.find_one_document(
-                CollectionNames.PROCESS, 
+                CollectionNames.PROCESSES, 
                 query={"process_id": process_id}
             )
         
         # If not found in database, try to load from filesystem
         if not process_data:
             try:
-                # Try to find the process directory
-                process_dir_path = os.path.join(PATHS.workdir, process_id)
-                if os.path.exists(process_dir_path):
-                    # Load NeuProcessDir from model.json
-                    model_file = os.path.join(process_dir_path, "model.json")
-                    if os.path.exists(model_file):
-                        process_dir = NeuProcessDir.from_json(model_file)
-                        
-                        # Check if image exists
-                        image_path = ""
-                        image_file = f"{process_id}.sif"
-                        if os.path.exists(os.path.join(PATHS.images, image_file)):
-                            image_path = os.path.join(PATHS.images, image_file)
-                        
-                        # Create NeuProcess
-                        process = NeuProcess(
-                            process_id=process_id,
-                            process_dir=process_dir,
-                            image_path=image_path
-                        )
-                        
-                        # Convert to dict
-                        process_data = process.model_dump()
-                    else:
-                        raise HTTPException(status_code=404, detail=f"Process {process_id} model file not found")
-                else:
-                    raise HTTPException(status_code=404, detail=f"Process {process_id} directory not found")
+                process: NeuProcess = NeuProcess.from_process_id(process_id)
+                process_data: Dict[str, Any] = process.model_dump()
             except Exception as e:
                 raise HTTPException(status_code=404, detail=f"Process {process_id} not found: {str(e)}")
         
@@ -469,7 +445,7 @@ async def delete_process(process_id: str, db_client: MongoDBClient = Depends(get
             )
         
         # Check if image exists and delete it
-        image_path = os.path.join(PATHS.images, f"{process_id}.sif")
+        image_path = os.path.join(PATHS.process_images, f"{process_id}.sif")
         if os.path.exists(image_path):
             os.remove(image_path)
         

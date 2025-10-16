@@ -76,6 +76,11 @@ class NeuroAnalystPaths:
         return self.images / 'base'
     
     @property
+    def process_images(self) -> Path:
+        """Directory for process Singularity images."""
+        return self.images / 'processes'
+    
+    @property
     def docs(self) -> Path:
         """Directory for Apptainer/Singularity documentation and def files."""
         return Path(self._docs)
@@ -151,6 +156,7 @@ class NeuroAnalystPaths:
             self.home,
             self.images,
             self.base_images,
+            self.process_images,
             self.docs,
             self.workdir,
             self.reports,
@@ -204,7 +210,7 @@ class NeuroAnalystPaths:
             filename = f"{process_name}_v{version}.sif"
         else:
             filename = f"{process_name}.sif"
-        return self.images / filename
+        return self.process_images / filename
     
     def get_base_image_path(self, base_image_name: str) -> Path:
         """

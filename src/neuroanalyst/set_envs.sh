@@ -13,6 +13,9 @@ mkdir -p $HOME/neuroanalyst/virtual_environments
 mkdir -p $HOME/neuroanalyst/config
 mkdir -p $HOME/neuroanalyst/functions
 
+mkdir -p $HOME/neuroanalyst/apptainer/images/base
+mkdir -p $HOME/neuroanalyst/apptainer/images/processes
+
 # Function to check and add environment variable
 add_env_var() {
     local var_name=$1
