@@ -52,6 +52,8 @@ class NeuroAnalystPaths:
                                       os.path.join(self._home, 'process_execs'))
         self._config = os.getenv('NEUROANALYST_CONFIG',
                                 os.path.join(self._home, 'config'))
+        self._functions = os.getenv('NEUROANALYST_FUNCTIONS',
+                                   os.path.join(self._home, 'functions'))
         
         # MongoDB configuration
         self._db_host = os.getenv('NEUROANALYST_DB_HOST', 'localhost')
@@ -119,6 +121,11 @@ class NeuroAnalystPaths:
         return Path(self._config)
 
     @property
+    def functions(self) -> Path:
+        """Directory for function files."""
+        return Path(self._functions)
+
+    @property
     def db_host(self) -> str:
         """MongoDB host."""
         return self._db_host
@@ -152,6 +159,7 @@ class NeuroAnalystPaths:
             self.venvs,
             self.process_execs,
             self.config,
+            self.functions
         ]
         
         for directory in directories:
@@ -250,6 +258,18 @@ class NeuroAnalystPaths:
         else:
             filename = f"{component}.log"
         return self.logs / filename
+    
+    def get_function_workdir(self, function_name: str) -> Path:
+        """
+        Get a working directory for a specific function.
+        
+        Args:
+            function_name: Name of the function
+
+        Returns:
+            Path to the function's working directory
+        """
+        return self.functions / function_name
 
 
 # Global instance for easy access throughout the framework

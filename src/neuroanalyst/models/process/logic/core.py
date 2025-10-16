@@ -5,13 +5,16 @@ Purpose-
 - To create a structure around a piece of code that can then be wrapped around by a NeuProcess structure.
 - The NeuProcess can then be wrapped around by NeuProcessExec which would be used in NeuPipeline.
 """
+from pathlib import Path
+from typing import Self
 from ...about import About
+from ....utils.constants import PATHS
 
 from enum import Enum
 from importlib.resources import files
 import json
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 # =======================Default Logic=======================
 
@@ -149,3 +152,36 @@ class NeuProcessLogic(BaseModel):
                 raise ValueError(f"Invalid key '{key}'. Allowed keys are: {allowed_keys_str}")
                 
         return v
+    
+    @model_validator("after")
+    def register_function(self) -> Self:
+        self.register()
+        return self
+    
+    def register(self) -> Path:
+        """
+        Register the NeuProcessLogic by saving its code and model to the functions directory.
+        Returns the path to the function directory.
+        
+        Returns:
+        Path: The path to the function directory.
+        """
+        
+        function_dir: Path = PATHS.get_function_workdir(self.about.name)
+        if function_dir.exists():
+           raise FileExistsError(f"Function directory already exists: {function_dir}. Use a different function name or delete the existing directory.") 
+        
+        function_dir.mkdir(parents=True, exist_ok=False)
+        
+        # Save the function code to a file
+        function_file = function_dir / f"{self.about.name}.py"
+        with function_file.open("w") as f:
+            f.write(self.code)
+            
+        # Save the model to a JSON file
+        model = self.model_dump()
+        model_file = function_dir / "model.json"
+        with model_file.open("w") as f:
+            json.dump(model, f, indent=4)
+            
+        return function_dir
