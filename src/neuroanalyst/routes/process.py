@@ -164,7 +164,7 @@ async def get_available_base_images() -> List[str]:
         base_images_path = PATHS.base_images
         if not base_images_path.exists():
             return []
-        images = [item for item in base_images_path.iterdir() if item.is_file() and item.suffix in {".sif"}]
+        images = [str(item) for item in base_images_path.iterdir() if item.is_file() and item.suffix in {".sif"}]
         return images
     except Exception as e:
         print(f"Error retrieving base images: {str(e)}")
