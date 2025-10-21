@@ -13,6 +13,7 @@ from ..utils.constants import PATHS
 
 from typing import Literal, Optional, List, Dict, Any
 from pathlib import Path
+import shutil
 
 from fastapi import APIRouter, HTTPException, status, UploadFile, File, Form, Body
 from pydantic import BaseModel, Field
@@ -30,6 +31,7 @@ class ProcessDirRequest(BaseModel):
     logic_name: Optional[str] = Field(None, description="ID of the NeuProcessLogic to use")
     config: Optional[NeuProcessDirConfig | dict] = Field(None, description="Configuration for the NeuProcessDir")
     generate: bool = Field(False, description="Whether to generate the process directory after creation")
+    overwrite: bool = Field(False, description="Whether to overwrite existing process directory if it exists")
     
 class ProcessRequest(BaseModel):
     """
@@ -73,6 +75,10 @@ async def create_process_dir(request: ProcessDirRequest):
         process_dir: NeuProcessDir = NeuProcessDir.from_logic(logic, config=config)
         
         if request.generate:
+            if request.overwrite:
+                process_dir_path: Path = PATHS.workdir / process_dir.process_id
+                if process_dir_path.exists():
+                    shutil.rmtree(process_dir_path)
             process_dir.generate()
         
         return {
