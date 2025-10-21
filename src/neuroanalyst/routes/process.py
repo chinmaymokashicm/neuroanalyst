@@ -87,7 +87,8 @@ async def create_process_dir(request: ProcessDirRequest):
             "status": "created" if request.generate else "initialized",
             "message": f"NeuProcessDir {process_dir.process_id} created successfully",
             "data": {
-                "path": str(process_dir.working_dir)
+                "path": str(process_dir.working_dir),
+                "dir": process_dir.model_dump()
             }
         }
     except Exception as e:
