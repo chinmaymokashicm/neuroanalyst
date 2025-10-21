@@ -172,3 +172,26 @@ async def get_available_base_images() -> List[str]:
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error retrieving base images: {str(e)}"
         )
+        
+@router.get("/build-status/{process_id}", response_model=List[bool])
+async def is_build_complete(process_id: str) -> list[bool, bool]:
+    """
+    Check if the Singularity image and virtual environment builds are complete for a given process.
+    
+    Args:
+        process_id: ID of the NeuProcess to check
+    Returns:
+        List containing two booleans: [is_image_built, is_venv_built]
+    """
+    try:
+        image_path: Path = PATHS.get_process_image_path(process_id)
+        venv_path: Path = PATHS.get_venv_path(process_id)
+        is_image_built: bool = image_path.exists()
+        is_venv_built: bool = venv_path.exists()
+        return [is_image_built, is_venv_built]
+    except Exception as e:
+        print(f"Error checking build status for process {process_id}: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error checking build status for process {process_id}: {str(e)}"
+        )
