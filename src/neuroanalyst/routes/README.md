@@ -1,103 +1,82 @@
 # NeuroAnalyst API
 
-This directory contains the FastAPI-based web API for the NeuroAnalyst framework. The API provides endpoints to interact with the core components of NeuroAnalyst, such as NeuProcesses, NeuPipelines, and their executions.
+This directory contains the FastAPI implementation for the NeuroAnalyst framework's web API.
+
+> **Note**: This documentation reflects the currently implemented endpoints. Some features mentioned in the project roadmap (such as execution endpoints) are not yet implemented.
 
 ## Overview
 
-The API is organized into several routers, each handling a specific aspect of the NeuroAnalyst framework:
+The API provides endpoints to interact with the NeuroAnalyst framework, allowing users to:
 
-- **Logic Router**: Endpoints for encoding and decoding user-defined functions.
-- **NeuProcessDir Router**: Endpoints for creating and managing NeuProcessDir instances.
-- **NeuProcess Router**: Endpoints for creating and managing NeuProcess instances.
-- **NeuProcessExec Router**: Endpoints for creating and managing NeuProcessExec instances.
-- **NeuPipeline Router**: Endpoints for creating and managing NeuPipeline instances.
-- **Dataset Router**: Endpoints for listing and filtering datasets.
-- **BIDS Router**: Endpoints for extracting BIDS entities from file names.
+- Create and manage NeuProcesses
+- Build and execute neuroimaging pipelines
+- Monitor execution status and retrieve results
+
+## API Structure
+
+The API is organized into the following routers:
+
+- **Logic Router** (`/api/v1/logic/*`): Endpoints for NeuProcessLogic operations including encoding, decoding, and validation
+- **Process Router** (`/api/v1/process/*`): Endpoints for NeuProcessDir and NeuProcess operations
+- **Pipeline Router** (`/api/v1/pipeline/*`): Endpoints for creating and managing NeuPipeline objects
+- **Logs Router** (`/api/v1/logs/*`): Endpoints for retrieving and streaming log files from various components
 
 ## Running the API
 
-### Starting the API Server
-
-To start the API server, run:
+The API server can be started using the provided `run_api.sh` script:
 
 ```bash
-cd /path/to/neuroanalyst
-python -m neuroanalyst.scripts.run_api --host 0.0.0.0 --port 8000 --reload
+./run_api.sh
 ```
 
-This will start the API server on the specified host and port with auto-reload enabled (for development).
+This will start the server on port 8000, and you can access the API documentation at:
 
-### API Documentation
+- Swagger UI: http://localhost:8000/docs
+- ReDoc: http://localhost:8000/redoc
 
-Once the API server is running, you can access the auto-generated documentation at:
-
-- Swagger UI: `http://localhost:8000/docs`
-- ReDoc: `http://localhost:8000/redoc`
-
-## Testing the API
-
-A test script is provided to demonstrate how to interact with the API endpoints:
-
-```bash
-cd /path/to/neuroanalyst
-python -m neuroanalyst.scripts.test_api
-```
-
-You can also test specific endpoints:
-
-```bash
-# Test only the logic endpoints
-python -m neuroanalyst.scripts.test_api --logic
-
-# Test only the process endpoints
-python -m neuroanalyst.scripts.test_api --process
-```
-
-## API Endpoints
+## API Documentation
 
 ### Logic Endpoints
 
-- `POST /logic/encode`: Encode a user-defined function into a pydantic model.
-- `POST /logic/decode`: Decode a pydantic model into a user-defined function.
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/v1/logic/` | POST | Create a new NeuProcessLogic |
+| `/api/v1/logic/encode` | POST | Encode a Python function as a NeuProcessLogic |
+| `/api/v1/logic/decode` | POST | Decode an encoded NeuProcessLogic function |
+| `/api/v1/logic/{logic_name}` | GET | Get information about a specific NeuProcessLogic |
+| `/api/v1/logic/` | GET | List all available NeuProcessLogic functions |
 
-### NeuProcessDir Endpoints
+### Process Endpoints
 
-- `POST /dir/create/logic`: Create a new NeuProcessDir from NeuProcessLogic.
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/v1/process/dir` | POST | Create a new NeuProcessDir |
+| `/api/v1/process/` | POST | Create a new NeuProcess |
+| `/api/v1/process/{process_id}` | GET | Get information about a specific NeuProcess |
+| `/api/v1/process/` | GET | List all available NeuProcesses |
 
-### NeuProcess Endpoints
+### Pipeline Endpoints
 
-- `GET /process/all`: Get a list of all NeuProcesses.
-- `GET /process/{process_id}`: Get details of a specific NeuProcess.
-- `POST /process/create`: Create a new NeuProcess from a NeuProcessDir.
-- `POST /process/{process_id}/build_image`: Build the Singularity image for a specific NeuProcess.
-- `POST /process/{process_id}/create_venv`: Create the virtual environment for a specific NeuProcess.
-- `DELETE /process/{process_id}`: Delete a specific NeuProcess and its associated image and venv.
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/v1/pipeline/` | POST | Create a new NeuPipeline |
+| `/api/v1/pipeline/{pipeline_id}` | GET | Get information about a specific pipeline |
+| `/api/v1/pipeline/` | GET | List all available pipelines |
 
-### NeuProcessExec Endpoints
+### Logs Endpoints
 
-- `POST /process/exec/create`: Create a new NeuProcessExec instance.
-- `GET /process/exec/{exec_id}`: Get details of a specific NeuProcessExec.
-- `POST /process/exec/{exec_id}/generate_command`: Generate the execution command for a specific NeuProcessExec.
-- `DELETE /process/exec/{exec_id}`: Delete a specific NeuProcessExec.
-
-### NeuPipeline Endpoints
-
-- `POST /pipeline/create`: Create a new NeuPipeline from a list of NeuProcessExec instances.
-- `GET /pipeline/{pipeline_id}`: Get details of a specific NeuPipeline.
-- `GET /pipeline/all`: Get a list of all NeuPipelines.
-- `POST /pipeline/{pipeline_id}/generate_script`: Generate the execution script for a specific NeuPipeline.
-- `DELETE /pipeline/{pipeline_id}`: Delete a specific NeuPipeline and its associated directory.
-
-### Dataset Endpoints
-
-- `GET /dataset/all`: Get a list of all datasets.
-- `GET /dataset/{dataset_id}`: Get details of a specific dataset.
-- `POST /dataset/{dataset_id}/filter`: Get a list of files in a specific dataset that match the provided BIDS filters.
-
-### BIDS Endpoints
-
-- `GET /bids/entities/file_name`: Get the BIDS entities of a specific file given its name.
+| Endpoint | Method | Description | Query Parameters |
+|----------|--------|-------------|-----------------|
+| `/api/v1/logs/image/{process_id}` | GET | Get image build logs for a process | `date_str`: Optional date string in format YYYYMMDD_HHMMSS |
+| `/api/v1/logs/venv/{process_id}` | GET | Get venv build logs for a process | `date_str`: Optional date string in format YYYYMMDD_HHMMSS |
+| `/api/v1/logs/pipeline/{pipeline_id}` | GET | Get logs for a pipeline execution | None |
+| `/api/v1/logs/process_exec/{exec_id}` | GET | Get logs for a process execution | `error`: Whether to retrieve error log instead of standard output (default: false) |
+| `/api/v1/logs/list` | GET | List available logs by type and optional ID | `type`: Type of logs to list (image, venv, pipeline, process_exec)<br>`id`: Optional ID to filter logs by |
 
 ## Implementation Notes
 
-The current implementation provides placeholders for the actual business logic. Integration with the NeuroAnalyst core functionality will be completed in subsequent development phases.
+- The API uses Pydantic models for request and response validation
+- Authentication is not currently implemented but can be added in the future
+- All data is currently stored in the file system, with database integration planned for future versions
+- Execution endpoints for running processes and pipelines are planned but not yet implemented
+- The logs router provides functionality to stream logs from various components

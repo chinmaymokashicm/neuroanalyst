@@ -13,13 +13,14 @@ process that can be executed in various environments (local, HPC) and modes
 """
 
 import os
+import re
 import json
 import shutil
 import datetime
 import subprocess
 from enum import Enum
 from pathlib import Path
-from typing import Optional, List, Dict, Any, Union, ClassVar
+from typing import Optional, List, Dict, Any, ClassVar
 from typing_extensions import Self
 import tempfile
 import string
@@ -142,17 +143,10 @@ class NeuProcessDir(BaseModel):
     
     def __str__(self) -> str:
         """Return a human-readable string representation of the NeuProcessDir."""
-        return f"NeuProcessDir(name='{self.name}', id='{self.process_id}')"
-    
-    def __repr__(self) -> str:
-        """Return a detailed string representation of the NeuProcessDir."""
-        modes = self.get_available_execution_modes() if hasattr(self, 'get_available_execution_modes') else None
-        return f"NeuProcessDir(name='{self.name}', id='{self.process_id}', "\
-               f"path='{self.process_dir if hasattr(self, 'process_dir') else None}', "\
-               f"modes={modes})"
+        return f"NeuProcessDir(name='{self.logic.about.name if self.logic else None}', id='{self.process_id}')"
 
     # Configuration modification methods
-    def add_environment_variables(self, variables: Union[str, List[str]]) -> None:
+    def add_environment_variables(self, variables: str | List[str]) -> None:
         """
         Add environment variables to the configuration.
         
@@ -166,7 +160,7 @@ class NeuProcessDir(BaseModel):
             if variable not in self.config.environment_variables:
                 self.config.environment_variables.append(variable)
     
-    def remove_environment_variables(self, variables: Union[str, List[str]]) -> List[str]:
+    def remove_environment_variables(self, variables: str | List[str]) -> List[str]:
         """
         Remove environment variables from the configuration.
         
@@ -187,7 +181,7 @@ class NeuProcessDir(BaseModel):
         
         return removed
     
-    def add_bind_paths(self, paths: Union[str, List[str]]) -> None:
+    def add_bind_paths(self, paths: str | List[str]) -> None:
         """
         Add bind paths to the configuration.
         
@@ -206,7 +200,7 @@ class NeuProcessDir(BaseModel):
             if norm_path not in self.config.bind_paths:
                 self.config.bind_paths.append(norm_path)
     
-    def remove_bind_paths(self, paths: Union[str, List[str]]) -> List[str]:
+    def remove_bind_paths(self, paths: str | List[str]) -> List[str]:
         """
         Remove bind paths from the configuration.
         
@@ -232,7 +226,7 @@ class NeuProcessDir(BaseModel):
         
         return removed
     
-    def add_language_packages(self, language: str, packages: Union[str, List[str]]) -> None:
+    def add_language_packages(self, language: str, packages: str | List[str]) -> None:
         """
         Add packages for a specific language to the configuration.
         
@@ -254,7 +248,7 @@ class NeuProcessDir(BaseModel):
             if package not in self.config.language_packages[language]:
                 self.config.language_packages[language].append(package)
     
-    def remove_language_packages(self, language: str, packages: Union[str, List[str]]) -> List[str]:
+    def remove_language_packages(self, language: str, packages: str | List[str]) -> List[str]:
         """
         Remove packages for a specific language from the configuration.
         
@@ -279,7 +273,7 @@ class NeuProcessDir(BaseModel):
         
         return removed
     
-    def add_system_packages(self, packages: Union[str, List[str]]) -> None:
+    def add_system_packages(self, packages: str | List[str]) -> None:
         """
         Add system packages to the configuration.
         
@@ -293,7 +287,7 @@ class NeuProcessDir(BaseModel):
             if package not in self.config.system_packages:
                 self.config.system_packages.append(package)
     
-    def remove_system_packages(self, packages: Union[str, List[str]]) -> List[str]:
+    def remove_system_packages(self, packages: str | List[str]) -> List[str]:
         """
         Remove system packages from the configuration.
         
@@ -314,7 +308,7 @@ class NeuProcessDir(BaseModel):
         
         return removed
     
-    def add_command_flags(self, flags: Union[str, List[str]]) -> None:
+    def add_command_flags(self, flags: str | List[str]) -> None:
         """
         Add command-line flags to the configuration.
         
@@ -339,7 +333,7 @@ class NeuProcessDir(BaseModel):
             if flag not in self.config.command_flags:
                 self.config.command_flags.append(flag)
     
-    def remove_command_flags(self, flags: Union[str, List[str]]) -> List[str]:
+    def remove_command_flags(self, flags: str | List[str]) -> List[str]:
         """
         Remove command-line flags from the configuration.
         
@@ -1038,12 +1032,23 @@ class NeuProcessDir(BaseModel):
         self._generate_venv_build_script(build_dir)
     
     def _generate_image_build_script(self, build_dir: Path) -> None:
-        """Generate script to build the Singularity image."""
+        """
+        Generate script to build the Singularity image with support for different schedulers.
+        
+        This script can be executed directly or through various job schedulers.
+        It detects if it's running under a scheduler based on environment variables.
+        All scheduler-specific options are handled by the build_singularity_image method.
+        """
         image_build_content = f"""#!/bin/bash
 # image.sh - Script to build Singularity image for {self.process_id} - {self.process_name}
 #
 # This script builds a Singularity image from the definition file
 # and stores it in the NeuroAnalyst images directory.
+#
+# Usage:
+#   ./image.sh
+#
+# The script automatically detects if it's running under a job scheduler.
 #
 # Version: {self.version}
 # Created: {datetime.datetime.now().strftime("%Y-%m-%d")}
@@ -1082,12 +1087,22 @@ echo "Singularity image built successfully at: ${{IMAGE_PATH}}"
         os.chmod(image_build_path, 0o755)
     
     def _generate_venv_build_script(self, build_dir: Path) -> None:
-        """Generate script to create and set up a virtual environment."""
+        """
+        Generate script to create and set up a virtual environment.
+        
+        This script can be executed directly or through job schedulers.
+        It automatically detects if it's running under a scheduler.
+        """
         venv_build_content = f"""#!/bin/bash
 # venv.sh - Script to create virtual environment for {self.process_id} - {self.process_name}
 #
 # This script creates a virtual environment in the NeuroAnalyst venvs directory
 # and installs all required dependencies.
+#
+# Usage:
+#   ./venv.sh
+#
+# The script automatically detects if it's running under a job scheduler.
 #
 # Version: {self.version}
 # Created: {datetime.datetime.now().strftime("%Y-%m-%d")}
@@ -1456,61 +1471,360 @@ echo "Virtual environment created and requirements installed successfully at: ${
             f.write(json_str)
 
     # Utility methods
-    def build_singularity_image(self) -> Path:
+    def _generate_scheduler_command(self, script_path: Optional[Path] = None, scheduler: str = None, scheduler_args: dict = None, 
+                                command_type: str = "build") -> list:
         """
-        Build the Singularity image for this process.
+        Generate a command list for running a script with a job scheduler.
+        
+        Args:
+            script_path: Path to the script to run. If None, uses the build script path.
+            scheduler: Optional scheduler to use ("slurm", "pbs", "lsf"). If None, runs directly.
+            scheduler_args: Dictionary of scheduler-specific arguments with keys matching scheduler flags.
+            command_type: Type of command being generated ("build", "run", etc.) - affects job naming
+            
+        Returns:
+            List of command arguments ready to be passed to subprocess.run()
+        """
+        # Validate script path
+        if script_path is None:
+            script_path = self.working_dir / "build" / "image.sh"
+        
+        # Initialize scheduler args if not provided
+        if scheduler_args is None:
+            scheduler_args = {}
+            
+        # Ensure logs directory exists
+        logs_dir = Path(os.environ.get("NEUROANALYST_LOGS", "/tmp/neuroanalyst/logs")) / command_type
+        logs_dir.mkdir(parents=True, exist_ok=True)
+        
+        # If no scheduler or unknown scheduler - run directly
+        if not scheduler or scheduler.lower() not in ("slurm", "pbs", "lsf"):
+            return [str(script_path)]
+            
+        # Normalize scheduler name to lowercase
+        scheduler = scheduler.lower()
+        
+        # Job name - will be used in multiple places
+        job_name = f"{command_type}_{self.process_id}"
+        
+        # Scheduler-specific command and default flags
+        if scheduler == "slurm":
+            # SLURM command structure
+            cmd_args = ["sbatch"]
+            
+            # Add default SLURM flags (without output/error paths which are handled separately)
+            default_flags = {
+                "--job-name": job_name,
+                "--mem": "8G",
+                "--time": "01:00:00"
+            }
+            
+            # Flag prefix and formatter
+            flag_prefix = "--"
+            
+        elif scheduler == "pbs":
+            # PBS command structure
+            cmd_args = ["qsub"]
+            
+            # Add default PBS flags (without output/error paths which are handled separately)
+            default_flags = {
+                "-N": job_name,
+                "-l": "mem=8G,walltime=01:00:00"
+            }
+            
+            # Flag prefix and formatter
+            flag_prefix = "-"
+            
+        elif scheduler == "lsf":
+            # LSF command structure
+            cmd_args = ["bsub"]
+            
+            # Add default LSF flags (without output/error paths which are handled separately)
+            default_flags = {
+                "-J": job_name,
+                "-M": "8G",
+                "-W": "12:00"
+            }
+            
+            # Flag prefix and formatter
+            flag_prefix = "-"
+        
+        # Add default flags
+        for flag, value in default_flags.items():
+            cmd_args.extend([flag, value])
+        
+        # Override with user-provided args
+        for flag, value in scheduler_args.items():
+            # Format flag properly if needed
+            if not flag.startswith(flag_prefix):
+                flag = f"{flag_prefix}{flag}"
+            
+            cmd_args.extend([flag, value])
+            
+        # Add the script path
+        cmd_args.append(str(script_path))
+        
+        return cmd_args
+    
+    def build_singularity_image(self, scheduler: str = None, scheduler_args: dict = None, 
+                           **kwargs) -> Path | tuple[Path, str]:
+        """
+        Build the Singularity image for this process by calling the generated build script.
+        
+        This method supports both direct execution and submission through job schedulers.
+        For job schedulers, it constructs the appropriate command with flags and returns
+        the job ID so that users can track the progress of their build.
+        
+        Args:
+            scheduler: Optional scheduler to use ("slurm", "pbs", "lsf"). If None, builds locally.
+            scheduler_args: Dictionary of scheduler-specific arguments with keys matching scheduler flags.
+                The keys don't need the prefix dashes - they'll be added automatically.
+                
+                Examples:
+                - For SLURM: {"mem": "16G", "time": "02:00:00", "partition": "compute", "account": "project123"}
+                - For PBS: {"l": "mem=16G,walltime=02:00:00", "q": "compute", "A": "project123"}
+                - For LSF: {"M": "16G", "W": "120", "q": "compute", "P": "project123"}
+            **kwargs: Additional arguments for backward compatibility.
         
         Returns:
-            Path to the built image
+            Tuple containing (image_path, job_id) where:
+              - image_path: Path object pointing to where the image will be stored
+              - job_id: String containing the scheduler job ID
+              
+        Examples:
+            >>> image_path, job_id = process_dir.build_singularity_image(
+            ...     scheduler="slurm", 
+            ...     scheduler_args={"mem": "32G", "time": "04:00:00", "partition": "gpu"}
+            ... )
+            >>> print(f"Image will be built at {image_path} with job ID {job_id}")
         """
         if self.working_dir is None:
             raise ValueError("Working directory has not been generated yet")
             
-        def_file = self.working_dir / f"{self.process_id}.def"
-        if not def_file.exists():
-            raise FileNotFoundError(f"Singularity definition file not found: {def_file}")
+        # Handle backward compatibility with scheduler_flags parameter
+        if 'scheduler_flags' in kwargs and scheduler_args is None:
+            scheduler_args = kwargs['scheduler_flags']
             
-        # Create directory for the image if it doesn't exist
+        # Check if the build script exists
+        build_script = self.working_dir / "build" / "image.sh"
+        if not build_script.exists():
+            raise FileNotFoundError(f"Singularity build script not found: {build_script}")
+            
+        # Get the path where the image should be stored
         image_path = self._paths.get_process_image_path(self.process_id)
-        image_path.parent.mkdir(parents=True, exist_ok=True)
         
-        # Build the image
-        cmd = ["singularity", "build", str(image_path), str(def_file)]
+        # Initialize job_id as None (for local execution)
+        job_id = None
+        
+        # Create logs directory
+        logs_dir = Path(os.environ.get('NEUROANALYST_LOGS', '/tmp/neuroanalyst/logs')) / "builds"
+        logs_dir.mkdir(parents=True, exist_ok=True)
+        log_file = logs_dir / f"{self.process_id}_build_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
+        
+        # Display scheduler information
+        if scheduler:
+            print(f"Submitting Singularity build job to {scheduler.upper()} scheduler")
+            # For schedulers, ensure logs are redirected in the submission command
+            if scheduler.lower() == "slurm":
+                if not any(arg.startswith("--output") for arg in (scheduler_args or {}).keys()):
+                    if scheduler_args is None:
+                        scheduler_args = {}
+                    scheduler_args["--output"] = f"{logs_dir}/{self.process_id}_build_%j.out"
+                    scheduler_args["--error"] = f"{logs_dir}/{self.process_id}_build_%j.err"
+            elif scheduler.lower() == "pbs":
+                if not any(arg.startswith("o") for arg in (scheduler_args or {}).keys()):
+                    if scheduler_args is None:
+                        scheduler_args = {}
+                    scheduler_args["o"] = f"{logs_dir}/{self.process_id}_build.out"
+                    scheduler_args["e"] = f"{logs_dir}/{self.process_id}_build.err"
+            elif scheduler.lower() == "lsf":
+                if not any(arg.startswith("o") for arg in (scheduler_args or {}).keys()):
+                    if scheduler_args is None:
+                        scheduler_args = {}
+                    scheduler_args["o"] = f"{logs_dir}/{self.process_id}_build.out"
+                    scheduler_args["e"] = f"{logs_dir}/{self.process_id}_build.err"
+        else:
+            print(f"Building Singularity image locally for {self.process_id}")
+            
+        # Generate the command using our consolidated method
+        cmd_str = self.generate_singularity_build_command(scheduler, scheduler_args)
+        
+        # For local execution, redirect output to log file
+        if scheduler is None:
+            cmd_str = f"{cmd_str} > {log_file} 2>&1"
+        
         try:
-            subprocess.run(cmd, check=True, cwd=str(self.working_dir))
-            return image_path
+            # Execute the build script and capture output
+            if scheduler is None:
+                # For local execution, use shell=True to handle output redirection
+                result = subprocess.run(cmd_str, check=True, cwd=str(self.working_dir),
+                                       shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                                       universal_newlines=True)
+                print(f"Build logs saved to: {log_file}")
+            else:
+                # For scheduler execution, use the standard approach
+                result = subprocess.run(cmd_str.split(), check=True, cwd=str(self.working_dir), 
+                                      stdout=subprocess.PIPE, stderr=subprocess.PIPE, 
+                                      universal_newlines=True)
+            
+            # For schedulers, parse job ID from output
+            if scheduler == "slurm":
+                # SLURM output looks like "Submitted batch job 12345"
+                match = re.search(r"Submitted batch job (\d+)", result.stdout)
+                if match:
+                    job_id = match.group(1)
+                print(f"Build job submitted to SLURM with ID: {job_id}. Image will be built at: {image_path}")
+                
+            elif scheduler == "pbs":
+                # PBS output is typically just the job ID
+                job_id = result.stdout.strip()
+                print(f"Build job submitted to PBS with ID: {job_id}. Image will be built at: {image_path}")
+                
+            elif scheduler == "lsf":
+                # LSF output looks like "Job <12345> is submitted to ..."
+                match = re.search(r"Job <(\d+)>", result.stdout)
+                if match:
+                    job_id = match.group(1)
+                print(f"Build job submitted to LSF with ID: {job_id}. Image will be built at: {image_path}")
+                
+            else:
+                # Local execution - check if the image was created
+                if not image_path.exists():
+                    raise RuntimeError(f"Build script completed but image was not created at {image_path}")
+                print(f"Singularity image built successfully at: {image_path}")
+                
+            return (image_path, job_id)
         except subprocess.CalledProcessError as e:
             raise RuntimeError(f"Failed to build Singularity image: {e}")
     
-    def create_virtual_env(self) -> Path:
+    def create_virtual_env(self, scheduler: str = None, scheduler_args: dict = None,
+                      **kwargs) -> tuple[Path, str]:
         """
-        Create a virtual environment for this process.
+        Create a virtual environment for this process by calling the generated build script.
+        
+        This method supports both direct execution and submission through job schedulers.
+        For job schedulers, it constructs the appropriate command with flags and returns
+        the job ID so that users can track the progress of their build.
+        
+        Args:
+            scheduler: Optional scheduler to use ("slurm", "pbs", "lsf"). If None, builds locally.
+            scheduler_args: Dictionary of scheduler-specific arguments with keys matching scheduler flags.
+                The keys don't need the prefix dashes - they'll be added automatically.
+                
+                Examples:
+                - For SLURM: {"mem": "8G", "time": "01:00:00", "partition": "compute"}
+                - For PBS: {"l": "mem=8G,walltime=01:00:00", "q": "compute"}
+                - For LSF: {"M": "8G", "W": "60", "q": "compute"}
+            **kwargs: Additional arguments for backward compatibility.
         
         Returns:
-            Path to the created virtual environment
+            Tuple containing (venv_path, job_id) where:
+              - venv_path: Path object pointing to where the virtual environment will be created
+              - job_id: String containing the scheduler job ID
+              
+        Example:
+            >>> venv_path, job_id = process_dir.create_virtual_env(
+            ...     scheduler="slurm", 
+            ...     scheduler_args={"mem": "16G", "time": "01:00:00"}
+            ... )
+            >>> print(f"Virtual environment will be created at {venv_path} with job ID {job_id}")
         """
         if self.working_dir is None:
             raise ValueError("Working directory has not been generated yet")
-            
-        install_script = self.working_dir / "install_requirements.sh"
-        if not install_script.exists():
-            raise FileNotFoundError(f"Installation script not found: {install_script}")
-            
-        # Create directory for the venv if it doesn't exist
-        venv_path = self._paths.get_venv_path(self.process_id)
-        venv_path.parent.mkdir(parents=True, exist_ok=True)
         
-        # Create the virtual environment
-        cmd1 = ["python3", "-m", "venv", str(venv_path)]
+        # Handle backward compatibility with scheduler_flags parameter
+        if 'scheduler_flags' in kwargs and scheduler_args is None:
+            scheduler_args = kwargs['scheduler_flags']
+            
+        # Check if the build script exists
+        build_script = self.working_dir / "build" / "venv.sh"
+        if not build_script.exists():
+            raise FileNotFoundError(f"Virtual environment build script not found: {build_script}")
+            
+        # Get the path where the venv will be created
+        venv_path = self._paths.get_venv_path(self.process_id)
+        
+        # Initialize job_id as None (for local execution)
+        job_id = None
+        
+        # Create logs directory
+        logs_dir = Path(os.environ.get('NEUROANALYST_LOGS', '/tmp/neuroanalyst/logs')) / "venv"
+        logs_dir.mkdir(parents=True, exist_ok=True)
+        log_file = logs_dir / f"{self.process_id}_venv_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
+        
+        # Display scheduler information
+        if scheduler:
+            print(f"Submitting virtual environment creation job to {scheduler.upper()} scheduler")
+            # For schedulers, ensure logs are redirected in the submission command
+            if scheduler.lower() == "slurm":
+                if not any(arg.startswith("--output") for arg in (scheduler_args or {}).keys()):
+                    if scheduler_args is None:
+                        scheduler_args = {}
+                    scheduler_args["--output"] = f"{logs_dir}/{self.process_id}_venv_%j.out"
+                    scheduler_args["--error"] = f"{logs_dir}/{self.process_id}_venv_%j.err"
+            elif scheduler.lower() == "pbs":
+                if not any(arg.startswith("o") for arg in (scheduler_args or {}).keys()):
+                    if scheduler_args is None:
+                        scheduler_args = {}
+                    scheduler_args["o"] = f"{logs_dir}/{self.process_id}_venv.out"
+                    scheduler_args["e"] = f"{logs_dir}/{self.process_id}_venv.err"
+            elif scheduler.lower() == "lsf":
+                if not any(arg.startswith("o") for arg in (scheduler_args or {}).keys()):
+                    if scheduler_args is None:
+                        scheduler_args = {}
+                    scheduler_args["o"] = f"{logs_dir}/{self.process_id}_venv.out"
+                    scheduler_args["e"] = f"{logs_dir}/{self.process_id}_venv.err"
+        else:
+            print(f"Creating virtual environment locally for {self.process_id}")
+            
+        # Generate the command using our consolidated method
+        cmd_str = self.generate_venv_creation_command(scheduler, scheduler_args)
+        
+        # For local execution, redirect output to log file
+        if scheduler is None:
+            cmd_str = f"{cmd_str} > {log_file} 2>&1"
+        
         try:
-            subprocess.run(cmd1, check=True)
+            # Execute the build script and capture output
+            if scheduler is None:
+                # For local execution, use shell=True to handle output redirection
+                result = subprocess.run(cmd_str, check=True, cwd=str(self.working_dir),
+                                      shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                                      universal_newlines=True)
+                print(f"Build logs saved to: {log_file}")
+            else:
+                # For scheduler execution, use the standard approach
+                result = subprocess.run(cmd_str.split(), check=True, cwd=str(self.working_dir), 
+                                      stdout=subprocess.PIPE, stderr=subprocess.PIPE, 
+                                      universal_newlines=True)
             
-            # Run the installation script within the virtual environment
-            activate_cmd = f"source {venv_path}/bin/activate"
-            cmd2 = f"{activate_cmd} && bash {install_script} && deactivate"
-            subprocess.run(cmd2, shell=True, check=True, cwd=str(self.working_dir))
-            
-            return venv_path
+            # For schedulers, parse job ID from output
+            if scheduler == "slurm":
+                # SLURM output looks like "Submitted batch job 12345"
+                match = re.search(r"Submitted batch job (\d+)", result.stdout)
+                if match:
+                    job_id = match.group(1)
+                print(f"Build job submitted to SLURM with ID: {job_id}. Venv will be created at: {venv_path}")
+                
+            elif scheduler == "pbs":
+                # PBS output is typically just the job ID
+                job_id = result.stdout.strip()
+                print(f"Build job submitted to PBS with ID: {job_id}. Venv will be created at: {venv_path}")
+                
+            elif scheduler == "lsf":
+                # LSF output looks like "Job <12345> is submitted to ..."
+                match = re.search(r"Job <(\d+)>", result.stdout)
+                if match:
+                    job_id = match.group(1)
+                print(f"Build job submitted to LSF with ID: {job_id}. Venv will be created at: {venv_path}")
+                
+            else:
+                # Local execution - check if the venv was created
+                if not venv_path.exists():
+                    raise RuntimeError(f"Build script completed but venv was not created at {venv_path}")
+                print(f"Virtual environment created successfully at: {venv_path}")
+                
+            return (venv_path, job_id)
         except subprocess.CalledProcessError as e:
             raise RuntimeError(f"Failed to create virtual environment: {e}")
             
@@ -1573,62 +1887,49 @@ echo "Virtual environment created and requirements installed successfully at: ${
         # Return the final command
         return " ".join(command_parts)
     
-    def generate_singularity_build_command(self) -> str:
+    def generate_singularity_build_command(self, scheduler: str = None, scheduler_args: dict = None) -> str:
         """
         Generate the command to build a Singularity image for this process.
         
+        Args:
+            scheduler: Optional scheduler to use ("slurm", "pbs", "lsf"). If None, builds locally.
+            scheduler_args: Dictionary of scheduler-specific arguments with keys matching scheduler flags.
+        
         Returns:
-            String containing the command to build the Singularity image
+            String containing the command to build the Singularity image.
+            For schedulers, this will be the scheduler submission command.
         """
         if self.working_dir is None:
             raise ValueError("Working directory has not been generated yet")
-            
-        def_file = self.working_dir / f"{self.process_id}.def"
-        if not def_file.exists():
-            raise FileNotFoundError(f"Singularity definition file not found: {def_file}")
-            
-        # Get the path where the image should be stored
-        image_path = self._paths.get_process_image_path(self.process_id)
         
-        # Create the command to build the image
-        # Make sure parent directory exists
-        mkdir_cmd = f"mkdir -p \"{image_path.parent}\""
+        build_script = self.working_dir / "build" / "image.sh"
+        if not build_script.exists():
+            raise FileNotFoundError(f"Build script not found: {build_script}")
         
-        # Build the singularity image
-        build_cmd = f"singularity build \"{image_path}\" \"{def_file}\""
-        
-        return f"{mkdir_cmd} && {build_cmd}"
+        cmd_args = self._generate_scheduler_command(build_script, scheduler, scheduler_args, "build")
+        return " ".join(cmd_args if isinstance(cmd_args, list) else [cmd_args])
     
-    def generate_venv_creation_command(self) -> str:
+    def generate_venv_creation_command(self, scheduler: str = None, scheduler_args: dict = None) -> str:
         """
         Generate the command to create a virtual environment for this process.
         
+        Args:
+            scheduler: Optional scheduler to use ("slurm", "pbs", "lsf"). If None, builds locally.
+            scheduler_args: Dictionary of scheduler-specific arguments with keys matching scheduler flags.
+        
         Returns:
-            String containing the command to create the virtual environment
+            String containing the command to create the virtual environment.
+            For schedulers, this will be the scheduler submission command.
         """
         if self.working_dir is None:
             raise ValueError("Working directory has not been generated yet")
-            
-        install_script = self.working_dir / "install_requirements.sh"
-        if not install_script.exists():
-            raise FileNotFoundError(f"Installation script not found: {install_script}")
-            
-        # Get the path where the venv should be stored
-        venv_path = self._paths.get_venv_path(self.process_id)
         
-        # Create the command to create the venv
-        # Make sure parent directory exists
-        mkdir_cmd = f"mkdir -p \"{venv_path.parent}\""
+        build_script = self.working_dir / "build" / "venv.sh"
+        if not build_script.exists():
+            raise FileNotFoundError(f"Build script not found: {build_script}")
         
-        # Create the virtual environment
-        venv_cmd = f"python3 -m venv \"{venv_path}\""
-        
-        # Activate and install requirements
-        activate_cmd = f"source \"{venv_path}/bin/activate\""
-        install_cmd = f"bash \"{install_script}\""
-        deactivate_cmd = "deactivate"
-        
-        return f"{mkdir_cmd} && {venv_cmd} && {activate_cmd} && {install_cmd} && {deactivate_cmd}"
+        cmd_args = self._generate_scheduler_command(build_script, scheduler, scheduler_args, "venv")
+        return " ".join(cmd_args if isinstance(cmd_args, list) else [cmd_args])
 
     def generate_execution_command(self, execution_mode: str = None, scheduler: str = None) -> str:
         """

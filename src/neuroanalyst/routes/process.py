@@ -1,463 +1,172 @@
 """
-NeuroAnalyst NeuProcess Router
+Process Routes
 
-This module defines the FastAPI router for the NeuProcess endpoints.
-It provides endpoints to create and manage NeuProcess instances.
+This module contains the API endpoints for NeuProcess operations.
 """
+from ..models import (
+    NeuProcess,
+    NeuProcessDir,
+    NeuProcessDirConfig,
+    NeuProcessLogic
+)
+from ..utils.constants import PATHS
 
-import json
-from fastapi import APIRouter, HTTPException, Query, Depends
-from pydantic import BaseModel
-from typing import Dict, Any, List, Optional
-import os
-import shutil
+from typing import Literal, Optional, List, Dict, Any
+from pathlib import Path
 
-from ..models.process.process.core import NeuProcess
-from ..models.process.dir.core import NeuProcessDir
-from ..models.database.mongo_client import MongoDBClient
-from ..models.database.collections import CollectionNames
-from .dependencies import get_db_client
-from ..utils.constants import NeuroAnalystPaths
+from fastapi import APIRouter, HTTPException, status, UploadFile, File, Form, Body
+from pydantic import BaseModel, Field
 
-# Initialize paths
-PATHS = NeuroAnalystPaths()
-
-# Create router
-router = APIRouter()
-
-
-class CreateProcessRequest(BaseModel):
-    """Request model for creating a NeuProcess from a NeuProcessDir."""
-    process_dir_id: str
-    name: Optional[str] = None
-    description: Optional[str] = None
-    author: Optional[str] = None
-    version: Optional[str] = None
-
-
-@router.get("/all", response_model=Dict[str, Any])
-async def get_all_processes(
-    skip: int = Query(0, description="Number of processes to skip"),
-    limit: int = Query(10, description="Maximum number of processes to return"),
-    db_client: MongoDBClient = Depends(get_db_client)
-):
-    """
-    Get a list of all NeuProcesses.
+# Router definition
+router = APIRouter(
+    prefix="/process",
+    tags=["process"],
+)
     
-    Args:
-        skip: Number of processes to skip.
-        limit: Maximum number of processes to return.
-        db_client: MongoDB client dependency
-        
-    Returns:
-        Dict[str, Any]: A list of NeuProcess instances.
+class ProcessDirRequest(BaseModel):
+    """
+    Request model for creating a NeuProcessDir
+    """
+    logic_name: Optional[str] = Field(None, description="ID of the NeuProcessLogic to use")
+    config: Optional[NeuProcessDirConfig | dict] = Field(None, description="Configuration for the NeuProcessDir")
+    generate: bool = Field(False, description="Whether to generate the process directory after creation")
+    
+class ProcessRequest(BaseModel):
+    """
+    Request model for creating a NeuProcess
+    """
+    process_id: str = Field(..., description="ID of the NeuProcessDir to create the process from")
+    image_or_venv: Literal["image", "venv"] = Field(
+        "image",
+        description="Whether to create a container image or virtual environment"
+    )
+    scheduler: Literal["slurm", "pbs", "lsf", "local"] | None = Field(
+        None,
+        description="Scheduler to use for building the process"
+    )
+    build: bool = Field(
+        False,
+        description="Whether to build the process after creation"
+    )
+
+class ProcessResponse(BaseModel):
+    """
+    Response model for Process operations
+    """
+    id: str = Field(..., description="ID of the created resource")
+    name: str = Field(..., description="Name of the resource")
+    status: str = Field(..., description="Status of the operation")
+    message: str = Field(..., description="Descriptive message about the operation")
+    data: Optional[Dict[str, Any]] = Field(None, description="Additional data if applicable")
+
+# Logic endpoints have been moved to the logic router
+
+@router.post("/dir", response_model=ProcessResponse, status_code=status.HTTP_201_CREATED)
+async def create_process_dir(request: ProcessDirRequest):
+    """
+    Create a new NeuProcessDir from either a NeuProcessLogic or provided scripts.
     """
     try:
-        # Fetch processes from database if connected
-        processes = []
-        if db_client.is_connected():
-            cursor = db_client.find_documents(
-                CollectionNames.PROCESS, 
-                query={}, 
-                skip=skip, 
-                limit=limit
-            )
-            processes = list(cursor)
-        else:
-            # If database not connected, list processes from filesystem
-            workdir = PATHS.workdir
-            image_dir = PATHS.process_images
-            
-            # List all process directories
-            process_dirs = []
-            if os.path.exists(workdir):
-                process_dirs = [d for d in os.listdir(workdir) if d.startswith("PR-")]
-            
-            # List all process images
-            process_images = []
-            if os.path.exists(image_dir):
-                process_images = [f for f in os.listdir(image_dir) if f.endswith(".sif")]
-            
-            # Create process objects
-            for i, dir_name in enumerate(process_dirs[skip:skip+limit]):
-                process_id = dir_name
-                process_dir_path = os.path.join(workdir, dir_name)
-                
-                # Check if model.json exists
-                model_file = os.path.join(process_dir_path, "model.json")
-                if os.path.exists(model_file):
-                    try:
-                        # Load NeuProcessDir from model.json
-                        process_dir = NeuProcessDir.from_json(model_file)
-                        
-                        # Check if image exists
-                        image_path = ""
-                        image_file = f"{process_id}.sif"
-                        if image_file in process_images:
-                            image_path = os.path.join(image_dir, image_file)
-                        
-                        # Create process object
-                        process = {
-                            "process_id": process_id,
-                            "name": process_dir.name,
-                            "description": process_dir.description,
-                            "author": process_dir.author,
-                            "version": process_dir.version,
-                            "image_path": image_path,
-                            "process_dir_id": process_dir.dir_id
-                        }
-                        processes.append(process)
-                    except Exception as e:
-                        # Skip invalid process dirs
-                        continue
+        config: NeuProcessDirConfig = NeuProcessDirConfig.model_validate(request.config) if request.config else NeuProcessDirConfig()
         
-        result = {
-            "status": "success",
-            "count": len(processes),
-            "processes": processes
+        logic: NeuProcessLogic = NeuProcessLogic.from_func_name(request.logic_name)
+        process_dir: NeuProcessDir = NeuProcessDir.from_logic(logic, config=config)
+        
+        if request.generate:
+            process_dir.generate()
+        
+        return {
+            "id": process_dir.process_id,
+            "name": process_dir.process_name,
+            "status": "created" if request.generate else "initialized",
+            "message": f"NeuProcessDir {process_dir.process_id} created successfully",
+            "data": {
+                "path": str(process_dir.working_dir)
+            }
         }
-        return result
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to create NeuProcessDir: {str(e)}"
+        )
 
-
-@router.get("/{process_id}", response_model=Dict[str, Any])
-async def get_process(process_id: str, db_client: MongoDBClient = Depends(get_db_client)) -> Dict[str, Any]:
-    """
-    Get details of a specific NeuProcess.
-    
-    Args:
-        process_id: The ID of the NeuProcess to get.
-        db_client: MongoDB client dependency
-        
-    Returns:
-        Dict[str, Any]: The NeuProcess details.
-    """
-    try:
-        # Try to fetch from database first
-        process_data = None
-        if db_client.is_connected():
-            process_data = db_client.find_one_document(
-                CollectionNames.PROCESSES, 
-                query={"process_id": process_id}
-            )
-        
-        # If not found in database, try to load from filesystem
-        if not process_data:
-            try:
-                process: NeuProcess = NeuProcess.from_process_id(process_id)
-                process_data: Dict[str, Any] = process.model_dump()
-            except Exception as e:
-                raise HTTPException(status_code=404, detail=f"Process {process_id} not found: {str(e)}")
-        
-        # Return the process data
-        result = {
-            "status": "success",
-            "process": process_data
-        }
-        return result
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@router.post("/create", response_model=Dict[str, Any])
-async def create_process(request: CreateProcessRequest, db_client: MongoDBClient = Depends(get_db_client)):
+@router.post("/", response_model=ProcessResponse, status_code=status.HTTP_201_CREATED)
+async def build_process(request: ProcessRequest):
     """
     Create a new NeuProcess from a NeuProcessDir.
-    
-    Args:
-        request: The request object containing the process configuration.
-        db_client: MongoDB client dependency
-        
-    Returns:
-        Dict[str, Any]: The created NeuProcess details.
     """
     try:
-        # Try to find the NeuProcessDir
-        process_dir = None
-        
-        # Check if it exists in the database
-        process_dir_data = None
-        if db_client.is_connected():
-            process_dir_data = db_client.find_one_document(
-                CollectionNames.PROCESS_DIR, 
-                query={"dir_id": request.process_dir_id}
-            )
-        
-        # If found in database, load from data
-        if process_dir_data:
-            process_dir = NeuProcessDir(**process_dir_data)
+        process: NeuProcess = NeuProcess.from_process_id(request.process_id)
+        if request.build:
+            if request.image_or_venv == "image":
+                image_path, job_id = process.build_singularity_image(scheduler=request.scheduler)
+            elif request.image_or_venv == "venv":
+                venv_path, job_id = process.create_virtual_env(scheduler=request.scheduler)
+            data = {
+                "image_path": str(image_path) if request.image_or_venv == "image" else None,
+                "venv_path": str(venv_path) if request.image_or_venv == "venv" else None,
+                "job_id": job_id if job_id else None
+            }
         else:
-            # Try to find it in the filesystem
-            process_dir_path = os.path.join(PATHS.workdir, request.process_dir_id)
-            if os.path.exists(process_dir_path):
-                # Load from model.json
-                model_file = os.path.join(process_dir_path, "model.json")
-                if os.path.exists(model_file):
-                    process_dir = NeuProcessDir.from_json(model_file)
-                else:
-                    raise HTTPException(status_code=404, detail=f"ProcessDir {request.process_dir_id} model file not found")
-            else:
-                raise HTTPException(status_code=404, detail=f"ProcessDir {request.process_dir_id} not found")
-        
-        # Create the NeuProcess
-        process = NeuProcess(
-            process_dir=process_dir,
-            name=request.name or process_dir.name,
-            description=request.description or process_dir.description,
-            author=request.author or process_dir.author,
-            version=request.version or process_dir.version
+            job_id = None
+            data = {}
+        return {
+            "id": process.process_id,
+            "name": process.process_name,
+            "status": "building" if job_id else "ready",
+            "message": f"NeuProcess {process.process_id} build initiated successfully" if job_id else f"NeuProcess {process.process_id} built successfully",
+            "data": data
+        }
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to create NeuProcess: {str(e)}"
         )
-        
-        # Save to database if connected
-        process_dict = process.model_dump()
-        if db_client.is_connected():
-            db_client.insert_document(CollectionNames.PROCESS, process_dict)
-        
-        result = {
-            "status": "success",
-            "message": "NeuProcess created successfully",
-            "process": process_dict
-        }
-        return result
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
 
-
-@router.post("/{process_id}/build_image", response_model=Dict[str, Any])
-async def build_image(process_id: str, db_client: MongoDBClient = Depends(get_db_client)):
+@router.get("/id/{process_id}", response_model=NeuProcess)
+async def get_process(process_id: str):
     """
-    Build the Singularity image for a specific NeuProcess.
-    
-    Args:
-        process_id: The ID of the NeuProcess to build the image for.
-        db_client: MongoDB client dependency
-        
-    Returns:
-        Dict[str, Any]: The build status and details.
+    Get information about a specific NeuProcess.
     """
     try:
-        # Get the process
-        process = None
-        
-        # Try to fetch from database
-        process_data = None
-        if db_client.is_connected():
-            process_data = db_client.find_one_document(
-                CollectionNames.PROCESS, 
-                query={"process_id": process_id}
-            )
-        
-        # If found in database, load from data
-        if process_data:
-            # Get the process dir data
-            process_dir_id = process_data.get("process_dir", {}).get("dir_id")
-            process_dir_data = None
-            if process_dir_id:
-                process_dir_data = db_client.find_one_document(
-                    CollectionNames.PROCESS_DIR,
-                    query={"dir_id": process_dir_id}
-                )
-            
-            if process_dir_data:
-                process_dir = NeuProcessDir(**process_dir_data)
-                process = NeuProcess(**process_data)
-            else:
-                # Try to load process dir from filesystem
-                process_dir_path = os.path.join(PATHS.workdir, process_dir_id)
-                if os.path.exists(process_dir_path):
-                    model_file = os.path.join(process_dir_path, "model.json")
-                    if os.path.exists(model_file):
-                        process_dir = NeuProcessDir.from_json(model_file)
-                        process = NeuProcess(**process_data)
-                    else:
-                        raise HTTPException(status_code=404, detail=f"ProcessDir {process_dir_id} model file not found")
-                else:
-                    raise HTTPException(status_code=404, detail=f"ProcessDir {process_dir_id} not found")
-        else:
-            # Try to load from filesystem
-            try:
-                # First get the process directory
-                process_dir_path = os.path.join(PATHS.workdir, process_id)
-                if os.path.exists(process_dir_path):
-                    # Load NeuProcessDir from model.json
-                    model_file = os.path.join(process_dir_path, "model.json")
-                    if os.path.exists(model_file):
-                        process_dir = NeuProcessDir.from_json(model_file)
-                        
-                        # Create NeuProcess
-                        process = NeuProcess(
-                            process_id=process_id,
-                            process_dir=process_dir
-                        )
-                    else:
-                        raise HTTPException(status_code=404, detail=f"Process {process_id} model file not found")
-                else:
-                    raise HTTPException(status_code=404, detail=f"Process {process_id} directory not found")
-            except Exception as e:
-                raise HTTPException(status_code=404, detail=f"Process {process_id} not found: {str(e)}")
-        
-        # Build the image
-        image_path = process.build_image()
-        
-        # Update the process data in database if connected
-        if db_client.is_connected():
-            db_client.update_document(
-                CollectionNames.PROCESS,
-                query={"process_id": process_id},
-                update={"$set": {"image_path": str(image_path)}}
-            )
-        
-        result = {
-            "status": "success",
-            "message": "Singularity image built successfully",
-            "image_path": str(image_path)
-        }
-        return result
+        process: NeuProcess = NeuProcess.from_process_id(process_id)
+        return process
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Process {process_id} not found: {str(e)}"
+        )
 
-
-@router.post("/{process_id}/create_venv", response_model=Dict[str, Any])
-async def create_venv(process_id: str, db_client: MongoDBClient = Depends(get_db_client)):
+@router.get("/", response_model=List[NeuProcess] | List[str])
+async def list_processes(id_only: bool = False):
     """
-    Create the virtual environment for a specific NeuProcess.
-    
-    Args:
-        process_id: The ID of the NeuProcess to create the venv for.
-        db_client: MongoDB client dependency
-        
-    Returns:
-        Dict[str, Any]: The venv creation status and details.
+    List all available NeuProcesses.
     """
     try:
-        # Get the process (using similar logic as build_image)
-        process = None
-        
-        # Try to fetch from database
-        process_data = None
-        if db_client.is_connected():
-            process_data = db_client.find_one_document(
-                CollectionNames.PROCESS, 
-                query={"process_id": process_id}
-            )
-        
-        # If found in database, load from data
-        if process_data:
-            # Get the process dir data
-            process_dir_id = process_data.get("process_dir", {}).get("dir_id")
-            process_dir_data = None
-            if process_dir_id:
-                process_dir_data = db_client.find_one_document(
-                    CollectionNames.PROCESS_DIR,
-                    query={"dir_id": process_dir_id}
-                )
-            
-            if process_dir_data:
-                process_dir = NeuProcessDir(**process_dir_data)
-                process = NeuProcess(**process_data)
-            else:
-                # Try to load process dir from filesystem
-                process_dir_path = os.path.join(PATHS.workdir, process_dir_id)
-                if os.path.exists(process_dir_path):
-                    model_file = os.path.join(process_dir_path, "model.json")
-                    if os.path.exists(model_file):
-                        process_dir = NeuProcessDir.from_json(model_file)
-                        process = NeuProcess(**process_data)
-                    else:
-                        raise HTTPException(status_code=404, detail=f"ProcessDir {process_dir_id} model file not found")
-                else:
-                    raise HTTPException(status_code=404, detail=f"ProcessDir {process_dir_id} not found")
-        else:
-            # Try to load from filesystem
-            try:
-                # First get the process directory
-                process_dir_path = os.path.join(PATHS.workdir, process_id)
-                if os.path.exists(process_dir_path):
-                    # Load NeuProcessDir from model.json
-                    model_file = os.path.join(process_dir_path, "model.json")
-                    if os.path.exists(model_file):
-                        process_dir = NeuProcessDir.from_json(model_file)
-                        
-                        # Create NeuProcess
-                        process = NeuProcess(
-                            process_id=process_id,
-                            process_dir=process_dir
-                        )
-                    else:
-                        raise HTTPException(status_code=404, detail=f"Process {process_id} model file not found")
-                else:
-                    raise HTTPException(status_code=404, detail=f"Process {process_id} directory not found")
-            except Exception as e:
-                raise HTTPException(status_code=404, detail=f"Process {process_id} not found: {str(e)}")
-        
-        # Create the virtual environment
-        venv_path = process.create_venv()
-        
-        # Update the process data in database if connected
-        if db_client.is_connected():
-            db_client.update_document(
-                CollectionNames.PROCESS,
-                query={"process_id": process_id},
-                update={"$set": {"venv_path": str(venv_path)}}
-            )
-        
-        result = {
-            "status": "success",
-            "message": "Virtual environment created successfully",
-            "venv_path": str(venv_path)
-        }
-        return result
+        process_ids: list[str] = [subdir.name for subdir in PATHS.workdir.iterdir() if subdir.is_dir()]
+        if id_only:
+            return [NeuProcess.from_process_id(pid).process_id for pid in process_ids]
+        return [NeuProcess.from_process_id(pid) for pid in process_ids]
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to list processes: {str(e)}"
+        )
 
-
-@router.delete("/{process_id}", response_model=Dict[str, Any])
-async def delete_process(process_id: str, db_client: MongoDBClient = Depends(get_db_client)):
+@router.get("/base-images", response_model=List[str])
+async def get_available_base_images() -> List[str]:
     """
-    Delete a specific NeuProcess and its associated image and venv.
-    
-    Args:
-        process_id: The ID of the NeuProcess to delete.
-        db_client: MongoDB client dependency
-        
-    Returns:
-        Dict[str, Any]: The deletion status.
+    Get a list of available base images for process creation.
     """
     try:
-        # Try to fetch from database
-        process_data = None
-        if db_client.is_connected():
-            process_data = db_client.find_one_document(
-                CollectionNames.PROCESS, 
-                query={"process_id": process_id}
-            )
-        
-        # Delete from database if exists
-        if process_data and db_client.is_connected():
-            db_client.delete_document(
-                CollectionNames.PROCESS,
-                query={"process_id": process_id}
-            )
-        
-        # Check if image exists and delete it
-        image_path = os.path.join(PATHS.process_images, f"{process_id}.sif")
-        if os.path.exists(image_path):
-            os.remove(image_path)
-        
-        # Check if venv exists and delete it
-        venv_path = os.path.join(PATHS.venvs, process_id)
-        if os.path.exists(venv_path):
-            shutil.rmtree(venv_path)
-        
-        result = {
-            "status": "success",
-            "message": f"NeuProcess {process_id} deleted successfully"
-        }
-        return result
+        base_images_path = PATHS.base_images
+        if not base_images_path.exists():
+            return []
+        images = [item for item in base_images_path.iterdir() if item.is_file() and item.suffix in {".sif"}]
+        return images
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        print(f"Error retrieving base images: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error retrieving base images: {str(e)}"
+        )

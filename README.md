@@ -25,6 +25,25 @@ NeuroAnalyst is organized into several key components:
 3. **NeuProcess**: Creates containerized execution environment
 4. **NeuProcessExec**: Handles runtime configuration and execution
 5. **NeuPipeline**: Orchestrates multi-step processing workflows
+6. **Web API**: FastAPI-based RESTful interface for managing processes and pipelines
+
+## Web API
+
+NeuroAnalyst provides a comprehensive RESTful API for interacting with the framework:
+
+- Create and manage processes and pipelines
+- Execute processes on neuroimaging data
+- Monitor execution status and retrieve results
+
+To start the API server:
+
+```bash
+./run_api.sh
+```
+
+API documentation is available at:
+- Swagger UI: http://localhost:8000/docs
+- ReDoc: http://localhost:8000/redoc
 
 ## Enhanced Features ✨
 

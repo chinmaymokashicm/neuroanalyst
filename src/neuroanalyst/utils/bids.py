@@ -1,3 +1,7 @@
+import json, subprocess
+from pathlib import Path
+from typing import Dict, Any, List
+
 from bids import BIDSLayout
 
 def split_by_subject_session(
@@ -187,3 +191,49 @@ def split_by_subject_session(
     )
 
     return chunks
+
+def validate_bids_dataset(dataset_path: str | Path, ignore_warnings: bool = False) -> Dict[str, Any]:
+    """
+    Validate a BIDS dataset using the BIDS Validator.
+    
+    Args:
+        dataset_path: Path to the BIDS dataset to validate.
+        ignore_warnings: Whether to ignore warnings during validation.
+    Returns:
+        A dictionary containing the validation results.
+    Raises:
+        FileNotFoundError: If the dataset path does not exist.
+        RuntimeError: If the bids-validator is not installed.
+    """
+    # Run the BIDS validator
+    cmd = ["bids-validator", str(dataset_path)]
+    if ignore_warnings:
+        cmd.append("--ignoreWarnings")
+
+    # Run validator and capture output
+    result = subprocess.run(
+        cmd,
+        check=False,
+        capture_output=True,
+        text=True
+    )
+
+    # Try to parse the JSON output from the validator
+    validation_details = {}
+    try:
+        # Look for JSON in stdout
+        stdout = result.stdout
+        if stdout:
+            # Try to find and extract JSON part
+            json_start = stdout.find("{")
+            json_end = stdout.rfind("}")
+            if json_start >= 0 and json_end > json_start:
+                json_part = stdout[json_start:json_end+1]
+                validation_details = json.loads(json_part)
+    except Exception:
+        # If JSON parsing fails, use raw output
+        validation_details = {
+            "stdout": result.stdout,
+            "stderr": result.stderr
+        }
+    return validation_details

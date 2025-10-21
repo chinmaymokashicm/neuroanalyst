@@ -12,8 +12,14 @@ The main components are:
 """
 
 # Import main classes for easier access
-from .logic.core import NeuProcessLogic, NeuProcessKind, ProgrammingLanguage
-from .dir.core import NeuProcessDir, ExecutionMode
+from .logic.core import (
+    NeuProcessLogic,
+    NeuProcessKind,
+    ProgrammingLanguage,
+)
+from .logic.code.python import PythonDecoder, PythonEncoder
+from .logic.code.base import CodeGenerationResult
+from .dir.core import NeuProcessDir, ExecutionMode, NeuProcessDirConfig
 from .process.core import NeuProcess
 from .exec.core import NeuProcessExec, HPCScheduler
 from .wrapper.core import neuprocess_decorator
@@ -22,6 +28,7 @@ __all__ = [
     "NeuProcessLogic",
     "NeuProcessKind",
     "ProgrammingLanguage",
+    "CodeGenerationResult",
     "NeuProcessDir",
     "ExecutionMode",
     "NeuProcess",

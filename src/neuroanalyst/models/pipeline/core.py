@@ -29,6 +29,7 @@ from bids import BIDSLayout
 
 from ...utils.constants import NeuroAnalystPaths
 from ...utils.id_generators import generate_id
+from ...utils.data import flatten_dict
 from ..about import About
 from ..bids import BIDSDatasetDescription, BIDSGeneratedByToolInfo, PipelineDescriptionSpec
 from ..process.exec.core import NeuProcessExec, HPCScheduler, ExecutionMode
@@ -434,13 +435,112 @@ Execution Command: {self.execution_command if self.execution_command else 'Not g
             raise TypeError("step must be an instance of NeuPipelineStep")
         self.steps.append(step)
 
-    def add_bind_path(self, container_path: str, host_path: str, step_idx: Optional[int] = None, exec_id: Optional[str] = None) -> None:
+    def get_missing_bind_paths(self, by: Literal["process_id", "step_idx"] = "process_id") -> Dict[str, Set[str]]:
+        """
+        Get a dictionary of missing bind-mount paths for each process execution in the pipeline.
+        
+        Args:
+            by: Whether to return missing paths by 'process_id' or 'step_idx'
+            
+        Returns:
+            Dict[str, Set[str]]: A dictionary mapping process IDs or step indices to sets of missing bind paths
+        """
+        missing_paths: Dict[str, Set[str]] = {}
+        for step_idx, step in enumerate(self.steps):
+            for proc_exec in step.process_execs:
+                config: dict = proc_exec.get_configuration_status()
+                missing: List[str] = config.get("bind_paths", {}).get("missing", [])
+                if missing:
+                    key: str = proc_exec.process.process_id if by == "process_id" else str(step_idx)
+                    if key not in missing_paths:
+                        missing_paths[key] = set()
+                    missing_paths[key].update(missing)
+        return missing_paths
+    
+    def get_missing_env_vars(self, by: Literal["process_id", "step_idx"] = "process_id") -> Dict[str, Set[str]]:
+        """
+        Get a dictionary of missing environment variables for each process execution in the pipeline.
+        
+        Args:
+            by: Whether to return missing env vars by 'process_id' or 'step_idx'
+            
+        Returns:
+            Dict[str, Set[str]]: A dictionary mapping process IDs or step indices to sets of missing env vars
+        """
+        missing_vars: Dict[str, Set[str]] = {}
+        for step_idx, step in enumerate(self.steps):
+            for proc_exec in step.process_execs:
+                config: dict = proc_exec.get_configuration_status()
+                missing: List[str] = config.get("environment_variables", {}).get("missing", [])
+                if missing:
+                    key: str = proc_exec.process.process_id if by == "process_id" else str(step_idx)
+                    if key not in missing_vars:
+                        missing_vars[key] = set()
+                    missing_vars[key].update(missing)
+        return missing_vars
+    
+    def get_missing_scheduler_flags(self, by: Literal["process_id", "step_idx"] = "process_id") -> Dict[str, Set[str]]:
+        """
+        Get a dictionary of missing scheduler flags for each process execution in the pipeline.
+        
+        Args:
+            by: Whether to return missing scheduler flags by 'process_id' or 'step_idx'
+            
+        Returns:
+            Dict[str, Set[str]]: A dictionary mapping process IDs or step indices to sets of missing scheduler flags
+        """
+        missing_flags: Dict[str, Set[str]] = {}
+        for step_idx, step in enumerate(self.steps):
+            for proc_exec in step.process_execs:
+                config: dict = proc_exec.get_configuration_status()
+                missing: List[str] = config.get("scheduler_flags", {}).get("missing", [])
+                if missing:
+                    key: str = proc_exec.process.process_id if by == "process_id" else str(step_idx)
+                    if key not in missing_flags:
+                        missing_flags[key] = set()
+                    missing_flags[key].update(missing)
+        return missing_flags
+    
+    def get_missing_configs(self, by: Literal["process_id", "step_idx", "process_exec_id"] = "process_id") -> Dict[str, Dict[str, Set[str]]]:
+        """
+        Get a dictionary of all missing configurations (bind paths, env vars, scheduler flags)
+        for each process execution in the pipeline.
+        
+        Args:
+            by: Whether to return missing configs by 'process_id' or 'step_idx'
+            
+        Returns:
+            Dict[str, Dict[str, Set[str]]]: A dictionary mapping process IDs or step indices to
+            dictionaries of missing configuration types and their corresponding sets of missing items.
+        """
+        missing_configs: Dict[str, Dict[str, Set[str]]] = {}
+        for step_idx, step in enumerate(self.steps):
+            for proc_exec in step.process_execs:
+                config: dict = proc_exec.get_configuration_status()
+                missing: Dict[str, List[str]] = {
+                    "bind_paths": config.get("bind_paths", {}).get("missing", []),
+                    "environment_variables": config.get("environment_variables", {}).get("missing", []),
+                    "scheduler_flags": config.get("scheduler_flags", {}).get("missing", [])
+                }
+                if any(missing.values()):
+                    key: str = proc_exec.process.process_id if by == "process_id" else str(step_idx)
+                    if key not in missing_configs:
+                        missing_configs[key] = {}
+                    for config_type, items in missing.items():
+                        if items:
+                            if config_type not in missing_configs[key]:
+                                missing_configs[key][config_type] = set()
+                            missing_configs[key][config_type].update(items)
+        return missing_configs
+    
+    def add_bind_path(self, container_path: str, host_path: str, process_id: Optional[str] = None,step_idx: Optional[int] = None, exec_id: Optional[str] = None) -> None:
         """
         Add a bind-mount path to a specific process execution in a step.
         
         Args:
             container_path: The path inside the container
             host_path: The path on the host machine
+            process_id: The ID of the process to modify. If None, use step_idx and exec_id.
             step_idx: The index of the step in the pipeline. If None, apply to all steps.
             exec_id: The execution ID of the specific process to modify. If None and step_ids is not None, apply to all processes in the step.
             
@@ -448,6 +548,19 @@ Execution Command: {self.execution_command if self.execution_command else 'Not g
             IndexError: If step_idx is out of range
             ValueError: If exec_id is not found in the specified step
         """
+        if process_id is not None:
+            # Apply to all process execs with the given process_id
+            proc_execs: list[NeuProcessExec] = []
+            for step in self.steps:
+                for proc_exec in step.process_execs:
+                    if proc_exec.process.process_id == process_id:
+                        proc_execs.append(proc_exec)
+            if not proc_execs:
+                raise ValueError(f"process_id '{process_id}' not found in the pipeline")
+            for proc_exec in proc_execs:
+                proc_exec.set_bind_path_value(container_path, host_path)
+            return
+
         if step_idx is not None:
             if step_idx < 0 or step_idx >= len(self.steps):
                 raise IndexError("step_idx out of range")
@@ -471,13 +584,14 @@ Execution Command: {self.execution_command if self.execution_command else 'Not g
                 return
         raise ValueError(f"exec_id '{exec_id}' not found in step {step_idx}")
     
-    def add_env_var(self, var_name: str, var_value: str, step_idx: Optional[int] = None, exec_id: Optional[str] = None) -> None:
+    def add_env_var(self, var_name: str, var_value: str, process_id: Optional[str] = None, step_idx: Optional[int] = None, exec_id: Optional[str] = None) -> None:
         """
         Add an environment variable to a specific process execution in a step.
         
         Args:
-            var_name: The name of the environment variable
-            var_value: The value of the environment variable to set
+            var_name: The name of the environment variable.
+            var_value: The value of the environment variable to set.
+            process_id: The ID of the process to modify. If None, use step_idx and exec_id.
             step_idx: The index of the step in the pipeline. If None, apply to all steps.
             exec_id: The execution ID of the specific process to modify. If None and step_ids is not None, apply to all processes in the step.
             
@@ -485,6 +599,19 @@ Execution Command: {self.execution_command if self.execution_command else 'Not g
             IndexError: If step_idx is out of range
             ValueError: If exec_id is not found in the specified step
         """
+        if process_id is not None:
+            # Apply to all process execs with the given process_id
+            proc_execs: list[NeuProcessExec] = []
+            for step in self.steps:
+                for proc_exec in step.process_execs:
+                    if proc_exec.process.process_id == process_id:
+                        proc_execs.append(proc_exec)
+            if not proc_execs:
+                raise ValueError(f"process_id '{process_id}' not found in the pipeline")
+            for proc_exec in proc_execs:
+                proc_exec.set_env_var_value(var_name, var_value)
+            return
+
         if step_idx is not None:
             if step_idx < 0 or step_idx >= len(self.steps):
                 raise IndexError("step_idx out of range")
@@ -508,12 +635,13 @@ Execution Command: {self.execution_command if self.execution_command else 'Not g
                 return
         raise ValueError(f"exec_id '{exec_id}' not found in step {step_idx}")
 
-    def add_scheduler_flags(self, flags: dict, step_idx: Optional[int] = None, exec_id: Optional[str] = None) -> None:
+    def add_scheduler_flags(self, flags: dict, process_id: Optional[str] = None, step_idx: Optional[int] = None, exec_id: Optional[str] = None) -> None:
         """
         Add scheduler flags to a specific process execution in a step.
         
         Args:
             flags: A dictionary of scheduler flags to set
+            process_id: The ID of the process to modify. If None, use step_idx and exec_id.
             step_idx: The index of the step in the pipeline. If None, apply to all steps.
             exec_id: The execution ID of the specific process to modify. If None and step_ids is not None, apply to all processes in the step.
             
@@ -521,6 +649,19 @@ Execution Command: {self.execution_command if self.execution_command else 'Not g
             IndexError: If step_idx is out of range
             ValueError: If exec_id is not found in the specified step
         """
+        if process_id is not None:
+            # Apply to all process execs with the given process_id
+            proc_execs: list[NeuProcessExec] = []
+            for step in self.steps:
+                for proc_exec in step.process_execs:
+                    if proc_exec.process.process_id == process_id:
+                        proc_execs.append(proc_exec)
+            if not proc_execs:
+                raise ValueError(f"process_id '{process_id}' not found in the pipeline")
+            for proc_exec in proc_execs:
+                proc_exec.set_scheduler_flags(flags)
+            return
+        
         if step_idx is not None:
             if step_idx < 0 or step_idx >= len(self.steps):
                 raise IndexError("step_idx out of range")
@@ -544,6 +685,34 @@ Execution Command: {self.execution_command if self.execution_command else 'Not g
                 return
         raise ValueError(f"exec_id '{exec_id}' not found in step {step_idx}")
 
+    def apply_configuration(
+            self, 
+            process_id: Optional[str] = None, 
+            step_idx: Optional[int] = None, 
+            exec_id: Optional[str] = None, 
+            bind_paths: Optional[Dict[str, str]] = None,
+            env_vars: Optional[Dict[str, str]] = None,
+            scheduler_flags: Optional[Dict[str, str]] = None
+        ) -> None:
+        """
+        Apply configuration settings to a specific process execution in a step. Overwrites existing settings.
+        Args:
+            process_id: The ID of the process to modify. If None, use step_idx and exec_id.
+            step_idx: The index of the step in the pipeline. If None, apply to all steps.
+            exec_id: The execution ID of the specific process to modify. If None and step_ids is not None, apply to all processes in the step.
+            bind_paths: A dictionary of bind-mount paths to set
+            env_vars: A dictionary of environment variables to set
+            scheduler_flags: A dictionary of scheduler flags to set
+        """
+        if bind_paths:
+            for container_path, host_path in bind_paths.items():
+                self.add_bind_path(container_path, host_path, process_id, step_idx, exec_id)
+        if env_vars:
+            for key, value in env_vars.items():
+                self.add_env_var(key, value, process_id, step_idx, exec_id)
+        if scheduler_flags:
+            self.add_scheduler_flags(scheduler_flags, step_idx, exec_id, process_id)
+    
     def apply_standard_exec_params(self):
         """Apply standard execution parameters to all processes in the pipeline."""
         
@@ -584,14 +753,21 @@ Execution Command: {self.execution_command if self.execution_command else 'Not g
                 
                 # Set standard bind-mount paths - /data, 
                 proc_exec.set_bind_path_value("/data", str(self.bids_root))
-
-                # Generate the command to ensure it's ready
-                proc_exec.generate_command()
                 
                 # Check if all the required configuration is set
                 if not proc_exec.check_configuration_complete():
                     print(f"WARNING: ProcessExec {proc_exec.exec_id} in step '{step.name}' is missing configuration.")
-                    print(proc_exec.print_configuration_status())
+                    # print(proc_exec.print_configuration_status())
+                    # missing_config = proc_exec.get_configuration_status()
+                    # if missing_config.get("bind_paths", {}).get("missing"):
+                    #     print(f"  Missing bind paths: {missing_config['bind_paths']['missing']}")
+                    # if missing_config.get("environment_variables", {}).get("missing"):
+                    #     print(f"  Missing environment variables: {missing_config['environment_variables']['missing']}")
+                    # if missing_config.get("scheduler_flags", {}).get("missing"):
+                    #     print(f"  Missing scheduler flags: {missing_config['scheduler_flags']['missing']}")
+                else:
+                    proc_exec.generate_command()
+                    print(f"ProcessExec {proc_exec.exec_id} in step '{step.name}' is fully configured.")
     
     def create_pipeline_dir(self) -> Path:
         """Create the pipeline directory structure."""
@@ -1079,7 +1255,8 @@ Execution Command: {self.execution_command if self.execution_command else 'Not g
                 f.write(dataset_description.model_dump_json(indent=2))
                 logger.info(f"Created dataset_description.json at {dataset_description_path}")
 
-    def load_metrics(self, filepath: str, numeric_only: bool = True) -> Dict[str, Any]:
+    @staticmethod
+    def load_metrics(filepath: str, numeric_only: bool = True, allow_nested: bool = True) -> tuple[Dict[str, Any], Dict[str, Any]]:
         """Load metrics from a sidecar file and provide associated metadata such as -
             - function name
             - process ID
@@ -1105,6 +1282,9 @@ Execution Command: {self.execution_command if self.execution_command else 'Not g
                 if "metrics" in data and isinstance(data["metrics"], dict):
                     file_metrics = data["metrics"]
                     if numeric_only:
+                        if allow_nested:
+                            file_metrics = flatten_dict(file_metrics)
+                        # Filter to only numeric metrics
                         file_metrics = {k: v for k, v in file_metrics.items() if isinstance(v, (int, float))}
                     metrics.update(file_metrics)
                 if "FunctionName" in data:
@@ -1124,7 +1304,8 @@ Execution Command: {self.execution_command if self.execution_command else 'Not g
 
         return metrics, about
     
-    def aggregate_metrics(self, sidecar_filepaths: list[str | Path]) -> pd.DataFrame:
+    @staticmethod
+    def aggregate_metrics(sidecar_filepaths: list[str | Path]) -> pd.DataFrame:
         """
         Aggregate metrics from all sidecar files in the derivatives directory of the pipeline.
         Assumptions:
@@ -1141,7 +1322,7 @@ Execution Command: {self.execution_command if self.execution_command else 'Not g
         process_id: Optional[str] = None
         all_metrics = []
         for filepath in sidecar_filepaths:
-            metrics, about = self.load_metrics(str(filepath), numeric_only=True)
+            metrics, about = NeuPipeline.load_metrics(str(filepath), numeric_only=True)
             if metrics:
                 all_metrics.append({**metrics, **about})
                 if "process_id" not in about:

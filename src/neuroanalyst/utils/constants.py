@@ -87,7 +87,7 @@ class NeuroAnalystPaths:
     
     @property
     def workdir(self) -> Path:
-        """Working directory for temporary files during processing."""
+        """Working directory containing NeuProcessDir files."""
         return Path(self._workdir)
     
     @property

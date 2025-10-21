@@ -5,10 +5,12 @@ Purpose-
 - To create a structure around a piece of code that can then be wrapped around by a NeuProcess structure.
 - The NeuProcess can then be wrapped around by NeuProcessExec which would be used in NeuPipeline.
 """
-from pathlib import Path
-from typing import Self
 from ...about import About
 from ....utils.constants import PATHS
+
+from pathlib import Path
+from typing import Self
+import shutil
 
 from enum import Enum
 from importlib.resources import files
@@ -165,7 +167,7 @@ class NeuProcessLogic(BaseModel):
             model_data = json.load(f)
         return cls.model_validate(model_data)
     
-    def register(self) -> Path:
+    def register(self, overwrite: bool = False) -> Path:
         """
         Register the NeuProcessLogic by saving its code and model to the functions directory.
         Returns the path to the function directory.
@@ -175,9 +177,12 @@ class NeuProcessLogic(BaseModel):
         """
         
         function_dir: Path = PATHS.get_function_workdir(self.about.name)
-        if function_dir.exists():
-           raise FileExistsError(f"Function directory already exists: {function_dir} . Use a different function name or delete the existing directory.") 
-        
+        if function_dir.exists() and not overwrite:
+           raise FileExistsError(f"Function directory already exists: {function_dir} . Use a different function name or delete the existing directory, or set overwrite=True to overwrite.") 
+
+        if function_dir.exists() and overwrite:
+            shutil.rmtree(function_dir)
+
         function_dir.mkdir(parents=True, exist_ok=False)
         
         # Save the entire function (include imports) to a .py file
@@ -199,3 +204,12 @@ class NeuProcessLogic(BaseModel):
             json.dump(model, f, indent=4)
             
         return function_dir
+    
+    def delete(self):
+        """
+        Delete the NeuProcessLogic from the functions directory.
+        """
+        function_dir: Path = PATHS.get_function_workdir(self.about.name)
+        if not function_dir.exists():
+            raise FileNotFoundError(f"Function directory does not exist: {function_dir}")
+        shutil.rmtree(function_dir)

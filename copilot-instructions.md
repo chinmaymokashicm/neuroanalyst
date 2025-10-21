@@ -277,47 +277,48 @@ This document outlines how jobs are submitted and managed for NeuroAnalyst on th
 - Use routers to organize the endpoints based on functionality.
 - Use pydantic models to validate request and response data.
 - Use dependency injection to manage database connections and other shared resources.
+- For now, we will not implement any quering from a database. All data will be store in the file system. We will implement database querying in the future.
 <!-- - Use authentication and authorization to secure the API endpoints. -->
 - Endpoints - 
   * Logic Endpoints
-  - POST /logic/encode - Encode a user-defined function into a pydantic model. Takes a string of the function and returns the pydantic model in the form of a dict.
-  - POST /logic/decode - Decode a pydantic model into a user-defined function. Takes a pydantic model in the form of a dict and returns the function string.
+  - POST /logic/encode - Encode a user-defined function into a pydantic model. Takes a string of the function and returns the pydantic model in the form of a dict. Use PythonEncoder from models.process.logic.code.python.encoder .
+  - POST /logic/decode - Decode a pydantic model into a user-defined function. Takes a pydantic model in the form of a dict and returns the function string. Use PythonDecoder from models.process.logic.code.python.decoder .
   
   * NeuProcessDir Endpoints
-  - POST /dir/create/logic - Create a new NeuProcessDir from NeuProcessLogic.
-  - GET /dir/all - Get a list of all NeuProcessDirs.
-  - GET /dir/{process_dir_id} - Get details of a specific NeuProcessDir as a directory tree.
+  - POST /dir/create/logic - Create a new NeuProcessDir from NeuProcessLogic. Use the from_logic classmethod.
+  - GET /dir/all - Get a list of all NeuProcessDirs. Load from the NEUROANALYST_WORKDIR directory.
+  - GET /dir/{process_dir_id} - Get details of a specific NeuProcessDir as a directory tree. Load from the NEUROANALYST_WORKDIR directory.
 
   * File Endpoints
   - GET /[$NEUROANALYST_ROOT_DIR]/relative_path - Get the contents of a specific file given its relative path from the relevant root directory (e.g. NEUROANALYST_DATASETS, NEUROANALYST_VENVS, etc.).
   
   * NeuProcess Endpoints
-  - GET /process/all - Get a list of all NeuProcesses.
-  - GET /process/{process_id} - Get details of a specific NeuProcess.
-  - POST /process/create - Create a new NeuProcess from a NeuProcessDir or from logic/scripts.
-  - POST /process/{process_id}/build_image - Build the Singularity image for a specific NeuProcess.
-  - POST /process/{process_id}/create_venv - Create the virtual environment for a specific NeuProcess.
-  - DELETE /process/{process_id} - Delete a specific NeuProcess and its associated image and venv.
+  - GET /process/all - Get a list of all NeuProcesses. 
+  - GET /process/{process_id} - Get details of a specific NeuProcess. Use the NeuProcess.from_process_id classmethod.
+  - POST /process/{process_id}/build_image - Build the Singularity image for a specific NeuProcess. Use the build_image method.
+  - POST /process/{process_id}/create_venv - Create the virtual environment for a specific NeuProcess. Use the create_virtual_env method.
+  - DELETE /process/{process_id} - Delete a specific NeuProcess and its associated image and venv. Load from the NEUROANALYST_IMAGES and NEUROANALYST_VENV directories to delete the image and venv. Load from the NEUROANALYST_WORKDIR directory to delete the process dir.
 
   * NeuProcessExec Endpoints
   - POST /process/exec/create - Create a new NeuProcessExec instance.
-  - GET /process/exec/{exec_id} - Get details of a specific NeuProcessExec.
-  - POST /process/exec/{exec_id}/generate_command - Generate the execution command for a specific NeuProcessExec.
-  - DELETE /process/exec/{exec_id} - Delete a specific NeuProcessExec.
+  - GET /process/exec/{exec_id} - Get details of a specific NeuProcessExec. Load from the NEUROANALYST_PROCESS_EXECS directory for the exec_id, load the NeuProcessExec from model.json.
+  - POST /process/exec/{exec_id}/generate_command - Generate the execution command for a specific NeuProcessExec. If model.json exists in the NEUROANALYST_PROCESS_EXECS directory for the exec_id, load the NeuProcessExec from it. Use the generate_execution_command method.
+  - DELETE /process/exec/{exec_id} - Delete a specific NeuProcessExec. Load from the NEUROANALYST_PROCESS_EXECS directory for the exec_id to delete the exec.
 
   * NeuPipeline Endpoints
   - POST /pipeline/create - Create a new NeuPipeline from a list of NeuProcessExec instances.
+  - POST /pipeline/construct - Construct a NeuPipeline using the NeuPipeline.constructor classmethod.
   - GET /pipeline/{pipeline_id} - Get details of a specific NeuPipeline.
   - GET /pipeline/all - Get a list of all NeuPipelines.
   - DELETE /pipeline/{pipeline_id} - Delete a specific NeuPipeline and its associated directory.
 
   * Dataset Endpoints
-  - GET /dataset/all - Get a list of all datasets.
-  - GET /dataset/{dataset_id} - Get details of a specific dataset. Returns directory tree structure, size, number of files, etc.
-  - GET /dataset/{dataset_id}/filter - Get a list of files in a specific dataset that match the provided BIDS filters.
+  - GET /dataset/all - Get a list of all datasets. Load from the NEUROANALYST_DATASETS directory.
+  - GET /dataset/{dataset_id} - Get details of a specific dataset. Returns directory tree structure, size, number of files, etc. Load from the NEUROANALYST_DATASETS directory.
+  - GET /dataset/{dataset_id}/filter - Get a list of files in a specific dataset that match the provided BIDS filters.  Use pybids to filter the dataset based on the provided filters.
   
   * BIDS Endpoints
-  - GET /bids/entities/file_name - Get the BIDS entities of a specific file given its name.
+  - GET /bids/entities/file_name - Get the BIDS entities of a specific file given its name. Use pybids to extract the entities from the file name.
 
 
 ```markdown

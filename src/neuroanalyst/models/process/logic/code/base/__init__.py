@@ -6,12 +6,13 @@ for encoding NeuProcessLogic objects to code and decoding code back
 to NeuProcessLogic objects for different programming languages.
 """
 
+from ...core import NeuProcessLogic, ProgrammingLanguage
+
 from abc import ABC, abstractmethod
 from typing import Optional, Union, List, Dict, Any
 from pathlib import Path
 
 from pydantic import BaseModel, Field, ConfigDict, field_validator, model_validator
-from ...core import NeuProcessLogic, ProgrammingLanguage
 
 
 class BaseEncoderConfig(BaseModel):
@@ -93,6 +94,21 @@ class CodeGenerationResult(BaseModel):
     metadata: Dict[str, Any] = Field(default_factory=dict, description="Additional metadata")
     validation_errors: List[str] = Field(default_factory=list, description="Validation errors if any")
     generation_time: Optional[float] = Field(None, description="Time taken to generate code in seconds")
+    
+    def __str__(self):
+        string: str = f"""
+Language: {self.language}
+Code Length: {len(self.code)} characters
+Generated Code:
+
+{self.code}
+
+Generation Time: {self.generation_time if self.generation_time is not None else 'N/A'} seconds
+        """
+        return string.strip()
+    
+    def __repr__(self):
+        return super().__repr__()
     
     @field_validator('code')
     @classmethod

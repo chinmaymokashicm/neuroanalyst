@@ -58,13 +58,29 @@ class NeuProcess(BaseModel):
     
     def __str__(self) -> str:
         """Return a human-readable string representation of the NeuProcess."""
-        return f"NeuProcess(id='{self.process_id}', name='{self.process_dir.name}')"    
+        string: str = f"""
+        NeuProcess:
+          ID: {self.process_id}
+          Name: {self.process_dir.logic.about.name}
+          Directory: {self.process_dir.working_dir}
+          Bind Paths: {self.bind_paths}
+          Environment Variables: {self.environment_variables}
+          Command Flags: {self.command_flags}
+        """
+        return string.strip()
     
     def __repr__(self) -> str:
         """Return a detailed string representation of the NeuProcess."""
-        return f"NeuProcess(id='{self.process_id}', name='{self.process_dir.name}', "\
-               f"dir_path='{self.process_dir.process_dir}', "\
-               f"execution_modes={self.process_dir.get_available_execution_modes()})"
+        string: str = f"""
+        NeuProcess(
+          process_id='{self.process_id}',
+          process_dir={repr(self.process_dir)},
+          bind_paths={self.bind_paths},
+          environment_variables={self.environment_variables},
+          command_flags={self.command_flags}
+        )
+        """
+        return string.strip()
     
     def model_post_init(self, __context):
         """Post-initialization processing."""
@@ -207,17 +223,23 @@ class NeuProcess(BaseModel):
         return self._paths.get_venv_path(self.process_id)
     
     # Singularity image methods
-    def build_image(self) -> Path:
+    def build_singularity_image(self, scheduler=None, scheduler_args=None, **kwargs) -> tuple[Path, str]:
         """
-        Build the Singularity image for this process.
+        Build a Singularity image for this process.
+        
+        Args:
+            scheduler: Optional scheduler to use ("slurm", "pbs", "lsf"). If None, builds locally.
+            scheduler_args: Dictionary of scheduler-specific arguments with keys matching scheduler flags.
+            **kwargs: Additional arguments for backward compatibility.
         
         Returns:
-            Path to the built image
+            Tuple containing (image_path, job_id)
         
         Raises:
             RuntimeError: If image build fails
         """
-        return self.process_dir.build_singularity_image()
+            
+        return self.process_dir.build_singularity_image(scheduler=scheduler, scheduler_args=scheduler_args)
     
     def image_exists(self) -> bool:
         """
@@ -227,19 +249,39 @@ class NeuProcess(BaseModel):
             True if the image exists, False otherwise
         """
         return self.image_path.exists()
+        
+    def generate_singularity_build_command(self, scheduler=None, scheduler_args=None) -> str:
+        """
+        Generate the command to build a Singularity image for this process.
+        
+        Args:
+            scheduler: Optional scheduler to use ("slurm", "pbs", "lsf"). If None, builds locally.
+            scheduler_args: Dictionary of scheduler-specific arguments with keys matching scheduler flags.
+        
+        Returns:
+            String containing the command to build the Singularity image
+        """
+            
+        return self.process_dir.generate_singularity_build_command(scheduler=scheduler, scheduler_args=scheduler_args)
     
     # Virtual environment methods
-    def create_virtual_env(self) -> Path:
+    def create_virtual_env(self, scheduler=None, scheduler_args=None, **kwargs) -> tuple[Path, str]:
         """
         Create a virtual environment for this process.
         
+        Args:
+            scheduler: Optional scheduler to use ("slurm", "pbs", "lsf"). If None, builds locally.
+            scheduler_args: Dictionary of scheduler-specific arguments with keys matching scheduler flags.
+            **kwargs: Additional arguments for backward compatibility.
+        
         Returns:
-            Path to the created virtual environment
+            Tuple containing (venv_path, job_id)
             
         Raises:
             RuntimeError: If virtual environment creation fails
         """
-        return self.process_dir.create_virtual_env()
+            
+        return self.process_dir.create_virtual_env(scheduler=scheduler, scheduler_args=scheduler_args)
     
     def venv_exists(self) -> bool:
         """
@@ -248,8 +290,22 @@ class NeuProcess(BaseModel):
         Returns:
             True if the virtual environment exists, False otherwise
         """
-        return self.venv_path.exists() and (self.venv_path / "bin" / "python").exists()
-    
+        return self.venv_path.exists()
+        
+    def generate_venv_creation_command(self, scheduler=None, scheduler_args=None) -> str:
+        """
+        Generate the command to create a virtual environment for this process.
+        
+        Args:
+            scheduler: Optional scheduler to use ("slurm", "pbs", "lsf"). If None, builds locally.
+            scheduler_args: Dictionary of scheduler-specific arguments with keys matching scheduler flags.
+        
+        Returns:
+            String containing the command to create the virtual environment
+        """
+
+        return self.process_dir.generate_venv_creation_command(scheduler=scheduler, scheduler_args=scheduler_args) and (self.venv_path / "bin" / "python").exists()
+
     # Bind paths and environment variables management
     def add_bind_path(self, path: str) -> None:
         """

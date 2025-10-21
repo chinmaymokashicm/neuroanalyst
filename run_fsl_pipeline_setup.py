@@ -135,7 +135,7 @@ fsl_img_path: str = FSL_IMG
 fsl_img_dir: str = str(Path(fsl_img_path).parent)
 fsl_img_name: str = str(Path(fsl_img_path).name)
 
-scheduler_flags: dict = {"-n": 2, "-q": "medium", "-M": "20GB", "-W": "12:00"} # LSF-specific flags - memory 20GB, 2 cores, medium queue
+scheduler_args: dict = {"-n": 2, "-q": "medium", "-M": "20GB", "-W": "12:00"} # LSF-specific flags - memory 20GB, 2 cores, medium queue
 
 subjects_part_1: list[str] = ["M2001", "M2002", "M2003", "M2004", "M2005"]
 subjects_part_2: list[str] = ["M2006", "M2007", "M2009", "M2011", "M2012"]
@@ -227,7 +227,7 @@ for subjects, exec_list, process, bids_filter in [
             "BIDS_FILTERS": json.dumps({"subject": subjects} | bids_filter)
         },
         bind_path_values={"/opt/fsl_images": fsl_img_dir},
-        scheduler_flags=scheduler_flags
+        scheduler_args=scheduler_args
     )
     exec_list.append(exec_instance)
     print(f"Created exec for subjects {', '.join(subjects)} with process {process.process_id}")

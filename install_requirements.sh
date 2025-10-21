@@ -5,6 +5,7 @@ venv_name=$1
 source $venv_name/bin/activate
 
 pip install pydantic rich python-dotenv
+pip install openpyxl
 
 pip install ipython ipykernel ipywidgets pymongo "fastapi[standard]"
 
