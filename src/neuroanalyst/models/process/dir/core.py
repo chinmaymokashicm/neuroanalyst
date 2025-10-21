@@ -1650,9 +1650,9 @@ echo "Virtual environment created and requirements installed successfully at: ${
         # Generate the command using our consolidated method
         cmd_str = self.generate_singularity_build_command(scheduler, scheduler_args)
         
-        # For local execution, redirect output to log file
+        # For local execution, redirect output to log file and run in background
         if scheduler is None:
-            cmd_str = f"{cmd_str} > {log_file} 2>&1"
+            cmd_str = f"{cmd_str} > {log_file} 2>&1 &"
         
         try:
             # Execute the build script and capture output
