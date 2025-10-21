@@ -1687,6 +1687,9 @@ echo "Virtual environment created and requirements installed successfully at: ${
                 if match:
                     job_id = match.group(1)
                 print(f"Build job submitted to LSF with ID: {job_id}. Image will be built at: {image_path}")
+            elif scheduler == "local":
+                # Local execution - job ID is not applicable
+                print(f"Singularity image built successfully at: {image_path}")
                 
             else:
                 # Local execution - check if the image was created
