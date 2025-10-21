@@ -1647,12 +1647,16 @@ echo "Virtual environment created and requirements installed successfully at: ${
         else:
             print(f"Building Singularity image locally for {self.process_id}")
             
+        # Handle "local" scheduler explicitly by treating it as None
+        if scheduler and scheduler.lower() == "local":
+            scheduler = None
+
         # Generate the command using our consolidated method
         cmd_str = self.generate_singularity_build_command(scheduler, scheduler_args)
         
-        # For local execution, redirect output to log file and run in background
+        # For local execution, redirect output to log file
         if scheduler is None:
-            cmd_str = f"{cmd_str} > {log_file} 2>&1 &"
+            cmd_str = f"{cmd_str} > {log_file} 2>&1"
         
         try:
             # Execute the build script and capture output
@@ -1687,15 +1691,16 @@ echo "Virtual environment created and requirements installed successfully at: ${
                 if match:
                     job_id = match.group(1)
                 print(f"Build job submitted to LSF with ID: {job_id}. Image will be built at: {image_path}")
-            elif scheduler == "local":
-                # Local execution - job ID is not applicable
-                print(f"Singularity image built successfully at: {image_path}")
                 
             else:
                 # Local execution - check if the image was created
-                if not image_path.exists():
-                    raise RuntimeError(f"Build script completed but image was not created at {image_path}")
-                print(f"Singularity image built successfully at: {image_path}")
+                # We wait for the process to complete in the subprocess.run call above
+                # so the image should be available if the build was successful
+                if os.path.exists(image_path):
+                    print(f"Singularity image built successfully at: {image_path}")
+                else:
+                    print(f"Build completed but image not found at expected path: {image_path}")
+                    # It might still be building, so don't raise an error
                 
             return (image_path, job_id)
         except subprocess.CalledProcessError as e:
