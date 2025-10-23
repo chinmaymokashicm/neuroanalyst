@@ -466,6 +466,24 @@ class NeuProcessDir(BaseModel):
             # Add more language detection as needed
         return ProgrammingLanguage.PYTHON.value  # Default to Python
     
+    @property
+    def build_log_dir(self) -> Path:
+        """Get the path to the Singularity build log directory."""
+        root_log_dir = self._paths.logs / "build"
+        process_build_log_dir = root_log_dir / self.process_id
+        process_build_log_dir.mkdir(parents=True, exist_ok=True)
+        return process_build_log_dir
+    
+    @property
+    def build_image_log_path(self) -> Path:
+        """Get the path to the Singularity image build log file."""
+        return self.build_log_dir / "image.log"
+    
+    @property
+    def build_venv_log_path(self) -> Path:
+        """Get the path to the virtual environment creation log file."""
+        return self.build_log_dir / "venv.log"
+    
     # Model validators
     @field_validator('script_paths')
     def convert_script_paths(cls, v, info):
@@ -1617,10 +1635,7 @@ echo "Virtual environment created and requirements installed successfully at: ${
         # Initialize job_id as None (for local execution)
         job_id = None
         
-        # Create logs directory
-        logs_dir = Path(os.environ.get('NEUROANALYST_LOGS', '/tmp/neuroanalyst/logs')) / "builds"
-        logs_dir.mkdir(parents=True, exist_ok=True)
-        log_file = logs_dir / f"{self.process_id}_build_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
+        log_file_path: str = str(self.build_image_log_path)
         
         # Display scheduler information
         if scheduler:
@@ -1630,20 +1645,20 @@ echo "Virtual environment created and requirements installed successfully at: ${
                 if not any(arg.startswith("--output") for arg in (scheduler_args or {}).keys()):
                     if scheduler_args is None:
                         scheduler_args = {}
-                    scheduler_args["--output"] = f"{logs_dir}/{self.process_id}_build_%j.out"
-                    scheduler_args["--error"] = f"{logs_dir}/{self.process_id}_build_%j.err"
+                    scheduler_args["--output"] = log_file_path
+                    scheduler_args["--error"] = log_file_path.replace(log_file_path.split(".")[-1], "err")
             elif scheduler.lower() == "pbs":
                 if not any(arg.startswith("o") for arg in (scheduler_args or {}).keys()):
                     if scheduler_args is None:
                         scheduler_args = {}
-                    scheduler_args["o"] = f"{logs_dir}/{self.process_id}_build.out"
-                    scheduler_args["e"] = f"{logs_dir}/{self.process_id}_build.err"
+                    scheduler_args["o"] = log_file_path
+                    scheduler_args["e"] = log_file_path.replace(log_file_path.split(".")[-1], "err")
             elif scheduler.lower() == "lsf":
                 if not any(arg.startswith("o") for arg in (scheduler_args or {}).keys()):
                     if scheduler_args is None:
                         scheduler_args = {}
-                    scheduler_args["o"] = f"{logs_dir}/{self.process_id}_build.out"
-                    scheduler_args["e"] = f"{logs_dir}/{self.process_id}_build.err"
+                    scheduler_args["o"] = log_file_path
+                    scheduler_args["e"] = log_file_path.replace(log_file_path.split(".")[-1], "err")
         else:
             print(f"Building Singularity image locally for {self.process_id}")
             
@@ -1656,7 +1671,7 @@ echo "Virtual environment created and requirements installed successfully at: ${
         
         # For local execution, redirect output to log file
         if scheduler is None:
-            cmd_str = f"{cmd_str} > {log_file} 2>&1"
+            cmd_str = f"{cmd_str} > {log_file_path} 2>&1"
         
         try:
             # Execute the build script and capture output
@@ -1665,7 +1680,7 @@ echo "Virtual environment created and requirements installed successfully at: ${
                 result = subprocess.run(cmd_str, check=True, cwd=str(self.working_dir),
                                        shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                                        universal_newlines=True)
-                print(f"Build logs saved to: {log_file}")
+                print(f"Build logs saved to: {log_file_path}")
             else:
                 # For scheduler execution, use the standard approach
                 result = subprocess.run(cmd_str.split(), check=True, cwd=str(self.working_dir), 
@@ -1756,10 +1771,7 @@ echo "Virtual environment created and requirements installed successfully at: ${
         # Initialize job_id as None (for local execution)
         job_id = None
         
-        # Create logs directory
-        logs_dir = Path(os.environ.get('NEUROANALYST_LOGS', '/tmp/neuroanalyst/logs')) / "venv"
-        logs_dir.mkdir(parents=True, exist_ok=True)
-        log_file = logs_dir / f"{self.process_id}_venv_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
+        log_file_path = str(self.build_venv_log_path)
         
         # Display scheduler information
         if scheduler:
@@ -1769,20 +1781,20 @@ echo "Virtual environment created and requirements installed successfully at: ${
                 if not any(arg.startswith("--output") for arg in (scheduler_args or {}).keys()):
                     if scheduler_args is None:
                         scheduler_args = {}
-                    scheduler_args["--output"] = f"{logs_dir}/{self.process_id}_venv_%j.out"
-                    scheduler_args["--error"] = f"{logs_dir}/{self.process_id}_venv_%j.err"
+                    scheduler_args["--output"] = log_file_path
+                    scheduler_args["--error"] = log_file_path.replace(log_file_path.split(".")[-1], "err")
             elif scheduler.lower() == "pbs":
                 if not any(arg.startswith("o") for arg in (scheduler_args or {}).keys()):
                     if scheduler_args is None:
                         scheduler_args = {}
-                    scheduler_args["o"] = f"{logs_dir}/{self.process_id}_venv.out"
-                    scheduler_args["e"] = f"{logs_dir}/{self.process_id}_venv.err"
+                    scheduler_args["o"] = log_file_path
+                    scheduler_args["e"] = log_file_path.replace(log_file_path.split(".")[-1], "err")
             elif scheduler.lower() == "lsf":
                 if not any(arg.startswith("o") for arg in (scheduler_args or {}).keys()):
                     if scheduler_args is None:
                         scheduler_args = {}
-                    scheduler_args["o"] = f"{logs_dir}/{self.process_id}_venv.out"
-                    scheduler_args["e"] = f"{logs_dir}/{self.process_id}_venv.err"
+                    scheduler_args["o"] = log_file_path
+                    scheduler_args["e"] = log_file_path.replace(log_file_path.split(".")[-1], "err")
         else:
             print(f"Creating virtual environment locally for {self.process_id}")
             

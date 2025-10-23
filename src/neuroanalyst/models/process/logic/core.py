@@ -167,6 +167,23 @@ class NeuProcessLogic(BaseModel):
             model_data = json.load(f)
         return cls.model_validate(model_data)
     
+    @staticmethod
+    def get_all_registered_logics() -> list[Self]:
+        """Get a list of all registered NeuProcessLogic instances."""
+        function_workdir = PATHS.functions
+        if not function_workdir.exists():
+            return []
+        
+        logics = []
+        for item in function_workdir.iterdir():
+            if item.is_dir():
+                try:
+                    logic = NeuProcessLogic.from_func_name(item.name)
+                    logics.append(logic)
+                except Exception as e:
+                    print(f"Error loading logic from {item}: {e}")
+        return logics
+    
     def register(self, overwrite: bool = False) -> Path:
         """
         Register the NeuProcessLogic by saving its code and model to the functions directory.
