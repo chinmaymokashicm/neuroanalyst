@@ -222,6 +222,11 @@ class NeuProcess(BaseModel):
         """Get the path to the virtual environment."""
         return self._paths.get_venv_path(self.process_id)
     
+    @property
+    def logic(self) -> Any:
+        """Get the logic associated with the process."""
+        return self.process_dir.logic
+    
     # Singularity image methods
     def build_singularity_image(self, scheduler=None, scheduler_args=None, **kwargs) -> tuple[Path, str]:
         """
@@ -366,3 +371,35 @@ class NeuProcess(BaseModel):
             self.environment_variables.remove(variable)
             return True
         return False
+    
+    def get_non_standard_bind_paths(self) -> list[str]:
+        """
+        Get bind paths that are not standard NeuroAnalyst paths.
+        
+        Returns:
+            List of non-standard bind paths
+        """
+        standard_paths: set[str] = {"/data"}
+        return [path for path in self.bind_paths if path not in standard_paths]
+    
+    def get_non_standard_environment_variables(self) -> list[str]:
+        """
+        Get environment variables that are not standard NeuroAnalyst variables.
+        
+        Returns:
+            List of non-standard environment variables
+        """
+        standard_vars: set[str] = {"BIDS_FILTERS", "PROCESS_ID", "PROCESS_EXEC_ID", "PIPELINE_ID", "PIPELINE_NAME"}
+        return [var for var in self.environment_variables if var not in standard_vars]
+    
+    def get_non_standard_parameters(self) -> Dict[str, Any]:
+        """
+        Get non-standard parameters (bind paths and environment variables).
+        
+        Returns:
+            Dictionary with keys 'bind_paths' and 'environment_variables' containing non-standard entries
+        """
+        return {
+            "bind_paths": self.get_non_standard_bind_paths(),
+            "environment_variables": self.get_non_standard_environment_variables()
+        }

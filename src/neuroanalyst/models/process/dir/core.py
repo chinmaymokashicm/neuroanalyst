@@ -27,6 +27,7 @@ import string
 
 
 from pydantic import BaseModel, Field, field_validator, model_validator, validator, root_validator
+import pandas as pd
 
 from ....utils.constants import NeuroAnalystPaths
 from ....utils.id_generators import generate_process_id
@@ -551,6 +552,47 @@ class NeuProcessDir(BaseModel):
         
         return cls(logic=logic, config=config)
     
+    @classmethod
+    def from_process_id(cls, process_id: str, **kwargs) -> Self:
+        """
+        Create a NeuProcessDir from an existing process ID.
+        
+        Args:
+            process_id: The unique identifier of the process
+            **kwargs: Additional arguments to pass to the constructor
+        Returns:
+            A new NeuProcessDir instance
+        """
+        working_dir: Path = cls._paths.workdir / process_id
+        if not working_dir.exists():
+            raise FileNotFoundError(f"Process directory does not exist: {working_dir}")
+        
+        # Load model JSON
+        model_file = working_dir / "model.json"
+        if not model_file.exists():
+            raise FileNotFoundError(f"Model file does not exist: {model_file}")
+        
+        with model_file.open("r") as f:
+            model_data = json.load(f)
+        
+        return cls.model_validate(model_data, **kwargs)
+    
+    @classmethod
+    def get_all_process_dirs(cls) -> List[Self]:
+        """
+        Retrieve all existing NeuProcessDir instances from the working directory.
+        
+        Returns:
+            List of NeuProcessDir instances
+        """
+        process_dirs: List[Self] = []
+        workdir: Path = cls._paths.workdir
+        
+        if not workdir.exists():
+            return process_dirs
+        
+        return [cls.from_process_id(process_id=dir_path.name) for dir_path in workdir.iterdir() if dir_path.is_dir()]
+    
     # @classmethod
     # def from_scripts(cls, 
     #                 main_script: Path,
@@ -586,6 +628,13 @@ class NeuProcessDir(BaseModel):
     #         config = NeuProcessDirConfig()
             
     #     return cls(script_paths=script_paths, config=config)
+    
+    def delete(self) -> None:
+        """
+        Delete the working directory and all its contents.
+        """
+        if self.working_dir and self.working_dir.exists():
+            shutil.rmtree(self.working_dir)
     
     # Generation methods
     def generate(self) -> Path:
@@ -1600,8 +1649,8 @@ echo "Virtual environment created and requirements installed successfully at: ${
                 The keys don't need the prefix dashes - they'll be added automatically.
                 
                 Examples:
-                - For SLURM: {"mem": "16G", "time": "02:00:00", "partition": "compute", "account": "project123"}
-                - For PBS: {"l": "mem=16G,walltime=02:00:00", "q": "compute", "A": "project123"}
+                - For SLURM: {"mem": "16G", "time": "04:00:00", "partition": "gpu"}
+                - For PBS: {"l": "mem=16G,walltime=04:00:00", "q": "compute", "A": "project123"}
                 - For LSF: {"M": "16G", "W": "120", "q": "compute", "P": "project123"}
             **kwargs: Additional arguments for backward compatibility.
         
@@ -1676,50 +1725,45 @@ echo "Virtual environment created and requirements installed successfully at: ${
         try:
             # Execute the build script and capture output
             if scheduler is None:
-                # For local execution, use shell=True to handle output redirection
-                result = subprocess.run(cmd_str, check=True, cwd=str(self.working_dir),
-                                       shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                                       universal_newlines=True)
-                print(f"Build logs saved to: {log_file_path}")
+                # For local execution, start process in background and return immediately
+                process = subprocess.Popen(cmd_str, cwd=str(self.working_dir),
+                                         shell=True, stdout=open(log_file_path, 'w'), 
+                                         stderr=subprocess.STDOUT, universal_newlines=True)
+                job_id = str(process.pid)
+                print(f"Build process started in background with PID: {job_id}. Image will be built at: {image_path}")
+                print(f"Build logs will be saved to: {log_file_path}")
+                print(f"Monitor progress with: tail -f {log_file_path}")
             else:
                 # For scheduler execution, use the standard approach
                 result = subprocess.run(cmd_str.split(), check=True, cwd=str(self.working_dir), 
                                       stdout=subprocess.PIPE, stderr=subprocess.PIPE, 
                                       universal_newlines=True)
             
-            # For schedulers, parse job ID from output
-            if scheduler == "slurm":
-                # SLURM output looks like "Submitted batch job 12345"
-                match = re.search(r"Submitted batch job (\d+)", result.stdout)
-                if match:
-                    job_id = match.group(1)
-                print(f"Build job submitted to SLURM with ID: {job_id}. Image will be built at: {image_path}")
-                
-            elif scheduler == "pbs":
-                # PBS output is typically just the job ID
-                job_id = result.stdout.strip()
-                print(f"Build job submitted to PBS with ID: {job_id}. Image will be built at: {image_path}")
-                
-            elif scheduler == "lsf":
-                # LSF output looks like "Job <12345> is submitted to ..."
-                match = re.search(r"Job <(\d+)>", result.stdout)
-                if match:
-                    job_id = match.group(1)
-                print(f"Build job submitted to LSF with ID: {job_id}. Image will be built at: {image_path}")
-                
-            else:
-                # Local execution - check if the image was created
-                # We wait for the process to complete in the subprocess.run call above
-                # so the image should be available if the build was successful
-                if os.path.exists(image_path):
-                    print(f"Singularity image built successfully at: {image_path}")
-                else:
-                    print(f"Build completed but image not found at expected path: {image_path}")
-                    # It might still be building, so don't raise an error
+                # For schedulers, parse job ID from output
+                if scheduler == "slurm":
+                    # SLURM output looks like "Submitted batch job 12345"
+                    match = re.search(r"Submitted batch job (\d+)", result.stdout)
+                    if match:
+                        job_id = match.group(1)
+                    print(f"Build job submitted to SLURM with ID: {job_id}. Image will be built at: {image_path}")
+                    
+                elif scheduler == "pbs":
+                    # PBS output is typically just the job ID
+                    job_id = result.stdout.strip()
+                    print(f"Build job submitted to PBS with ID: {job_id}. Image will be built at: {image_path}")
+                    
+                elif scheduler == "lsf":
+                    # LSF output looks like "Job <12345> is submitted to ..."
+                    match = re.search(r"Job <(\d+)>", result.stdout)
+                    if match:
+                        job_id = match.group(1)
+                    print(f"Build job submitted to LSF with ID: {job_id}. Image will be built at: {image_path}")
                 
             return (image_path, job_id)
         except subprocess.CalledProcessError as e:
             raise RuntimeError(f"Failed to build Singularity image: {e}")
+        except Exception as e:
+            raise RuntimeError(f"Failed to start Singularity image build: {e}")
     
     def create_virtual_env(self, scheduler: str = None, scheduler_args: dict = None,
                       **kwargs) -> tuple[Path, str]:
@@ -1808,46 +1852,45 @@ echo "Virtual environment created and requirements installed successfully at: ${
         try:
             # Execute the build script and capture output
             if scheduler is None:
-                # For local execution, use shell=True to handle output redirection
-                result = subprocess.run(cmd_str, check=True, cwd=str(self.working_dir),
-                                      shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                                      universal_newlines=True)
-                print(f"Build logs saved to: {log_file}")
+                # For local execution, start process in background and return immediately
+                process = subprocess.Popen(cmd_str, cwd=str(self.working_dir),
+                                         shell=True, stdout=open(log_file_path, 'w'), 
+                                         stderr=subprocess.STDOUT, universal_newlines=True)
+                job_id = str(process.pid)
+                print(f"Build process started in background with PID: {job_id}. Venv will be created at: {venv_path}")
+                print(f"Build logs will be saved to: {log_file_path}")
+                print(f"Monitor progress with: tail -f {log_file_path}")
             else:
                 # For scheduler execution, use the standard approach
                 result = subprocess.run(cmd_str.split(), check=True, cwd=str(self.working_dir), 
                                       stdout=subprocess.PIPE, stderr=subprocess.PIPE, 
                                       universal_newlines=True)
             
-            # For schedulers, parse job ID from output
-            if scheduler == "slurm":
-                # SLURM output looks like "Submitted batch job 12345"
-                match = re.search(r"Submitted batch job (\d+)", result.stdout)
-                if match:
-                    job_id = match.group(1)
-                print(f"Build job submitted to SLURM with ID: {job_id}. Venv will be created at: {venv_path}")
-                
-            elif scheduler == "pbs":
-                # PBS output is typically just the job ID
-                job_id = result.stdout.strip()
-                print(f"Build job submitted to PBS with ID: {job_id}. Venv will be created at: {venv_path}")
-                
-            elif scheduler == "lsf":
-                # LSF output looks like "Job <12345> is submitted to ..."
-                match = re.search(r"Job <(\d+)>", result.stdout)
-                if match:
-                    job_id = match.group(1)
-                print(f"Build job submitted to LSF with ID: {job_id}. Venv will be created at: {venv_path}")
-                
-            else:
-                # Local execution - check if the venv was created
-                if not venv_path.exists():
-                    raise RuntimeError(f"Build script completed but venv was not created at {venv_path}")
-                print(f"Virtual environment created successfully at: {venv_path}")
+                # For schedulers, parse job ID from output
+                if scheduler == "slurm":
+                    # SLURM output looks like "Submitted batch job 12345"
+                    match = re.search(r"Submitted batch job (\d+)", result.stdout)
+                    if match:
+                        job_id = match.group(1)
+                    print(f"Build job submitted to SLURM with ID: {job_id}. Venv will be created at: {venv_path}")
+                    
+                elif scheduler == "pbs":
+                    # PBS output is typically just the job ID
+                    job_id = result.stdout.strip()
+                    print(f"Build job submitted to PBS with ID: {job_id}. Venv will be created at: {venv_path}")
+                    
+                elif scheduler == "lsf":
+                    # LSF output looks like "Job <12345> is submitted to ..."
+                    match = re.search(r"Job <(\d+)>", result.stdout)
+                    if match:
+                        job_id = match.group(1)
+                    print(f"Build job submitted to LSF with ID: {job_id}. Venv will be created at: {venv_path}")
                 
             return (venv_path, job_id)
         except subprocess.CalledProcessError as e:
             raise RuntimeError(f"Failed to create virtual environment: {e}")
+        except Exception as e:
+            raise RuntimeError(f"Failed to start virtual environment creation: {e}")
             
     def generate_singularity_execution_command(self, use_runtime_vars: bool = False) -> str:
         """

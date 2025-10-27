@@ -105,6 +105,18 @@ class NeuProcessExec(BaseModel):
         """
         return self
     
+    @property
+    def is_fully_configured(self) -> bool:
+        """
+        Check if all required bind paths and environment variables have values.
+        
+        Returns:
+            bool: True if all required values are provided, False otherwise
+        """
+        missing_bind_paths = [path for path in self.process.bind_paths if path not in self.bind_path_values]
+        missing_env_vars = [var for var in self.process.environment_variables if var not in self.env_var_values]
+        return len(missing_bind_paths) == 0 and len(missing_env_vars) == 0
+    
     @classmethod
     def from_process(cls, process: NeuProcess, **kwargs) -> "NeuProcessExec":
         """
@@ -190,7 +202,7 @@ class NeuProcessExec(BaseModel):
             raise ValueError(f"Failed to load NeuProcessExec from disk: {e}")
     
     @staticmethod
-    def spawn_optimized_execs(process: NeuProcess, bids_filters: dict, bids_layout: BIDSLayout, max_chunk_size: int = 5) -> List["NeuProcessExec"]:
+    def spawn_optimized_execs(process: NeuProcess, bids_filters: dict, bids_layout: BIDSLayout, max_chunk_size: int = 5) -> tuple[list["NeuProcessExec"], list[tuple[list[str], list[str]]]]:
         """
         Create multiple NeuProcessExec instances by splitting BIDS filters into optimized chunks.
         This method uses the split_by_subject_session function to divide the BIDS query
@@ -205,12 +217,14 @@ class NeuProcessExec(BaseModel):
             List of NeuProcessExec instances, each configured with a chunk of BIDS filters
         """
         process_execs: list[NeuProcessExec] = []
+        subject_session_pairs: list[tuple[list[str], list[str]]] = []
         for chunk in split_by_subject_session(bids_layout=bids_layout, bids_filters=bids_filters, max_chunk_size=max_chunk_size):
             bids_filters: dict = chunk["bids_filters"]
+            subject_session_pairs.append(chunk["subject_session_pair"])
             process_exec: NeuProcessExec = NeuProcessExec.from_process(process)
             process_exec.env_var_values["BIDS_FILTERS"] = json.dumps(bids_filters)
             process_execs.append(process_exec)
-        return process_execs
+        return process_execs, subject_session_pairs
 
     def __str__(self) -> str:
         """Return a human-readable string representation of the NeuProcessExec."""
@@ -227,6 +241,33 @@ class NeuProcessExec(BaseModel):
         return f"NeuProcessExec(id='{getattr(self, 'exec_id', 'unknown')}', "\
                f"process_id='{getattr(self.process, 'process_id', 'unknown') if hasattr(self, 'process') else 'unknown'}', "\
                f"mode='{mode}', scheduler='{scheduler}')"
+               
+    def delete(self) -> None:
+        """
+        Delete the NeuProcessExec directory and all its contents from disk.
+        
+        Raises:
+            FileNotFoundError: If the execution directory does not exist
+            Exception: If deletion fails for any reason
+        """
+        exec_dir: Path = self._paths.get_process_exec_path(self.exec_id)
+        if not exec_dir.exists():
+            print(f"Execution directory not found: {exec_dir}")
+            return
+        
+        try:
+            # Recursively delete the execution directory
+            for item in exec_dir.iterdir():
+                if item.is_dir():
+                    for subitem in item.rglob('*'):
+                        if subitem.is_file():
+                            subitem.unlink()
+                    item.rmdir()
+                else:
+                    item.unlink()
+            exec_dir.rmdir()
+        except Exception as e:
+            raise Exception(f"Failed to delete NeuProcessExec directory: {e}")
     
     def set_bind_path_value(self, bind_path: str, value: str) -> None:
         """

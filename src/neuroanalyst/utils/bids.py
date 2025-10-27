@@ -4,6 +4,40 @@ from typing import Dict, Any, List
 
 from bids import BIDSLayout
 
+def get_bids_files(bids_filters: dict, scope: str, bids_root: Path, relative_path: bool = False, return_as_list: bool = True) -> List[str] | str:
+    """
+    Retrieve BIDS files for a given scope from the BIDS dataset.
+    
+    Parameters:
+    -----------
+    bids_filters : dict
+        Filters to apply to the BIDS query.
+    scope : str
+        The scope to filter files by (e.g., 'subject', 'session', etc.).
+    bids_root : Path
+        The root path of the BIDS dataset.
+    relative_path : bool, optional
+        Whether to return file paths as relative to the BIDS root (default: False).
+    return_as_list : bool, optional
+        Whether to return the file paths as a list (default: True). If False, returns
+        
+    Returns:
+    --------
+    List[str] | str
+        List of file paths matching the specified scope. If return_as_list is False, returns a single
+        string with file paths joined by newlines.
+    """
+    # Remove 'scope' and 'return_type' from filters if present
+    bids_filters = {k: v for k, v in bids_filters.items() if k not in ["scope", "return_type"]}
+    layout = BIDSLayout(str(bids_root), validate=False)
+    files = layout.get(**bids_filters, scope=scope, return_type="file")
+    if relative_path:
+        files = [str(Path(f).relative_to(bids_root)) for f in files]
+    if return_as_list:
+        return files
+    else:
+        return "\n".join(files)
+
 def split_by_subject_session(
     bids_layout: BIDSLayout, 
     bids_filters: dict, 
@@ -32,6 +66,11 @@ def split_by_subject_session(
         List of dictionaries, where each dictionary contains:
         - 'bids_filters': dict of filters to get files in this chunk
         - 'n_files': number of files in the chunk
+        - 'subject_session_pair': ([subjects], [sessions]) pair to get this chunk.
+    Raises:
+    -------
+    ValueError
+        If 'subject' or 'session' keys are present in bids_filters.
     """
     # Validate input
     for key in ["subject", "session"]:
@@ -88,7 +127,8 @@ def split_by_subject_session(
                 # Create a new chunk for this subject
                 new_chunk = {
                     "bids_filters": {**bids_filters, "subject": subject},
-                    "n_files": subject_info["n_files"]
+                    "n_files": subject_info["n_files"],
+                    "subject_session_pair": ([subject], [ None])
                 }
                 chunks.append(new_chunk)
         else:
@@ -109,7 +149,8 @@ def split_by_subject_session(
                             "subject": subject,
                             "session": session
                         },
-                        "n_files": session_info["n_files"]
+                        "n_files": session_info["n_files"],
+                        "subject_session_pair": ([subject], [session])
                     }
                     chunks.append(new_chunk)
                 else:
@@ -133,7 +174,8 @@ def split_by_subject_session(
                                     "subject": subject,
                                     "session": current_chunk["sessions"][0]
                                 },
-                                "n_files": current_chunk["n_files"]
+                                "n_files": current_chunk["n_files"],
+                                "subject_session_pair": ([subject], [current_chunk["sessions"][0]])
                             }
                         else:
                             # Multiple sessions
@@ -143,7 +185,8 @@ def split_by_subject_session(
                                     "subject": subject,
                                     "session": current_chunk["sessions"]
                                 },
-                                "n_files": current_chunk["n_files"]
+                                "n_files": current_chunk["n_files"],
+                                "subject_session_pair": ([subject], current_chunk["sessions"])
                             }
                         chunks.append(new_chunk)
                     
@@ -160,7 +203,8 @@ def split_by_subject_session(
                             "subject": subject,
                             "session": current_chunk["sessions"][0]
                         },
-                        "n_files": current_chunk["n_files"]
+                        "n_files": current_chunk["n_files"],
+                        "subject_session_pair": ([subject], [current_chunk["sessions"][0]])
                     }
                 else:
                     # Multiple sessions
@@ -170,7 +214,8 @@ def split_by_subject_session(
                             "subject": subject,
                             "session": current_chunk["sessions"]
                         },
-                        "n_files": current_chunk["n_files"]
+                        "n_files": current_chunk["n_files"],
+                        "subject_session_pair": ([subject], current_chunk["sessions"])
                     }
                 chunks.append(new_chunk)
     
