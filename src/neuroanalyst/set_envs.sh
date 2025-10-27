@@ -12,7 +12,6 @@ mkdir -p $HOME/neuroanalyst/datasets
 mkdir -p $HOME/neuroanalyst/virtual_environments
 mkdir -p $HOME/neuroanalyst/config
 mkdir -p $HOME/neuroanalyst/functions
-
 mkdir -p $HOME/neuroanalyst/apptainer/images/base
 mkdir -p $HOME/neuroanalyst/apptainer/images/processes
 
