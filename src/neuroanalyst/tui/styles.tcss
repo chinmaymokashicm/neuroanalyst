@@ -1,0 +1,704 @@
+/* 
+   NeuroAnalyst TUI Styles
+   This file contains styling for the Textual UI components
+*/
+
+/* Global styles */
+Screen {
+    background: #1f1d2e;
+    color: #e0def4;
+}
+
+/* Header and Footer */
+Header {
+    background: #2a273f;
+    color: #e0def4;
+    dock: top;
+    height: 1;
+    padding: 0 1;
+    border-bottom: solid #6e6a86;
+}
+
+Footer {
+    background: #2a273f;
+    color: #e0def4;
+    dock: bottom;
+    height: 1;
+    padding: 0 1;
+    border-top: solid #6e6a86;
+}
+
+/* Layout Components */
+#main_layout {
+    width: 100%;
+    height: 100%;
+}
+
+#process_details_container {
+    # width: 100%;
+    height: 1fr;
+    overflow-y: auto;
+    overflow-x: hidden;
+    background: #55230cff;
+    scrollbar-size: 1 1;
+    scrollbar-gutter: stable;
+}
+
+#logic_code_container {
+    height: 1fr;
+    overflow-y: auto;
+    overflow-x: hidden;
+    background: #0c3d55ff;
+    scrollbar-size: 1 1;
+    scrollbar-gutter: stable;
+}
+
+/* Navigation Components */
+Navbar {
+    height: auto;
+    background: #191724;
+    color: #e0def4;
+    padding: 0 1;
+    border-bottom: solid #6e6a86;
+    min-height: 5;
+}
+
+#navbar {
+    width: 100%;
+    height: 3;
+    background: #685252;
+    align: right middle;
+}
+
+.navbar_button, .nav-button {
+    margin-right: 1;
+    background: #172419ff;
+    color: #e0def4;
+    border: solid #6e6a86;
+    min-width: 15;
+    height: 3;
+    margin: 0 1;
+}
+
+.navbar_button:hover, .nav-button:hover {
+    background: #2a273f;
+}
+
+.navbar_button.-active {
+    background: #31748f;
+    color: #e0def4;
+}
+
+/* Suboptions Container */
+#suboptions_container {
+    background: #1f1d2e;
+    height: auto;
+    padding: 1 2;
+    border-bottom: solid #6e6a86;
+    width: 100%;
+}
+
+.suboptions.hidden {
+    display: none;
+}
+
+.suboption_button, .suboption-button {
+    margin-right: 1;
+    background: #1f1d2e;
+    color: #e0def4;
+    border: solid #6e6a86;
+    min-width: 20;
+    height: 3;
+    margin: 0 1;
+}
+
+.suboption_button:hover, .suboption-button:hover {
+    background: #2a273f;
+}
+
+.suboption_button.-active {
+    background: #31748f;
+    color: #e0def4;
+}
+
+/* Content Container */
+#content_container {
+    padding: 1 2;
+    height: 1fr;
+    padding-top: 1;
+}
+
+/* Typography */
+.title {
+    color: #c4a7e7;
+    text-style: bold;
+    # content-align: top right;
+    # text-align: center;
+    margin-bottom: 1;
+    width: 100%;
+    background: #333;
+    color: #fff;
+    padding: 1;
+}
+
+.subtitle {
+    color: #9ccfd8;
+    text-style: bold;
+    margin-top: 1;
+    margin-bottom: 1;
+}
+
+/* Buttons */
+Button {
+    margin-right: 1;
+    margin-bottom: 1;
+    min-width: 10;
+    margin: 0 1;
+}
+
+Button.primary {
+    background: #31748f;
+    color: #e0def4;
+}
+
+Button.secondary {
+    background: #403d52;
+    color: #e0def4;
+}
+
+Button.success {
+    background: #286983;
+    color: #e0def4;
+}
+
+Button.warning {
+    background: #907aa9;
+    color: #e0def4;
+}
+
+Button.error {
+    background: #eb6f92;
+    color: #e0def4;
+}
+
+.button_row {
+    margin-bottom: 1;
+    height: 3;
+    margin: 1 0;
+}
+
+#view_details_btn {
+    min-width: 20;
+}
+
+/* Tables */
+DataTable {
+    height: auto;
+    max-height: 10;
+    height: 8;
+}
+
+DataTable > .datatable--header {
+    background: #2a273f;
+    color: #e0def4;
+    text-style: bold;
+}
+
+DataTable > .datatable--cursor {
+    background: #31748f;
+    color: #e0def4;
+}
+
+DataTable > .datatable--odd-row {
+    background: #26233a;
+}
+
+DataTable > .datatable--even-row {
+    background: #1f1d2e;
+}
+
+/* Forms */
+.form {
+    margin: 1 2;
+}
+
+.form Label {
+    margin-top: 1;
+}
+
+Input {
+    # margin-bottom: 1;
+    width: 15;
+    max-height: 3;
+}
+
+#base_image_input, #base_image_select {
+    width: 25;
+    height: 3;
+}
+
+Switch {
+    height: 3;
+}
+
+Select {
+    margin-bottom: 1;
+}
+
+.small_select {
+    width: 15;
+    # height: 3;
+}
+
+.medium_select {
+    width: 30;
+    # height: 3;
+}
+
+.long_select {
+    width: 40;
+    # height: 3;
+}
+
+Label {
+    margin-right: 1;
+    padding-top: 1;
+}
+
+Input, Select, TextArea {
+    margin-bottom: 1;
+}
+
+.small_input, .medium_input {
+    height: 3;
+}
+
+.small_input {
+    width: 15;
+}
+
+.medium_input {
+    width: 30;
+}
+
+.long_input {
+    width: 40;
+}
+
+.form_row {
+    height: auto;
+    margin-bottom: 1;
+}
+
+/* Lists */
+ListView {
+    height: 10;
+    border: solid #555;
+}
+
+ListView:focus {
+    border: solid #00aa00;
+}
+
+.custom_list_view {
+    width: 100%;
+    height: auto;
+    min-height: 8;
+    border: solid #555;
+    overflow-y: hidden;
+}
+
+/* Log Widget */
+Log {
+    border: solid #6e6a86;
+    padding: 0 1;
+    background: #191724;
+    color: #e0def4;
+    border: solid #555;
+    # background: #1e1e1e;
+}
+
+.log_header {
+    margin-bottom: 1;
+    height: 1;
+    margin: 1 0;
+}
+
+.log_viewer {
+    height: 1fr;
+    border: solid #555;
+    # background: #18608fff;
+}
+
+.build_section {
+    height: 1fr;
+    # background: #a51515ff;
+}
+
+/* Rules */
+Rule {
+    color: #6e6a86;
+    margin: 1 0;
+    height: 1;
+}
+
+/* Container styling */
+Container {
+    padding: 1;
+}
+
+.hidden {
+    display: none;
+}
+
+#logic_meta_container_0, #logic_meta_container_1 {
+    align: left middle;
+    margin-bottom: 1;
+    height: auto;
+}
+
+/* Wizard specific styles */
+ProgressBar {
+    width: 100%;
+    margin: 0 0 1 0;
+}
+
+/* Vertical Containers */
+Vertical > * {
+    margin-bottom: 1;
+}
+
+/* Horizontal Containers */
+Horizontal > * {
+    margin-right: 1;
+}
+
+# Make the children space evenly across the width  */
+# #packages_list, #additional_options_list {
+#     distribute: space-evenly;
+# }
+
+/* Markdown & Markdown Viewer */
+MarkdownViewer, Markdown {
+    background: #07050eff;
+    color: #e0def4;
+    padding: 1;
+    border: solid #6e6a86;
+    font-size: 10;
+}
+
+#markdown_title {
+    color: #c4a7e7;
+    text-style: bold;
+    # margin-bottom: 1;
+    width: 100%;
+    height: 7;
+    background: #333;
+    color: #fff;
+    # padding: 1;
+}
+
+/* Spacer */
+#footer_spacer {
+    height: 1;
+    color: #6e6a86;
+    dock: bottom;
+    text-align: center;
+    text-style: italic;
+}
+
+/* Modal Screen */
+# ModalScreen {
+#     background: rgba(0, 0, 0, 0.7);   
+# }
+
+ConfirmModal {
+    background: rgba(0, 0, 0, 0.7);
+    align: center middle;
+    width: 100%;
+    height: 100%;
+}
+
+ErrorModal, SuccessModal {
+    background: rgba(0, 0, 0, 0.7);
+    align: center middle;
+    width: 100%;
+    height: 100%;
+}
+
+InputModal {
+    background: rgba(0, 0, 0, 0.7);
+    align: center middle;
+    # width: 2;
+    # height: 20;
+    border: solid #e0def4;
+}
+
+SelectModal {
+    background: rgba(0, 0, 0, 0.7);
+    align: center middle;
+    # width: 2;
+    # height: 20;
+    border: solid #e0def4;
+}
+
+InfoModal {
+    background: rgba(0, 0, 0, 0.7);
+    align: center middle;
+    width: 100%;
+    height: 100%;
+}
+
+LoadingModal {
+    background: rgba(0, 0, 0, 0.7);
+    align: center middle;
+    width: 100%;
+    height: 100%;
+}
+
+LoadingDataModal {
+    background: rgba(0, 0, 0, 0.7);
+    align: center middle;
+    width: 100%;
+    height: 100%;
+}
+
+StepUpdateModal {
+    background: rgba(0, 0, 0, 0.7);
+    align: center middle;
+    width: 100%;
+    height: 100%;
+}
+
+AddParametersModal {
+    background: rgba(0, 0, 0, 0.7);
+    align: center middle;
+    width: 100%;
+    height: 100%;
+}
+
+#dialog {
+    grid-size: 2;
+    grid-gutter: 1 2;
+    grid-rows: 1fr 3;
+    padding: 0 1;
+    width: 60;
+    height: 11;
+    border: solid #e0def4;
+    background: #1f1d2e;
+    align: center middle;
+}
+
+#question {
+    column-span: 2;
+    height: 1fr;
+    width: 1fr;
+    content-align: center middle;
+}
+
+#error_dialog, #success_dialog {
+    grid-size: 2;
+    grid-gutter: 1 2;
+    grid-rows: 1fr 3;
+    padding: 0 1;
+    width: 60;
+    height: 15;
+    border: solid #e0def4;
+    background: #1f1d2e;
+    align: center middle;
+}
+
+#input_dialog {
+    grid-size: 2;
+    grid-gutter: 1 2;
+    grid-rows: 1fr 3;
+    padding: 0 1;
+    width: 40%;
+    height: 20%;
+    border: solid #e0def4;
+    background: #1f1d2e;
+    align: center middle;
+}
+
+#select_dialog {
+    grid-size: 2;
+    grid-gutter: 1 2;
+    grid-rows: 1fr 3;
+    padding: 0 1;
+    width: 60;
+    height: 12;
+    border: solid #e0def4;
+    background: #1f1d2e;
+    align: center middle;
+}
+
+#info_dialog {
+    grid-size: 2;
+    grid-gutter: 1 2;
+    # grid-rows: 1fr 8 3;
+    padding: 0 2;
+    width: 80%;
+    height: 70%;
+    # max-width: 100;
+    # max-height: 100;
+    border: solid #e0def4;
+    background: rgba(31,29,46,1); /* same color/opacity as #1f1d2e */
+    align: center middle; /* center on screen */
+    dock: none;
+    margin: 0;
+}
+
+#loading_dialog {
+    grid-size: 2;
+    grid-gutter: 1 2;
+    # grid-rows: 1fr 8 3;
+    padding: 0 2;
+    width: 30%;
+    height: 30%;
+    # max-width: 100;
+    # max-height: 100;
+    border: solid #e0def4;
+    background: rgba(31,29,46,1); /* same color/opacity as #1f1d2e */
+    align: center middle; /* center on screen */
+    dock: none;
+    margin: 0;
+}
+
+#loading_data_dialog {
+    grid-size: 2;
+    grid-gutter: 1 2;
+    # grid-rows: 1fr 8 3;
+    padding: 0 2;
+    width: 80%;
+    height: 80%;
+    # max-width: 100;
+    # max-height: 100;
+    border: solid #e0def4;
+    background: rgba(31,29,46,1); /* same color/opacity as #1f1d2e */
+    align: center middle; /* center on screen */
+    dock: none;
+    margin: 0;
+}
+
+#step_dialog {
+    grid-size: 2;
+    grid-gutter: 1 2;
+    grid-rows: 1fr 8 3;
+    padding: 0 2;
+    width: 80%;
+    height: 80%;
+    # max-width: 100;
+    # max-height: 100;
+    border: solid #e0def4;
+    background: rgba(31,29,46,1); /* same color/opacity as #1f1d2e */
+    align: center middle; /* center on screen */
+    dock: none;
+    margin: 0;
+}
+
+#parameters_dialog {
+    grid-size: 2;
+    grid-gutter: 1 2;
+    grid-rows: 1fr 8 3;
+    padding: 0 2;
+    width: 80%;
+    height: 80%;
+    # max-width: 100;
+    # max-height: 100;
+    border: solid #e0def4;
+    background: rgba(31,29,46,1); /* same color/opacity as #1f1d2e */
+    align: center middle; /* center on screen */
+    dock: none;
+    margin: 0;
+}
+
+.home_button_row {
+    margin-bottom: 1;
+    height: 30%;
+    # width: 80%;
+    margin: 1 0;
+}
+
+#yes-button, #no-button {
+    width: 20;
+    height: 3;
+}
+
+.arithmetic_button_row {
+    margin-bottom: 1;
+    height: 3;
+    # width: 80%;
+    margin: 1 0;
+}
+
+.arithmetic_buttons {
+    width: 50%;
+    max-width: 10;
+    # height: 75%;
+}
+
+# Custom List Component
+.custom_list_component {
+    # width: 20;
+    height: auto;
+    # min-height: 15;
+    # background: #a2b63eff;
+    overflow-y: auto;
+}
+
+# .custom_list_view {
+#     min-height: 8;
+#     height: auto;
+# }
+#pipeline_steps_component {
+#     width: 100%;
+#     height: auto;
+#     min-height: 8;
+#     overflow-y: hidden;
+    margin: 0;
+    border: dashed #555;
+    background: #111924ff;
+}
+
+
+# Tree View
+
+#parameter_tree_view {
+    # height: auto;
+    min-height: 15;
+    border: solid #555;
+    overflow-y: auto;
+}
+
+# RadioSet
+RadioSet {
+    height: auto;
+    padding: 1;
+}
+
+RadioButton {
+    text-style: bold;
+    margin-right: 2;
+    margin-bottom: 1;
+}
+
+
+.multi_parameter_list_component {
+    # height: 100%;
+    # min-height: 15;
+    background: #3a6ea5ff;
+    # overflow-y: auto;
+}
+
+#category_radios {
+    overflow-y: auto;
+    background: #252836ff;
+    height: 100%;
+}
+
+#bids_entity_tree_view {
+    # height: auto;
+    min-height: 15;
+    border: solid #555;
+    overflow-y: auto;
+}

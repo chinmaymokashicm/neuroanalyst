@@ -1,0 +1,126 @@
+# Register Logic
+**This is where it all begins. A Logic is the core computational unit of a process.**
+
+At this step-
+1. Load a function that does the following-
+    - Either works on an individual file (KIND = 'FILE') in your BIDS dataset, or works on your entire dataset (KIND = 'BULK').
+    - Loads a file, or a dataset performs some computation, and returns-
+        - A data structure that will be saved as an output
+        - A dictionary called 'metrics' that stores key metrics of your computation that would be helpful for downstream analysis. This is subjective to your analysis.
+        - A dictionary called output_entities that represent BIDS entities you would like on your output file. Note that this only substitutes the entities on your input file and entities not explicitly mentioned in the output entities dict will be carried forward from input entities.
+        - A list of forced output files. If you are using computational tools here that forcibly generate output files (e.g. FreeSurfer or FSL), pass those file paths as an optional forced_outputs list. NeuroAnalyst will delete this files. 
+    - Look below for an example function.
+2. Decode the function to extract key objects from the function.
+3. Review, re-do if necessary, and if satisfied, register the process.
+
+Example-
+```python
+import os
+import subprocess
+from pathlib import Path
+
+import nibabel as nib
+import numpy as np
+
+def fsl_bet(input_filepath: str):
+    """
+    Brain Extraction (BET).
+    Runs FSL BET inside the provided FSL Singularity image. (https://open.win.ox.ac.uk/pages/fslcourse/practicals/intro2/index.html)
+    Assumptions-
+    - The path of the FSL Singularity image is mounted to /opt/fsl in the container
+    - The name of the image is passed via the FSL_IMG_NAME environment variable.
+    - Apptainer/Singularity is available in the container.
+    
+    Args:
+        input_filepath (str): Path to input NIfTI file.
+    Returns:
+        output_data (np.ndarray): Array of brain-extracted image data stacked with the brain mask. 
+            Shape will be (X, Y, Z, 2) where the last dimension corresponds to [brain, brain_mask].
+        metrics (dict): Dictionary of relevant metrics.
+        output_entities (dict): Dictionary of BIDS entities for the output file.
+        forced_outputs (list): List of file paths that are saved as outputs but not BIDS-compliant.
+    """
+    # Step 1: Prepare environment and paths
+    DATA_DIR = "/data"  # shared data dir bind
+    fsl_img_name = os.getenv("FSL_IMG_NAME")
+    fsl_img_path = f"/opt/fsl_images/{fsl_img_name}"  # path to FSL Singularity image inside container
+    output_dir: str = os.path.join(DATA_DIR, "tmp")  # Temporary directory for outputs; will be cleaned up by NeuroAnalyst wrapper
+    os.makedirs(output_dir, exist_ok=True)
+
+    # Step 2: Define output file paths - this is necessary because BET creates two outputs automatically.
+    # We need to pass the output data to the NeuroAnalyst wrapper, so that it can be saved correctly with exhaustive metadata.
+    input_filename = input_filepath.split("/")[-1]
+    output_filepath = os.path.join(output_dir, input_filename.replace(".nii.gz", "_brain.nii.gz"))
+    mask_filepath = os.path.join(output_dir, input_filename.replace(".nii.gz", "_brain_mask.nii.gz"))
+
+    # Step 3: Build and run the Apptainer/Singularity command. This runs FSL BET inside an Apptainer container.
+    internal_bash_command: str = f"""
+. ${{FSLDIR}}/etc/fslconf/fsl.sh
+bet {input_filepath} {output_filepath} -m
+    """
+    cmd = [
+        "apptainer", "exec",
+        fsl_img_path,
+        "bash", "-c", internal_bash_command
+    ]
+    print(f"Running command: {' '.join(cmd)}")
+    
+    result = subprocess.run(cmd, check=True)
+    print(f"FSL BET command finished with return code {result.returncode}")
+    
+    print(f"=== Command Output ===\n{result.stdout}\n===================")
+    print(result.stdout)
+    
+    print(f"=== Command Error (if any) ===\n{result.stderr}\n===================")
+    print(result.stderr)
+    
+    if result.returncode != 0:
+        raise RuntimeError(f"FSL BET command failed with return code {result.returncode}")
+
+    # Step 4: Load output data (brain and brain mask) and prepare return values
+    # This is necessary because the NeuroAnalyst wrapper expects the output data to be returned from this function.
+    # The wrapper will then save the data to the appropriate NeuroAnalyst-compliant location with metadata.
+    for brain_path in [output_filepath, mask_filepath]:
+        if not os.path.exists(brain_path):
+            raise FileNotFoundError(f"Expected output file not found: {brain_path}")
+    brain_img = nib.load(output_filepath)
+    brain_data = brain_img.get_fdata()
+    mask_img = nib.load(mask_filepath)
+    mask_data = mask_img.get_fdata()
+    brain_data = np.stack([brain_data, mask_data], axis=-1)  # shape will be (X, Y, Z, 2)
+    print(f"Loaded brain data shape: {brain_data.shape}")
+    
+    metrics: dict = {
+        "brain_volume": int((brain_data > 0).sum()),
+        "mask_volume": int((mask_data > 0).sum()),
+        "mask_coverage": float((mask_data > 0).sum()) / mask_data.size,
+        "tool": "FSL BET",
+        "version": "6.0.5",
+        "output_channels": [
+            "brain",
+            "brain_mask"
+        ],
+        "parameters": {
+            "options": "-m"
+        }
+    }
+    
+    output_entities: dict = {
+        "desc": "bet",
+        "suffix": "T1w",
+        "extension": ".nii.gz"
+    }
+    
+    # Forced outputs - files that are saved are by the application but not NeuroAnalyst-compliant
+    forced_outputs: list[str] = [output_filepath, mask_filepath]
+
+    return brain_data, metrics, output_entities, forced_outputs
+```
+
+- Note the following-
+    - Load the file from the path arg (if KIND = 'FILE', if KIND = 'BULK' there are no input args)
+    - Set environment variables that need to be passed dynamically. The same function can be run with different parameters by setting different ENVs.
+    - Similarly, set any directory paths that can vary by computing environment. The idea of doing this is to have a function that can run anywhere. When this will be executed as part of a pipeline, runtime parameters can be provided to mount host directories on these internal 'imaginary' directory.
+    - Perform your computation. Store paths of any files that are generated but may not fit the BIDS standard. NeuroAnalyst will delete them. This is optional.
+    - Load the result of your computation and save it as any data structure (e.g. numpy array, table, etc.)
+    - Generate metrics and output_entities dictionaries.

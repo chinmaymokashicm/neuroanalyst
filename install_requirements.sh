@@ -11,6 +11,8 @@ pip install ipython ipykernel ipywidgets pymongo "fastapi[standard]"
 
 pip install pybids nibabel nilearn matplotlib pandas
 
+pip install textual textual-dev
+
 # pip install "celery[redis]" textual-dev textual[syntax] tree-sitter-languages "pydantic-ai[logfire,examples]"
 
 # pip uninstall tzdata protobuf
