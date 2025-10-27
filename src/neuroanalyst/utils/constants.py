@@ -373,12 +373,17 @@ def validate_environment() -> bool:
     """
     required_vars = [
         'NEUROANALYST_HOME',
+        'NEUROANALYST_DOCS',
         'NEUROANALYST_IMAGES',
         'NEUROANALYST_WORKDIR',
+        'NEUROANALYST_PIPELINES',
         'NEUROANALYST_REPORTS',
         'NEUROANALYST_LOGS',
         'NEUROANALYST_DATASETS',
+        'NEUROANALYST_VENVS',
         'NEUROANALYST_PROCESS_EXECS',
+        'NEUROANALYST_CONFIG',
+        'NEUROANALYST_FUNCTIONS',
         'NEUROANALYST_DB_HOST',
         'NEUROANALYST_DB_PORT',
         'NEUROANALYST_DB_NAME'

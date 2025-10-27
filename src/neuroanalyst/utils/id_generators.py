@@ -14,6 +14,7 @@ ID_CONFIGS: Dict[str, Dict[str, str]] = {
     "pipeline_id": {"prefix": "PL", "digits": 6},
     "neuprocess_id": {"prefix": "NP", "digits": 6},
     "neuprocess_exec_id": {"prefix": "NE", "digits": 6},
+    "user": {"prefix": "US", "digits": 6},
 }
 
 
