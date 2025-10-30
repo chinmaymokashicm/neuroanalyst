@@ -174,7 +174,6 @@ class PipelineConstructorConfig(BaseModel):
     about: About = Field(..., description="About information for the pipeline.")
     steps: list[PipelineStepConstructorConfig] = Field(..., description="List of pipeline step constructor configurations.")
     scheduler: HPCScheduler = Field(default=HPCScheduler.LOCAL, description="HPC scheduler for the pipeline execution.")
-    execution_mode: ExecutionMode = Field(default=ExecutionMode.CONTAINER, description="Execution mode for the pipeline.")
     graph: Optional[nx.DiGraph] = Field(None, description="Directed graph defining step dependencies.")
     pipeline: Optional[NeuPipeline] = Field(None, description="The constructed NeuPipeline instance.")
     
@@ -606,7 +605,6 @@ class PipelineConstructorConfig(BaseModel):
             about=self.about,
             steps=steps,
             scheduler=self.scheduler,
-            execution_mode=self.execution_mode,
         )
         pipeline.apply_standard_exec_params()
         
