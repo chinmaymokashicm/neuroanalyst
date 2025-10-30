@@ -1780,16 +1780,19 @@ class NeuPipeline(BaseModel):
         for step in self.steps:
             checked_processes = set()
             for proc_exec in step.process_execs:
+                # Skip processes we've already checked for this step
+                if proc_exec.process.process_id in checked_processes:
+                    continue
+
+                # Check based on execution mode
                 if proc_exec.execution_mode == ExecutionMode.CONTAINER:
-                    if proc_exec.process.process_id not in checked_processes:
-                        if not proc_exec.process.is_image_built():
-                            raise RuntimeError(f"Container image for process {proc_exec.process.process_id} is not built. Please build the image before execution.")
-                        checked_processes.add(proc_exec.process.process_id)
-                    elif proc_exec.execution_mode == ExecutionMode.VENV:
-                        if proc_exec.process.process_id not in checked_processes:
-                            if not proc_exec.process.is_venv_created():
-                                raise RuntimeError(f"Virtual environment for process {proc_exec.process.process_id} is not created. Please create the venv before execution.")
-                            checked_processes.add(proc_exec.process.process_id)
+                    if not proc_exec.process.is_image_built:
+                        raise RuntimeError(f"Container image for process {proc_exec.process.process_id} is not built. Please build the image before execution.")
+                elif proc_exec.execution_mode == ExecutionMode.VENV:
+                    if not proc_exec.process.is_venv_created:
+                        raise RuntimeError(f"Virtual environment for process {proc_exec.process.process_id} is not created. Please create the venv before execution.")
+
+                checked_processes.add(proc_exec.process.process_id)
 
         logger: logging.Logger = self.logger
         
