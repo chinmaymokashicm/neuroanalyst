@@ -11,7 +11,13 @@ from bids.layout.writing import build_path
 def autorecon2(input_filepath: str):
     """
     FreeSurfer Autorecon2. Performs tissue segmentation.
-    Runs FreeSurfer's autorecon2 on the input NIfTI file. (https://surfer.nmr.mgh.harvard.edu/fswiki/recon-all)
+    Runs FreeSurfer's autorecon2 on the input NIfTI file. (https://surfer.nmr.mgh.harvard.edu/fswiki/recon-all).
+    Assumes that autorecon1 has been run previously and the subject directory exists.
+    
+    Notes for future implementations and error handling:
+    - If a subject directory has been created previously, re-running with -i flag will error out. Remove the flag or delete the subject directory beforehand.
+    - If a process is already running for the same subject, it will error out. Run this command to check and remove the lock:
+        rm /data/tmp/freesurfer_subjects/{subject_id}/scripts/IsRunning.lh+rh
     
     Args:
         input_filepath (str): Path to input NIfTI file.
@@ -44,18 +50,9 @@ def autorecon2(input_filepath: str):
     FREESURFER_HOME: str = os.getenv("FREESURFER_HOME", None)
     if not FREESURFER_HOME:
         raise EnvironmentError("FREESURFER_HOME environment variable is not set.")
-    tmp_dir: str = os.path.join(DATA_DIR, "tmp")  #! Temporary directory for outputs; which would be usually be cleaned up by NeuroAnalyst wrapper, but here we keep it for FreeSurfer's intermediate files.
+    tmp_dir: str = os.path.join(DATA_DIR, "derivatives", PIPELINE_NAME, "tmp")  #! Temporary directory for outputs; which would be usually be cleaned up by NeuroAnalyst wrapper, but here we keep it for FreeSurfer's intermediate files.
     pipeline_dir: str = os.path.join(DATA_DIR, "pipelines", PIPELINE_NAME)
     os.makedirs(tmp_dir, exist_ok=True)
-    
-    source_cmd: str = f"source {FREESURFER_HOME}/SetUpFreeSurfer.sh && recon-all -version"
-    try:
-        result = subprocess.run(source_cmd, shell=True, executable="/bin/bash", check=True, capture_output=True, text=True)
-        print(f"FreeSurfer environment sourced successfully: {result.stdout}")
-    except subprocess.CalledProcessError as e:
-        print(f"Error sourcing FreeSurfer environment: {e}")
-        traceback.print_exc()
-        raise e
     
     # Load sidecar of input file to check for QC results
     input_sidecar_path: str = input_filepath.replace(".nii.gz", ".nii").replace(".nii", ".json") # Works for both .nii and .nii.gz
@@ -86,14 +83,16 @@ def autorecon2(input_filepath: str):
     os.makedirs(fs_subjects_dir, exist_ok=True)
     
     cmd: str = f"""
-    source {FREESURFER_HOME}/SetUpFreeSurfer.sh && \
-    recon-all -i {input_filepath} -s {subject_id} -sd {fs_subjects_dir} -autorecon2
+    bash {FREESURFER_HOME}/SetUpFreeSurfer.sh && \
+    export OMP_NUM_THREADS=4
+    export ITK_GLOBAL_DEFAULT_NUMBER_OF_THREADS=4
+    recon-all -s {subject_id} -sd {fs_subjects_dir} -autorecon2
     """
     
     # Step 3: Run the FreeSurfer command
     print(f"Running command: {cmd}")
     try:
-        result = subprocess.run(cmd, shell=True, check=True, executable="/bin/bash", capture_output=True, text=True)
+        result = subprocess.run(cmd, shell=True, check=True, capture_output=True)
         print(f"FreeSurfer Autorecon2 command finished with return code {result.returncode}")
     except subprocess.CalledProcessError as e:
         print(f"Error running FreeSurfer Autorecon2 command: {e.stderr}")
