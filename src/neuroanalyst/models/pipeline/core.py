@@ -1777,27 +1777,25 @@ class NeuPipeline(BaseModel):
             self.create_pipeline_dir()
             
         # Ensure all environments are created
-        for step in self.steps:
-            checked_processes = set()
-            for proc_exec in step.process_execs:
-                # Skip processes we've already checked for this step
-                if proc_exec.process.process_id in checked_processes:
-                    continue
+        checked_processes = set()
+        for proc_exec in self.process_execs:
+            # Skip processes we've already checked for this step
+            if proc_exec.process.process_id in checked_processes:
+                continue
 
-                # Check based on execution mode
-                if proc_exec.execution_mode == ExecutionMode.CONTAINER:
-                    if not proc_exec.process.is_image_built:
-                        raise RuntimeError(f"Container image for process {proc_exec.process.process_id} is not built. Please build the image before execution.")
-                elif proc_exec.execution_mode == ExecutionMode.VENV:
-                    if not proc_exec.process.is_venv_created:
-                        raise RuntimeError(f"Virtual environment for process {proc_exec.process.process_id} is not created. Please create the venv before execution.")
+            # Check based on execution mode
+            if proc_exec.execution_mode == ExecutionMode.CONTAINER:
+                if not proc_exec.process.is_image_built:
+                    raise RuntimeError(f"Container image for process {proc_exec.process.process_id} is not built. Please build the image before execution.")
+            elif proc_exec.execution_mode == ExecutionMode.VENV:
+                if not proc_exec.process.is_venv_created:
+                    raise RuntimeError(f"Virtual environment for process {proc_exec.process.process_id} is not created. Please create the venv before execution.")
 
-                checked_processes.add(proc_exec.process.process_id)
+            checked_processes.add(proc_exec.process.process_id)
                 
         # Ensure all execs are stored
-        for step in self.steps:
-            for proc_exec in step.process_execs:
-                proc_exec.save_to_disk()
+        for proc_exec in self.process_execs:
+            proc_exec.save_to_disk()
 
         logger: logging.Logger = self.logger
         
