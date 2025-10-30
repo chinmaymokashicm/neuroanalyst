@@ -1,4 +1,3 @@
-from ..utils.constants import PATHS
 
 from typing import Optional
 from pathlib import Path

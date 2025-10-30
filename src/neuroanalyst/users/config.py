@@ -1,6 +1,6 @@
 from ..utils.id_generators import generate_id
-from .db import SQLiteDB, SQLiteTable
 from ..utils.security import hash_password, generate_api_key, generate_encryption_key, decrypt_message
+from .db import SQLiteDB, SQLiteTable
 
 from pydantic import BaseModel, DirectoryPath, Field
 

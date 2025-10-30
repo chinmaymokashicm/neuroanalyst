@@ -1,6 +1,7 @@
 """
 Generic ID generation utilities for NeuroAnalyst.
 """
+from .constants import NeuroAnalystPaths
 
 import random
 from pathlib import Path
@@ -130,11 +131,11 @@ def check_process_id_availability(process_id: str, base_path: Path) -> bool:
     return check_id_availability(process_id, base_path)
 
 
-def generate_available_process_id(base_path: Optional[Path] = None, max_attempts: int = 1000) -> str:
+def generate_available_process_id(base_path: Optional[Path] = None, max_attempts: int = 1000, username: Optional[str] = None) -> str:
     """Generate an available process ID (legacy function)."""
     if base_path is None:
-        from .constants import PATHS
-        base_path = PATHS.workdir
+        paths = NeuroAnalystPaths(username=username)
+        base_path = paths.workdir
     return generate_available_id("process_id", base_path, max_attempts)
 
 
@@ -148,9 +149,9 @@ def generate_unique_process_exec_id(existing_ids: Set[str] = None, max_attempts:
     return generate_unique_id("process_exec_id", existing_ids, max_attempts)
 
 
-def generate_available_process_exec_id(base_path: Optional[Path] = None, max_attempts: int = 1000) -> str:
+def generate_available_process_exec_id(base_path: Optional[Path] = None, max_attempts: int = 1000, username: Optional[str] = None) -> str:
     """Generate an available process execution ID."""
     if base_path is None:
-        from .constants import PATHS
-        base_path = PATHS.workdir
+        paths = NeuroAnalystPaths(username=username)
+        base_path = paths.workdir
     return generate_available_id("process_exec_id", base_path, max_attempts)
