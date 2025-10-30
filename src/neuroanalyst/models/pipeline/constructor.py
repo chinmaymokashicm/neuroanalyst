@@ -37,9 +37,8 @@ class ProcessConstructorConfig(BaseModel):
     def output_entities(self) -> dict[str, str]:
         """Get the output BIDS entities from the process logic."""
         return self.process.logic.output_entities
-    
-    @property
-    def process_execs(self) -> list[NeuProcessExec]:
+
+    def generate_process_execs(self, scheduler_flags: dict) -> list[NeuProcessExec]:
         """Get the list of NeuProcessExec instances for this configuration."""
         process_execs: list[NeuProcessExec] = []
         for subject_session_pair in self.subject_session_pairs or [(None, None)]:
@@ -70,8 +69,12 @@ class ProcessConstructorConfig(BaseModel):
             
             for var_name, var_value in self.extra_environment_variables.items():
                 process_exec.set_env_var_value(var_name, var_value)
+                
+            # Set scheduler flags
+            process_exec.set_scheduler_flags(scheduler_flags)
             
             process_execs.append(process_exec)
+            
         return process_execs
     
     @classmethod
@@ -152,14 +155,6 @@ class PipelineStepConstructorConfig(BaseModel):
     def processes(self) -> list[NeuProcess]:
         """Get the list of NeuProcess instances for this step."""
         return [config.process for config in self.process_configs]
-    
-    @property
-    def process_execs(self) -> list[NeuProcessExec]:
-        """Get the list of NeuProcessExec instances for this step."""
-        execs: list[NeuProcessExec] = []
-        for config in self.process_configs:
-            execs.extend(config.process_execs)  # Default to no subject/session filtering
-        return execs
     
     def add_process_config(self, process_config: ProcessConstructorConfig) -> None:
         """Add a ProcessConstructorConfig to the step."""
@@ -440,7 +435,7 @@ class PipelineConstructorConfig(BaseModel):
         for step_idx, step_config in enumerate(self.steps):
             for process_config in step_config.process_configs:
                 node_name = self.get_node_name(process_config)
-                n_execs = len(process_config.process_execs)
+                n_execs = len(process_config.generate_process_execs(DEFAULT_SCHEDULER_FLAGS[self.scheduler]))
                 labels[node_name] = f"{process_config.process_id} - {process_config.process.process_name} x{n_execs}"
         
         nx.draw(
@@ -607,7 +602,7 @@ class PipelineConstructorConfig(BaseModel):
         for step_config in self.steps:
             process_execs: list[NeuProcessExec] = []
             for process_config in step_config.process_configs:
-                process_execs.extend(process_config.process_execs)
+                process_execs.extend(process_config.generate_process_execs(DEFAULT_SCHEDULER_FLAGS[self.scheduler]))
             step = NeuPipelineStep(
                 name=step_config.name,
                 description=step_config.description,
@@ -625,7 +620,8 @@ class PipelineConstructorConfig(BaseModel):
         
         for process_exec in pipeline.process_execs:
             # Set scheduler flags
-            process_exec.set_scheduler_flags(DEFAULT_SCHEDULER_FLAGS[self.scheduler])
+            # process_exec.set_scheduler_flags(DEFAULT_SCHEDULER_FLAGS[self.scheduler])
+            # print(f"Saving process_exec {process_exec.exec_id} to disk with scheduler flags: {process_exec.scheduler_flags}")
             process_exec.save_to_disk()
         
         pipeline.create_pipeline_dir()
