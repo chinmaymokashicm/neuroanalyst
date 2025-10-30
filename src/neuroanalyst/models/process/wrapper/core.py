@@ -27,7 +27,7 @@ import numpy as np
 import pandas as pd
 import nibabel as nib
 
-from ....utils import PATHS, CONFIG
+from ....utils import CONFIG
 
 # PyBIDS imports
 from bids import BIDSLayout
@@ -100,13 +100,17 @@ class NeuProcessDecoratorConfig(BaseModel):
                     {
                         "name": "desc",
                         "pattern": "desc-(?P<desc>[a-zA-Z0-9]+)"
+                    },
+                    {
+                        "name": "hemi",
+                        "pattern": "hemi-(?P<hemi>[LR])"
                     }
                 ],
                 "default_path_patterns": [
                     "[sub-{subject}/][ses-{session}/]{datatype}/sub-{subject}_[ses-{session}_][acq-{acquisition}_][run-{run}_][desc-{desc}_]{suffix}{extension}",
                     "[sub-{subject}/][ses-{session}/]{datatype}/sub-{subject}_[ses-{session}_][task-{task}_][acq-{acquisition}_][ce-{ce}_][dir-{dir}_][rec-{rec}_][run-{run}_][echo-{echo}_][desc-{desc}_]{suffix}{extension}",
                     "[sub-{subject}/][ses-{session}/]{datatype}/sub-{subject}_[ses-{session}_][task-{task}_][acq-{acquisition}_][run-{run}_][desc-{desc}_]{suffix}{extension}",
-                    "[sub-{subject}/][ses-{session}/]{datatype}/sub-{subject}_[ses-{session}_][space-{space}_][hemi-{hemi}_][model-{model}_][desc-{desc}_]{suffix}{extension}",
+                    "[sub-{subject}/][ses-{session}/]{datatype}/sub-{subject}_[ses-{session}_][space-{space}_][hemi-{hemi}_][model-{model}_][desc-{desc}_]{suffix}{extension<.nii,.nii.gz,.gii,.surf.gii,.shape.gii>}",
                     "[sub-{subject}/][ses-{session}/][sample-{sample}/]{datatype}/sub-{subject}_[ses-{session}_][sample-{sample}_][desc-{desc}_]{suffix}{extension}",
                     "[sub-{subject}/][ses-{session}/][sample-{sample}/][modality-{modality}_]{datatype}/sub-{subject}_[ses-{session}_][sample-{sample}_][modality-{modality}_][desc-{desc}_]{suffix}{extension}"
                 ]
@@ -439,6 +443,11 @@ def _write_output_data(data: Any, output_filepath: Union[str, Path]) -> None:
     """
     output_filepath = Path(output_filepath)
     suffix = output_filepath.suffix.lower()
+    
+    # Skip if data is None
+    if data is None:
+        print(f"No data to write for {output_filepath}. Skipping.")
+        return
 
     # Handle .nii.gz explicitly
     if suffix == ".gz" and output_filepath.name.endswith(".nii.gz"):
@@ -459,6 +468,15 @@ def _write_output_data(data: Any, output_filepath: Union[str, Path]) -> None:
         else:
             raise ValueError(f"Unsupported data type {type(data)} for {suffix}")
 
+    elif suffix == ".gii":
+        print(f"Detected Gifti format: {suffix}")
+        print(f"Data type: {type(data)}")
+        if isinstance(data, nib.gifti.GiftiImage):
+            print("Saving Gifti image directly")
+            nib.save(data, str(output_filepath))
+        else:
+            raise ValueError(f"Unsupported data type {type(data)} for {suffix}")
+    
     elif suffix == ".npy":
         np.save(str(output_filepath), np.array(data))
 

@@ -20,8 +20,10 @@ from pydantic import BaseModel, Field, model_validator
 from ....utils.constants import NeuroAnalystPaths
 from ....utils.id_generators import generate_process_id
 from ...about import About
-from ..dir.core import NeuProcessDir
+from ..dir.core import NeuProcessDir, NeuProcessLogic
 
+STANDARD_BIND_PATHS = {"/data"}
+STANDARD_ENV_VARS = {"BIDS_FILTERS", "PROCESS_ID", "PROCESS_EXEC_ID", "PIPELINE_ID", "PIPELINE_NAME"}
 
 class NeuProcess(BaseModel):
     """
@@ -54,7 +56,7 @@ class NeuProcess(BaseModel):
                                                 description="Additional command-line flags for the process. E.g., ['--verbose', '--fakeroot']")
 
     # Class variables
-    _paths: ClassVar[NeuroAnalystPaths] = NeuroAnalystPaths()
+    # _paths: ClassVar[NeuroAnalystPaths] = NeuroAnalystPaths()
     
     def __str__(self) -> str:
         """Return a human-readable string representation of the NeuProcess."""
@@ -162,12 +164,13 @@ class NeuProcess(BaseModel):
             raise ValueError(f"Failed to load NeuProcessDir from {model_json_path}: {e}")
     
     @classmethod
-    def from_process_id(cls, process_id: str, **kwargs):
+    def from_process_id(cls, process_id: str, username: Optional[str] = None, **kwargs):
         """
         Create a NeuProcess from a process ID.
         
         Args:
             process_id: Process ID
+            username: Optional username associated with the process
             **kwargs: Additional arguments to pass to the NeuProcess constructor
             
         Returns:
@@ -177,9 +180,26 @@ class NeuProcess(BaseModel):
             FileNotFoundError: If the process directory is not found
             ValueError: If the model.json file cannot be parsed
         """
-        paths = NeuroAnalystPaths()
+        paths = NeuroAnalystPaths(username=username)
         dir_path = paths.get_process_workdir(process_id)
         return cls.from_dir_path(dir_path, process_id=process_id, **kwargs)
+    
+    @classmethod
+    def get_all_processes(cls, username: Optional[str] = None) -> list["NeuProcess"]:
+        """
+        Get all NeuProcess instances for a given user.
+        
+        Args:
+            username: Optional username to filter processes. If None, uses the current user.
+        """
+        process_ids: list[str] = [process_dir.process_id for process_dir in NeuProcessDir.get_all_process_dirs(username=username)]
+        processes: list[NeuProcess] = [cls.from_process_id(process_id, username=username) for process_id in process_ids]
+        return processes
+    
+    @property
+    def username(self) -> Optional[str]:
+        """Get the username associated with the process, if any."""
+        return self.process_dir.username
     
     # Properties to access NeuProcessDir attributes
     @property
@@ -215,18 +235,52 @@ class NeuProcess(BaseModel):
     @property
     def image_path(self) -> Path:
         """Get the path to the Singularity image."""
-        return self._paths.get_process_image_path(self.process_id)
+        image_path = NeuroAnalystPaths(username=self.username).get_process_image_path(self.process_id)
+        image_path.parent.mkdir(parents=True, exist_ok=True)
+        return image_path
     
     @property
     def venv_path(self) -> Path:
         """Get the path to the virtual environment."""
-        return self._paths.get_venv_path(self.process_id)
-    
+        venv_path = NeuroAnalystPaths(username=self.username).get_process_venv_path(self.process_id)
+        venv_path.parent.mkdir(parents=True, exist_ok=True)
+        return venv_path
+
     @property
     def logic(self) -> Any:
         """Get the logic associated with the process."""
         return self.process_dir.logic
     
+    @property
+    def build_image_log_path(self) -> Path:
+        """Get the path to the Singularity image build log."""
+        return self.process_dir.build_image_log_path
+    
+    @property
+    def build_venv_log_path(self) -> Path:
+        """Get the path to the virtual environment creation log."""
+        return self.process_dir.build_venv_log_path
+    
+    @property
+    def is_image_built(self) -> bool:
+        """Check if the Singularity image has been built."""
+        return self.process_dir.is_image_built
+    
+    @property
+    def is_venv_created(self) -> bool:
+        """Check if the virtual environment has been created."""
+        return self.process_dir.is_venv_created
+    
+    @property
+    def logic(self) -> NeuProcessLogic:
+        """Get the logic associated with the process."""
+        return self.process_dir.logic
+    
+    @property
+    def output_entities(self) -> Dict[str, Any]:
+        """Get the BIDS entities for the process output."""
+        return self.logic.output_entities
+
     # Singularity image methods
     def build_singularity_image(self, scheduler=None, scheduler_args=None, **kwargs) -> tuple[Path, str]:
         """
@@ -379,8 +433,7 @@ class NeuProcess(BaseModel):
         Returns:
             List of non-standard bind paths
         """
-        standard_paths: set[str] = {"/data"}
-        return [path for path in self.bind_paths if path not in standard_paths]
+        return [path for path in self.bind_paths if path not in STANDARD_BIND_PATHS]
     
     def get_non_standard_environment_variables(self) -> list[str]:
         """
@@ -389,8 +442,7 @@ class NeuProcess(BaseModel):
         Returns:
             List of non-standard environment variables
         """
-        standard_vars: set[str] = {"BIDS_FILTERS", "PROCESS_ID", "PROCESS_EXEC_ID", "PIPELINE_ID", "PIPELINE_NAME"}
-        return [var for var in self.environment_variables if var not in standard_vars]
+        return [var for var in self.environment_variables if var not in STANDARD_ENV_VARS]
     
     def get_non_standard_parameters(self) -> Dict[str, Any]:
         """

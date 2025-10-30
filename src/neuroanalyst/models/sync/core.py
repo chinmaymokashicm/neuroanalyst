@@ -13,9 +13,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Optional, Dict, Any, List, Union, Tuple
 
-from pydantic import BaseModel, Field, validator
-
-from ...utils.constants import PATHS
+from pydantic import BaseModel, Field, model_validator
 
 
 class SyncDirection(str, Enum):
@@ -58,7 +56,7 @@ class SyncConfig(BaseModel):
         description="Whether to compress data before transfer"
     )
     
-    @validator('interval')
+    @model_validator('interval')
     def validate_interval(cls, v, values):
         """Validate that interval is provided for periodic strategy."""
         if values.get('strategy') == SyncStrategy.PERIODIC and not v:

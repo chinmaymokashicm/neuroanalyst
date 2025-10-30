@@ -127,6 +127,39 @@ class NeuPipelineStatus(BaseModel):
                 return proc_status.model_dump()
         return None
     
+    def get_completion_percentage(self, step_idx: Optional[int] = None, process_id: Optional[str] = None) -> float:
+        """Calculate the completion percentage of the pipeline, a specific step, or a specific process.
+        
+        Args:
+            step_idx: Optional; The index of the step in the pipeline
+            process_id: Optional; The process ID to calculate completion for
+        Returns:
+            float: Completion percentage (0.0 to 100.0)
+        """
+        total_count: int = 0
+        complete_count: int = 0
+        
+        if step_idx is not None:
+            if step_idx < 0 or step_idx >= len(self.steps):
+                return 0.0
+            step_status = self.steps[step_idx]
+            for proc_status in step_status.processes:
+                if process_id is None or proc_status.process_id == process_id:
+                    total_count += 1
+                    if proc_status.status == ProcessStatus.COMPLETE:
+                        complete_count += 1
+        else:
+            for step_status in self.steps:
+                for proc_status in step_status.processes:
+                    if process_id is None or proc_status.process_id == process_id:
+                        total_count += 1
+                        if proc_status.status == ProcessStatus.COMPLETE:
+                            complete_count += 1
+        
+        if total_count == 0:
+            return 0.0
+        return (complete_count / total_count) * 100.0
+    
     def get_stats(self, by: Literal["process", "step", "all"] = "process") -> dict:
         """Get statistics about the pipeline execution.
         
@@ -184,25 +217,17 @@ class NeuPipelineStep(BaseModel):
     
     def __str__(self) -> str:
         """Return a human-readable string representation of the NeuPipelineStep."""
-        process_execs_count = len(getattr(self, 'process_execs', [])) if hasattr(self, 'process_execs') else 0
-        # return f"NeuPipelineStep(name='{self.name}', process_execs={process_execs_count})"
-        detailed_info: str = f"""
-        Name: {self.name}
-        Description: {self.description if self.description else 'None'}
-        Process Execs: {process_execs_count}
-        Process Execs: {getattr(self, 'process_execs', []) if hasattr(self, 'process_execs') else 'None'}
-        Status: {getattr(self, 'status', 'None') if hasattr(self, 'status') else 'None'}
-        """
-        return detailed_info
-
-    def __repr__(self) -> str:
-        """Return a detailed string representation of the NeuPipelineStep."""
-        process_execs = getattr(self, 'process_execs', []) if hasattr(self, 'process_execs') else []
-        process_exec_ids = [p.exec_id for p in process_execs] if process_execs else []
+        unique_processes: Set[str] = set(proc_exec.process.process_id for proc_exec in self.process_execs)
+        detailed_info: str = f"Name: {self.name}\n"
+        detailed_info += f"Description: {self.description if self.description else 'None'}\n"
+        detailed_info += f"Processes: {', '.join(unique_processes)}\n"
+        if unique_processes:
+            for process in unique_processes:
+                detailed_info += f"  Process ID: {process}\n"
+                detailed_info += f"  Number of process execs: {len(self.process_execs)}\n"
+                detailed_info += f"  Execution Mode: {self.process_execs[0].execution_mode.value}\n"
         
-        return f"NeuPipelineStep(name='{self.name}', "\
-               f"description='{self.description if self.description else 'None'}', "\
-               f"process_execs={process_exec_ids})"
+        return detailed_info
     
     @model_validator(mode='after')
     def validate_process_execs(self) -> 'NeuPipelineStep':
@@ -260,7 +285,8 @@ class NeuPipeline(BaseModel):
         default=HPCScheduler.LSF,
         description="HPC scheduler to use for all processes in the pipeline"
     )
-    start_from_raw_bids: bool = Field(default=True, description="Whether to start processing from raw BIDS data")
+    # start_from_raw_bids: bool = Field(default=True, description="Whether to start processing from raw BIDS data")
+    starting_bids_scope: str = Field(default="raw", description="The starting BIDS scope for the pipeline")
     
     # Execution command
     execution_command: Optional[str] = Field(
@@ -269,7 +295,17 @@ class NeuPipeline(BaseModel):
     )
     
     # Cache paths for easy access
-    _paths: ClassVar[NeuroAnalystPaths] = NeuroAnalystPaths()
+    # _paths: ClassVar[NeuroAnalystPaths] = NeuroAnalystPaths()
+    
+    @field_validator('about', mode='before')
+    def validate_about(cls, v: dict | About) -> About:
+        """Ensure 'about' is an About instance."""
+        if isinstance(v, dict):
+            return About(**v)
+        elif isinstance(v, About):
+            return v
+        else:
+            raise TypeError("about must be an instance of About or a dict")
     
     @model_validator(mode='after')
     def validate_model(self) -> 'NeuPipeline':
@@ -287,61 +323,40 @@ class NeuPipeline(BaseModel):
         
         return self
     
-    # @field_validator('about')
-    # def validate_about(cls, about: About) -> About:
-    #     """Validate the 'about' field."""
-    #     # Check if about.name is not already a derivatives name in the dataset.
-    #     try:
-    #         derivatives_root: Path = cls.bids_root / "derivatives"
-    #     except Exception:
-    #         raise ValueError("bids_root must be set before validating 'about' field")
-        
-    #     if derivatives_root.exists():
-    #         derivatives_dirs = [d.name for d in derivatives_root.iterdir() if d.is_dir()]
-    #         if about.name in derivatives_dirs:
-    #             raise ValueError(f"Pipeline name '{about.name}' conflicts with existing derivatives directory in BIDS dataset.")
-    #     return about
-
     def __str__(self) -> str:
-        """Return a human-readable string representation of the NeuPipeline."""
-        steps_count = len(getattr(self, 'steps', [])) if hasattr(self, 'steps') else 0
-        name = getattr(self.about, 'name', 'unnamed') if hasattr(self, 'about') else 'unnamed'
-        return f"NeuPipeline(name='{name}', steps={steps_count})"
-    
-    def __repr__(self) -> str:
-        """Return a detailed string representation of the NeuPipeline.
+        """Return a human-readable string representation of the NeuPipeline.
         - Pipeline details
         - Scheduler
         - Step names
+            - Process names
+            - Individual process IDs, process exec IDs, number of execs per process
         - Individual process IDs, process exec IDs
         """
-        steps = getattr(self, 'steps', []) if hasattr(self, 'steps') else []
-        step_details = []
-        for i, step in enumerate(steps):
-            proc_execs = getattr(step, 'process_execs', []) if hasattr(step, 'process_execs') else []
-            step_details.append(f"Step {i+1}: {step.name}, Process Executions: {[f"{proc_exec.process.process_id} - {proc_exec.exec_id}" for proc_exec in proc_execs]}")
-        
-        name = getattr(self.about, 'name', 'unnamed') if hasattr(self, 'about') else 'unnamed'
-        
-        # return f"NeuPipeline(name='{name}'id='{self.pipeline_id}', "\
-        #        f"steps={'\n'.join(step_details)}, scheduler={self.scheduler.value})"
-        
-        return f"""
-NeuPipeline Details:
-Name: {name}
-ID: {self.pipeline_id}
-Scheduler: {self.scheduler.value}
-Steps:
-{'\t\n'.join(step_details) if step_details else 'None'}
-BIDS Root: {self.bids_root}
-About: {self.about if self.about else 'None'}
-Execution Command: {self.execution_command if self.execution_command else 'Not generated yet'}
-    """
+        detailed_info: str = f"Pipeline ID: {self.pipeline_id}\n"
+        detailed_info += f"Name: {self.about.name}\n"
+        detailed_info += f"Description: {self.about.description if self.about.description else 'None'}\n"
+        detailed_info += f"Author: {self.about.author if self.about.author else 'None'}\n"
+        detailed_info += f"Version: {self.about.version if self.about.version else 'None'}\n"
+        detailed_info += f"Number of Steps: {len(self.steps)}\n"
+        detailed_info += f"Scheduler: {self.scheduler.value}\n"
+        for step_idx, step in enumerate(self.steps):
+            detailed_info += f" Step {step_idx + 1} - Name: {step.name}\n"
+            step_info_lines: list[str] = str(step).splitlines()
+            for line in step_info_lines:
+                detailed_info += f"   {line}\n"
+        return detailed_info
+    
+    @property
+    def username(self) -> Optional[str]:
+        """Get the username associated with the pipeline (from the first process exec)."""
+        if self.steps and self.steps[0].process_execs:
+            return self.steps[0].process_execs[0].username
+        return None
     
     @property
     def pipeline_dir_path(self) -> Path:
         """Get the path to the pipeline directory."""
-        return Path(self._paths.pipelines) / self.pipeline_id
+        return Path(NeuroAnalystPaths(username=self.username).pipelines) / self.pipeline_id
     
     @property
     def model_path(self) -> Path:
@@ -383,7 +398,7 @@ Execution Command: {self.execution_command if self.execution_command else 'Not g
     @property
     def log_dir(self) -> Path:
         """Get the path to the pipeline log directory."""
-        dir_path: Path = self._paths.logs / "pipelines" / self.pipeline_id
+        dir_path: Path = Path(NeuroAnalystPaths(username=self.username).logs) / "pipelines" / self.pipeline_id
         dir_path.mkdir(parents=True, exist_ok=True)
         return dir_path
     
@@ -414,6 +429,7 @@ Execution Command: {self.execution_command if self.execution_command else 'Not g
     def constructor_v2(
         cls,
         about_pipeline: About | dict,
+        username: str,
         bids_root: str | Path,
         steps_info: list[list[str]],
         process_configs: list[list[str | dict]],
@@ -427,6 +443,7 @@ Execution Command: {self.execution_command if self.execution_command else 'Not g
         Construct a NeuPipeline instance from high-level process configurations.
         Args:
             about_pipeline (About | dict): Metadata about the pipeline. If dict, requires keys: name, description, version, author.
+            username (str): Username of the pipeline creator. This username will be associated with all processes.
             bids_root (str | Path): Path to the BIDS dataset root directory.
             steps_info (list[list[str]]): List of steps, each defined by [step_name, step_description].
             process_configs (list[list[str | dict]]): List of process configurations, each with keys: 'process_ids' and 'extra_parameters'.
@@ -484,7 +501,7 @@ Execution Command: {self.execution_command if self.execution_command else 'Not g
             if len(process_ids) != len(extra_parameters):
                 raise KeyError(f"'process_ids' has {len(process_ids)} items while 'extra_parameters' has {len(extra_parameters)}")
             
-            step_configs[step_id]["processes"] = [NeuProcess.from_process_id(process_id) for process_id in process_ids]
+            step_configs[step_id]["processes"] = [NeuProcess.from_process_id(process_id, username=username) for process_id in process_ids]
             step_configs[step_id]["extra_parameters"] = extra_parameters
             
             if step_id == 0:
@@ -524,7 +541,7 @@ Execution Command: {self.execution_command if self.execution_command else 'Not g
                     merged_bids_filters["subject"] = subjects
                     merged_bids_filters["session"] = sessions
                     
-                    proc_exec: NeuProcessExec = NeuProcessExec.from_process(process)
+                    proc_exec: NeuProcessExec = NeuProcessExec.generate_from_process(process)
                     proc_exec.set_env_var_value("BIDS_FILTERS", json.dumps(merged_bids_filters))
                     
                     for key, value in extra_env_vars.items():
@@ -557,13 +574,13 @@ Execution Command: {self.execution_command if self.execution_command else 'Not g
             # Verify that each unique process has the required environment (container image or venv)
             unique_process_ids: Set[str] = set([proc_exec.process.process_id for proc_exec in pipeline.process_execs])
             for unique_proc_id in unique_process_ids:
-                process: NeuProcess = NeuProcess.from_process_id(unique_proc_id)
+                process: NeuProcess = NeuProcess.from_process_id(unique_proc_id, username=username)
                 if execution_mode == ExecutionMode.CONTAINER:
-                    image_path: Path = pipeline._paths.get_process_image_path(unique_proc_id)
+                    image_path: Path = NeuroAnalystPaths(username=username).get_process_image_path(unique_proc_id)
                     if not image_path.exists():
                         raise ValueError(f"Process ID '{unique_proc_id}' does not have a container image")
                 elif execution_mode == ExecutionMode.VENV:
-                    venv_path: Path = pipeline._paths.get_venv_path(unique_proc_id)
+                    venv_path: Path = NeuroAnalystPaths(username=username).get_venv_path(unique_proc_id)
                     if not venv_path.exists() or (venv_path / "bin" / "activate").exists() is False:
                         raise ValueError(f"Process ID '{unique_proc_id}' does not have a virtual environment")
                 else:
@@ -587,6 +604,7 @@ Execution Command: {self.execution_command if self.execution_command else 'Not g
     ):
         """
         Construct a NeuPipeline instance from high-level definitions.
+        ! Not maintained, use constructor_v2 instead.
         Args:
             about_pipeline (About | dict): Metadata about the pipeline. If dict, requires keys: name, description, version, author.
             bids_root (str | Path): Path to the BIDS dataset root directory.
@@ -1026,18 +1044,17 @@ Execution Command: {self.execution_command if self.execution_command else 'Not g
         
         return scope in available_scopes
     
-    def apply_standard_exec_params(self, starting_scope: str = "raw", execution_mode: str | ExecutionMode = "lsf") -> None:
+    def apply_standard_exec_params(self) -> None:
         """Apply standard execution parameters to all processes in the pipeline."""
         
-        if not self.is_scope_valid(starting_scope, self.bids_root):
-            raise ValueError(f"starting_scope '{starting_scope}' is not valid in the BIDS dataset")
-
+        if not self.is_scope_valid(self.starting_bids_scope, self.bids_root):
+            raise ValueError(f"starting_scope '{self.starting_bids_scope}' is not valid in the BIDS dataset")
         for step_idx, step in enumerate(self.steps):
             for proc_exec in step.process_execs:
                 if step_idx == 0:
                     bids_filters_str: str = proc_exec.env_var_values.get("BIDS_FILTERS", "{}")
                     bids_filters: dict = json.loads(bids_filters_str) if bids_filters_str else {}
-                    bids_filters["scope"] = starting_scope
+                    bids_filters["scope"] = self.starting_bids_scope
                     proc_exec.set_env_var_value("BIDS_FILTERS", json.dumps(bids_filters))
                 else:
                     bids_filters_str: str = proc_exec.env_var_values.get("BIDS_FILTERS", "{}")
@@ -1056,9 +1073,6 @@ Execution Command: {self.execution_command if self.execution_command else 'Not g
                 
                 # Set standard bind-mount paths - /data, 
                 proc_exec.set_bind_path_value("/data", str(self.bids_root))
-                
-                # Set execution mode
-                proc_exec.execution_mode = execution_mode if isinstance(execution_mode, ExecutionMode) else ExecutionMode(execution_mode)
                 
                 # Check if all the required configuration is set
                 if not proc_exec.check_configuration_complete():
@@ -1782,7 +1796,7 @@ Execution Command: {self.execution_command if self.execution_command else 'Not g
             failure = False
             failure_message = ""
             
-            def execute_and_monitor_process(proc_exec):
+            def execute_and_monitor_process(proc_exec: NeuProcessExec) -> bool:
                 nonlocal failure, failure_message
                 
                 try:
@@ -1894,25 +1908,25 @@ Execution Command: {self.execution_command if self.execution_command else 'Not g
         return cls.model_validate(model_data)
     
     @classmethod
-    def from_pipeline_id(cls, pipeline_id: str) -> 'NeuPipeline':
+    def from_pipeline_id(cls, pipeline_id: str, username: Optional[str] = None) -> 'NeuPipeline':
         """Create a NeuPipeline instance from a pipeline ID."""
-        paths = NeuroAnalystPaths()
+        paths = NeuroAnalystPaths(username=username)
         model_path = Path(paths.pipelines) / pipeline_id / "model.json"
         
         return cls.from_model_file(model_path)
     
     @classmethod
-    def get_all_pipelines(cls) -> list['NeuPipeline']:
+    def get_all_pipelines(cls, username: Optional[str]) -> list['NeuPipeline']:
         """List all available pipelines."""
-        paths = NeuroAnalystPaths()
-        pipelines_dir = Path(paths.pipelines)
+        paths = NeuroAnalystPaths(username=username)
+        pipelines_dir: Path = paths.pipelines
         
         pipeline_list = []
         if pipelines_dir.exists():
             for pipeline_dir in pipelines_dir.iterdir():
                 if pipeline_dir.is_dir():
                     try:
-                        pipeline = cls.from_pipeline_id(pipeline_dir.name)
+                        pipeline = cls.from_pipeline_id(pipeline_dir.name, username=username)
                         pipeline_list.append(pipeline)
                     except Exception as e:
                         print(f"Warning: Could not load pipeline from {pipeline_dir}: {e}")

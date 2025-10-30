@@ -86,25 +86,44 @@ class NeuProcessExec(BaseModel):
     # Command storage
     script_path: Optional[Path] = Field(default=None,
                                         description="Path to the script file")
-    log_path: Optional[Path] = Field(default=None,
-                                     description="Path to the log file")
-    error_path: Optional[Path] = Field(default=None,
-                                       description="Path to the error file")
     exec_command: Optional[str] = Field(default=None,
                                       description="Generated execution command")
     
     # Class variables
-    _paths: ClassVar[NeuroAnalystPaths] = NeuroAnalystPaths()
     
-    @model_validator(mode="after")
-    def validate_bind_paths_and_env_vars(self) -> "NeuProcessExec":
-        """
-        Validate that all required bind paths and environment variables have values.
-        This validator no longer raises exceptions but is used to ensure the model
-        is properly initialized.
-        """
-        return self
+    @property
+    def username(self) -> Optional[str]:
+        """Get the username associated with the process, if any."""
+        return self.process.username
     
+    @property
+    def bids_filters(self) -> Dict[str, Any]:
+        """Get the BIDS filters from the environment variable values."""
+        bids_filters_str: Optional[str] = self.env_var_values.get("BIDS_FILTERS")
+        if bids_filters_str:
+            try:
+                return json.loads(bids_filters_str)
+            except json.JSONDecodeError:
+                raise ValueError("Invalid JSON format for BIDS_FILTERS environment variable")
+        return {}
+    
+    @property
+    def exec_log_dir(self) -> Path:
+        """Get the path to the execution log directory."""
+        log_dir: Path = Path(NeuroAnalystPaths(username=self.username).logs) / "process_execs" / self.exec_id
+        log_dir.mkdir(parents=True, exist_ok=True)
+        return log_dir
+    
+    @property
+    def exec_log_path(self) -> Path:
+        """Get the path to the execution log file."""
+        return self.exec_log_dir / f"{self.exec_id}.log"
+    
+    @property
+    def exec_error_path(self) -> Path:
+        """Get the path to the execution error file."""
+        return self.exec_log_dir / f"{self.exec_id}.err"
+
     @property
     def is_fully_configured(self) -> bool:
         """
@@ -118,7 +137,7 @@ class NeuProcessExec(BaseModel):
         return len(missing_bind_paths) == 0 and len(missing_env_vars) == 0
     
     @classmethod
-    def from_process(cls, process: NeuProcess, **kwargs) -> "NeuProcessExec":
+    def generate_from_process(cls, process: NeuProcess, **kwargs) -> "NeuProcessExec":
         """
         Create a NeuProcessExec from a NeuProcess instance.
         
@@ -132,22 +151,23 @@ class NeuProcessExec(BaseModel):
         return cls(process=process, **kwargs)
     
     @classmethod
-    def from_process_id(cls, process_id: str, **kwargs) -> "NeuProcessExec":
+    def generate_from_process_id(cls, process_id: str, username: Optional[str] = None, **kwargs) -> "NeuProcessExec":
         """
         Create a NeuProcessExec from a process ID.
         
         Args:
             process_id: Process ID
+            username: Username of the process owner
             **kwargs: Additional arguments to pass to the NeuProcessExec constructor
             
         Returns:
             NeuProcessExec instance
         """
-        process = NeuProcess.from_process_id(process_id)
+        process = NeuProcess.from_process_id(process_id, username=username)
         return cls(process=process, **kwargs)
     
     @classmethod
-    def from_dir_path(cls, dir_path: Path, **kwargs) -> "NeuProcessExec":
+    def generate_from_process_dir_path(cls, dir_path: Path, **kwargs) -> "NeuProcessExec":
         """
         Create a NeuProcessExec from a path to a process directory.
         
@@ -162,12 +182,13 @@ class NeuProcessExec(BaseModel):
         return cls(process=process, **kwargs)
     
     @classmethod
-    def from_exec_id(cls, exec_id: str) -> "NeuProcessExec":
+    def from_exec_id(cls, exec_id: str, username: Optional[str] = None) -> "NeuProcessExec":
         """
         Create a NeuProcessExec from a saved execution ID.
         
         Args:
             exec_id: Execution ID of a previously saved NeuProcessExec
+            username: Username of the user executing the process
             
         Returns:
             NeuProcessExec instance
@@ -176,10 +197,10 @@ class NeuProcessExec(BaseModel):
             FileNotFoundError: If the execution directory or model.json file does not exist
             ValueError: If the model.json file cannot be parsed
         """
-        from ....utils.constants import PATHS
         
         # Get the path to the execution directory
-        exec_dir = PATHS.get_process_exec_path(exec_id)
+        paths = NeuroAnalystPaths(username=username)
+        exec_dir = paths.get_process_exec_path(exec_id)
         if not exec_dir.exists():
             raise FileNotFoundError(f"Execution directory not found: {exec_dir}")
         
@@ -214,14 +235,17 @@ class NeuProcessExec(BaseModel):
             bids_layout: BIDSLayout object for querying the BIDS dataset
             max_chunk_size: Maximum number of files per chunk (default: 5)
         Returns:
-            List of NeuProcessExec instances, each configured with a chunk of BIDS filters
+            tuple: (list of NeuProcessExec instances, list of subject-session pairs for each exec)
         """
         process_execs: list[NeuProcessExec] = []
         subject_session_pairs: list[tuple[list[str], list[str]]] = []
         for chunk in split_by_subject_session(bids_layout=bids_layout, bids_filters=bids_filters, max_chunk_size=max_chunk_size):
+            if chunk["n_files"] == 0:
+                print(f"Warning: No files found for the given BIDS filters ( {bids_filters} ) chunk. Skipping this chunk.")
+                continue
             bids_filters: dict = chunk["bids_filters"]
             subject_session_pairs.append(chunk["subject_session_pair"])
-            process_exec: NeuProcessExec = NeuProcessExec.from_process(process)
+            process_exec: NeuProcessExec = NeuProcessExec.generate_from_process(process)
             process_exec.env_var_values["BIDS_FILTERS"] = json.dumps(bids_filters)
             process_execs.append(process_exec)
         return process_execs, subject_session_pairs
@@ -250,7 +274,7 @@ class NeuProcessExec(BaseModel):
             FileNotFoundError: If the execution directory does not exist
             Exception: If deletion fails for any reason
         """
-        exec_dir: Path = self._paths.get_process_exec_path(self.exec_id)
+        exec_dir: Path = Path(NeuroAnalystPaths(username=self.username).get_process_exec_path(self.exec_id))
         if not exec_dir.exists():
             print(f"Execution directory not found: {exec_dir}")
             return
@@ -619,10 +643,6 @@ class NeuProcessExec(BaseModel):
             
             error_msg += "Use print_configuration_status() to see the full configuration status."
             raise ValueError(error_msg)
-        
-        #! Determine the execution mode - for now, let us choose container even if the image does not exist
-        # mode = self.determine_execution_mode()
-        mode = ExecutionMode.CONTAINER
 
         location: str = "local" if self.scheduler == HPCScheduler.LOCAL else "hpc"
         cmd_prefix: str | None = None
@@ -647,30 +667,25 @@ class NeuProcessExec(BaseModel):
         # Pass bind path and environment variable arguments that the script will use
 
         # Generate the bash script if not already set and save to disk
-        exec_dir: Path = self._paths.get_process_exec_path(self.exec_id)
+        exec_dir: Path = Path(NeuroAnalystPaths(username=self.username).process_execs) / self.exec_id
         if not Path(exec_dir / BASH_SCRIPT_NAME).exists():
             bash_script_with_runtime_args_path: str = str(self.save_bash_script_to_disk())
-
-        # Generate log and error file paths if not already set
-        log_dir = self._paths.logs / "process_execs"
-        if not self.log_path:
-            self.log_path = log_dir / f"{self.exec_id}.log"
-        if not self.error_path:
-            self.error_path = log_dir / f"{self.exec_id}.err"
+        else:
+            bash_script_with_runtime_args_path: str = str(exec_dir / BASH_SCRIPT_NAME)
         
         # Construct the final command. Include creation of log directory if it doesn't exist within the command.
         if self.scheduler == HPCScheduler.LOCAL:
-            cmd = "mkdir -p " + str(log_dir) + " && "
-            cmd += f"{cmd_prefix} {bash_script_with_runtime_args_path} > {self.log_path} 2> {self.error_path}"
+            cmd = "mkdir -p " + str(self.exec_log_dir) + " && "
+            cmd += f"{cmd_prefix} {bash_script_with_runtime_args_path} > {self.exec_log_path} 2> {self.exec_error_path}"
         elif self.scheduler == HPCScheduler.LSF:
-            cmd = "mkdir -p " + str(log_dir) + " && "
-            cmd += f"{cmd_prefix} -o {self.log_path} -e {self.error_path} -J {self.exec_id}{self._format_lsf_flags()} {bash_script_with_runtime_args_path}"
+            cmd = "mkdir -p " + str(self.exec_log_dir) + " && "
+            cmd += f"{cmd_prefix} -o {self.exec_log_path} -e {self.exec_error_path} -J {self.exec_id}{self._format_lsf_flags()} {bash_script_with_runtime_args_path}"
         elif self.scheduler == HPCScheduler.SLURM:
-            cmd = "mkdir -p " + str(log_dir) + " && "
-            cmd += f"{cmd_prefix} --output={self.log_path} --error={self.error_path}{self._format_slurm_flags()} {bash_script_with_runtime_args_path}"
+            cmd = "mkdir -p " + str(self.exec_log_dir) + " && "
+            cmd += f"{cmd_prefix} --output={self.exec_log_path} --error={self.exec_error_path}{self._format_slurm_flags()} {bash_script_with_runtime_args_path}"
         elif self.scheduler == HPCScheduler.PBS:
-            cmd = "mkdir -p " + str(log_dir) + " && "
-            cmd += f"{cmd_prefix} -o {self.log_path} -e {self.error_path}{self._format_pbs_flags()} {bash_script_with_runtime_args_path}"
+            cmd = "mkdir -p " + str(self.exec_log_dir) + " && "
+            cmd += f"{cmd_prefix} -o {self.exec_log_path} -e {self.exec_error_path}{self._format_pbs_flags()} {bash_script_with_runtime_args_path}"
         else:
             raise ValueError(f"Unsupported scheduler: {self.scheduler}")
         
@@ -892,7 +907,7 @@ class NeuProcessExec(BaseModel):
         """
         
         # Create process_execs directory if it doesn't exist
-        exec_dir = self._paths.get_process_exec_path(self.exec_id)
+        exec_dir = Path(NeuroAnalystPaths(username=self.username).process_execs) / self.exec_id
         
         exec_dir.mkdir(parents=True, exist_ok=True)
         
@@ -924,7 +939,7 @@ bash {self.script_path} {' '.join(self.command_flags) if self.command_flags else
         """
         
         # Create process_execs directory if it doesn't exist
-        exec_dir = self._paths.get_process_exec_path(self.exec_id)
+        exec_dir = Path(NeuroAnalystPaths(username=self.username).process_execs) / self.exec_id
         
         exec_dir.mkdir(parents=True, exist_ok=True)
         

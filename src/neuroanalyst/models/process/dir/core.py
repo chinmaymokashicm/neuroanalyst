@@ -133,15 +133,17 @@ class NeuProcessDir(BaseModel):
                                       description="Path to the working directory")
     
     # Class variables
-    _paths: ClassVar[NeuroAnalystPaths] = NeuroAnalystPaths()
+    # _paths: ClassVar[NeuroAnalystPaths] = NeuroAnalystPaths()
     _template_dir: ClassVar[Path] = Path(__file__).parent / "templates"
     
     @model_validator(mode="after")
-    def set_working_dir(self) -> Self:
-        """Set the working directory if the process_id is provided or has been generated."""
-        self.working_dir: Path = self._paths.workdir / self.process_id
+    def finish_init(self) -> 'NeuProcessDir':
+        """Finalize initialization by generating working directory if not set."""
+        username: Optional[str] = self.username
+        working_dir: Path = NeuroAnalystPaths(username=username).get_process_workdir(self.process_id)
+        self.working_dir = working_dir
         return self
-    
+
     def __str__(self) -> str:
         """Return a human-readable string representation of the NeuProcessDir."""
         return f"NeuProcessDir(name='{self.logic.about.name if self.logic else None}', id='{self.process_id}')"
@@ -470,7 +472,8 @@ class NeuProcessDir(BaseModel):
     @property
     def build_log_dir(self) -> Path:
         """Get the path to the Singularity build log directory."""
-        root_log_dir = self._paths.logs / "build"
+        paths = NeuroAnalystPaths(username=self.username)
+        root_log_dir = paths.logs / "build"
         process_build_log_dir = root_log_dir / self.process_id
         process_build_log_dir.mkdir(parents=True, exist_ok=True)
         return process_build_log_dir
@@ -484,6 +487,27 @@ class NeuProcessDir(BaseModel):
     def build_venv_log_path(self) -> Path:
         """Get the path to the virtual environment creation log file."""
         return self.build_log_dir / "venv.log"
+    
+    @property
+    def username(self) -> Optional[str]:
+        """Get the username associated with the process, if any."""
+        if self.logic:
+            return self.logic.username
+        return None
+    
+    @property
+    def is_image_built(self) -> bool:
+        """Check if the Singularity image has been built."""
+        paths = NeuroAnalystPaths(username=self.username)
+        image_path: Path = paths.get_process_image_path(self.process_id)
+        return image_path.exists()
+    
+    @property
+    def is_venv_created(self) -> bool:
+        """Check if the virtual environment has been created."""
+        paths = NeuroAnalystPaths(username=self.username)
+        venv_path: Path = paths.get_venv_path(self.process_id)
+        return venv_path.exists()
     
     # Model validators
     @field_validator('script_paths')
@@ -553,7 +577,7 @@ class NeuProcessDir(BaseModel):
         return cls(logic=logic, config=config)
     
     @classmethod
-    def from_process_id(cls, process_id: str, **kwargs) -> Self:
+    def from_process_id(cls, process_id: str, username: Optional[str] = None, **kwargs) -> Self:
         """
         Create a NeuProcessDir from an existing process ID.
         
@@ -563,7 +587,8 @@ class NeuProcessDir(BaseModel):
         Returns:
             A new NeuProcessDir instance
         """
-        working_dir: Path = cls._paths.workdir / process_id
+        paths = NeuroAnalystPaths(username=username)
+        working_dir: Path = paths.get_process_workdir(process_id)
         if not working_dir.exists():
             raise FileNotFoundError(f"Process directory does not exist: {working_dir}")
         
@@ -578,20 +603,24 @@ class NeuProcessDir(BaseModel):
         return cls.model_validate(model_data, **kwargs)
     
     @classmethod
-    def get_all_process_dirs(cls) -> List[Self]:
+    def get_all_process_dirs(cls, username: Optional[str] = None) -> List[Self]:
         """
         Retrieve all existing NeuProcessDir instances from the working directory.
+        
+        Args:
+            username: Optional username to scope the working directory
         
         Returns:
             List of NeuProcessDir instances
         """
         process_dirs: List[Self] = []
-        workdir: Path = cls._paths.workdir
-        
+        paths = NeuroAnalystPaths(username=username)
+        workdir: Path = paths.workdir
+
         if not workdir.exists():
             return process_dirs
         
-        return [cls.from_process_id(process_id=dir_path.name) for dir_path in workdir.iterdir() if dir_path.is_dir()]
+        return [cls.from_process_id(process_id=dir_path.name, username=username) for dir_path in workdir.iterdir() if dir_path.is_dir()]
     
     # @classmethod
     # def from_scripts(cls, 
@@ -648,24 +677,24 @@ class NeuProcessDir(BaseModel):
             raise ValueError("Working directory is not set.")
             
         # Create process-specific working directory
-        self.working_dir.mkdir(parents=True, exist_ok=True)
+        working_dir: Path = self.working_dir
+        working_dir.mkdir(parents=True, exist_ok=True)
         
         # Generate files based on source type
         if self.logic:
-            self._generate_from_logic(self.working_dir)
+            self._generate_from_logic(working_dir)
         elif self.script_paths:
-            # self._generate_from_scripts(process_dir)
-            raise NotImplementedError("Generation from custom scripts is not yet implemented.")
+            self._generate_from_scripts(working_dir)
             
         # Initialize script_paths dictionary if it doesn't exist
         if self.script_paths is None:
             self.script_paths = {}
             
         # Populate script_paths with all generated scripts
-        self._populate_script_paths(self.working_dir)
-            
+        self._populate_script_paths(working_dir)
+
         # Save model JSON for reproducibility
-        self._save_model_json(self.working_dir)
+        self._save_model_json(working_dir)
 
         return self.working_dir
     
@@ -752,6 +781,8 @@ class NeuProcessDir(BaseModel):
     
     def _generate_readme(self, process_dir: Path) -> None:
         """Generate the README.md file."""
+        paths = NeuroAnalystPaths(username=self.username)
+        
         template = self._load_template("README.md.template")
         
         # Create example values for environment variables and bind paths
@@ -835,8 +866,8 @@ class NeuProcessDir(BaseModel):
             "system_packages": self._format_system_packages_for_readme(),
             "environment_variables_info": self._format_environment_variables_for_readme(),
             "bind_paths_info": self._format_bind_paths_for_readme(),
-            "venv_path": str(self._paths.get_venv_path(self.process_id)),
-            "image_path": str(self._paths.get_process_image_path(self.process_id)),
+            "venv_path": str(paths.get_venv_path(self.process_id)),
+            "image_path": str(paths.get_process_image_path(self.process_id)),
             "output_description": "Output files specific to the process",
             "additional_info": "This process was generated by NeuroAnalyst.",
             "arguments": "",
@@ -1130,7 +1161,7 @@ PARENT_DIR="$( dirname "$SCRIPT_DIR" )"
 # Set paths
 PROCESS_ID="{self.process_id}"
 DEF_FILE="${{PARENT_DIR}}/${{PROCESS_ID}}.def"
-IMAGE_PATH="{self._paths.get_process_image_path(self.process_id)}"
+IMAGE_PATH="{NeuroAnalystPaths(username=self.username).get_process_image_path(self.process_id)}"
 
 echo "Building Singularity image for ${{PROCESS_ID}}..."
 echo "Definition file: ${{DEF_FILE}}"
@@ -1183,7 +1214,7 @@ PARENT_DIR="$( dirname "$SCRIPT_DIR" )"
 
 # Set paths
 PROCESS_ID="{self.process_id}"
-VENV_PATH="{self._paths.get_venv_path(self.process_id)}"
+VENV_PATH="{NeuroAnalystPaths(username=self.username).get_venv_path(self.process_id)}"
 INSTALL_SCRIPT="${{PARENT_DIR}}/install_requirements.sh"
 
 echo "Creating virtual environment for ${{PROCESS_ID}}..."
@@ -1324,7 +1355,7 @@ echo "Virtual environment created and requirements installed successfully at: ${
                     'process_id': self.process_id,
                     'process_name': self.process_name,
                     'resource_path_var': 'IMAGE_PATH',
-                    'resource_path': str(self._paths.get_process_image_path(self.process_id)),
+                    'resource_path': str(NeuroAnalystPaths(username=self.username).get_process_image_path(self.process_id)),
                     'script_var': 'MAIN_SCRIPT',
                     'script_path': 'main.py',
                     'other_vars': 'DEF_FILE="' + self.process_id + '.def"',
@@ -1383,7 +1414,7 @@ echo "Virtual environment created and requirements installed successfully at: ${
                     'process_id': self.process_id,
                     'process_name': self.process_name,
                     'resource_path_var': 'VENV_PATH',
-                    'resource_path': str(self._paths.get_venv_path(self.process_id)),
+                    'resource_path': str(NeuroAnalystPaths(username=self.username).get_venv_path(self.process_id)),
                     'script_var': 'MAIN_SCRIPT',
                     'script_path': 'main.py',
                     'other_vars': 'INSTALL_SCRIPT="install_requirements.sh"',
@@ -1679,7 +1710,7 @@ echo "Virtual environment created and requirements installed successfully at: ${
             raise FileNotFoundError(f"Singularity build script not found: {build_script}")
             
         # Get the path where the image should be stored
-        image_path = self._paths.get_process_image_path(self.process_id)
+        image_path = NeuroAnalystPaths(username=self.username).get_process_image_path(self.process_id)
         
         # Initialize job_id as None (for local execution)
         job_id = None
@@ -1904,7 +1935,7 @@ echo "Virtual environment created and requirements installed successfully at: ${
             String containing the Singularity execution command
         """
         # Start with the basic command
-        image_path = self._paths.get_process_image_path(self.process_id)
+        image_path = NeuroAnalystPaths(username=self.username).get_process_image_path(self.process_id)
         # command_parts = [f"singularity run {image_path}"]
         command_parts = [f"singularity run"]
         
