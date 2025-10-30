@@ -1,5 +1,6 @@
 import os, subprocess, json
 from pathlib import Path
+import traceback
 from typing import Optional
 
 import nibabel as nib
@@ -74,20 +75,32 @@ def autorecon3(input_filepath: str):
     fs_subjects_dir: str = os.path.join(tmp_dir, "freesurfer_subjects")
     os.makedirs(fs_subjects_dir, exist_ok=True)
     
-    cmd: str = f"""
-    source '{FREESURFER_HOME}/SetUpFreeSurfer.sh' && \\
-    export OMP_NUM_THREADS=4 && \\
-    export ITK_GLOBAL_DEFAULT_NUMBER_OF_THREADS=4 && \\
-    recon-all -s '{subject_id}' -sd '{fs_subjects_dir}' -autorecon3 -qcache -measure thickness
-    """
+    cmd: list[str] = [
+        "bash", "-c",
+        f"""
+        source '{FREESURFER_HOME}/SetUpFreeSurfer.sh' && \\
+        export OMP_NUM_THREADS=4 && \\
+        export ITK_GLOBAL_DEFAULT_NUMBER_OF_THREADS=4 && \\
+        recon-all -s '{subject_id}' -sd '{fs_subjects_dir}' -autorecon3
+        """
+    ]
     
     # Step 3: Run the FreeSurfer command
     print(f"Running command: {cmd}")
     try:
-        result = subprocess.run(cmd, shell=True, check=True, capture_output=True, executable="/bin/bash")
-        print(f"FreeSurfer Autorecon3 command finished with return code {result.returncode}")
+        result = subprocess.run(cmd, check=True, capture_output=True, text=True)
+        print(f"FreeSurfer Autorecon1 command finished with return code {result.returncode}")
+        if result.stdout:
+            print(result.stdout)
+        if result.stderr:
+            print(result.stderr)
     except subprocess.CalledProcessError as e:
-        print(f"Error running FreeSurfer Autorecon3 command: {e.stderr}")
+        print(f"Error running FreeSurfer Autorecon1 command: {e}")
+        if getattr(e, "stdout", None):
+            print("Stdout:", e.stdout)
+        if getattr(e, "stderr", None):
+            print("Stderr:", e.stderr)
+        traceback.print_exc()
         raise e
     
     # Step 4: Prepare outputs
