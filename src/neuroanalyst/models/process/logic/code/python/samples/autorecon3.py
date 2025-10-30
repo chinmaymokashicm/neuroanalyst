@@ -53,10 +53,11 @@ def autorecon3(input_filepath: str):
     
     freesurfer_location: str = "/opt/freesurfer"  # Assuming FreeSurfer is installed here
     # Source FreeSurfer and check if 
-    source_cmd = f"source {freesurfer_location}/SetUpFreeSurfer.sh && recon-all -version"
+    source_cmd: str = f"source {freesurfer_location}/SetUpFreeSurfer.sh && recon-all -version"
     os.environ["FREESURFER_HOME"] = freesurfer_location
     try:
-        subprocess.run(source_cmd, shell=True, executable="/bin/bash")
+        result = subprocess.run(source_cmd, shell=True, executable="/bin/bash", check=True, capture_output=True, text=True)
+        print(f"FreeSurfer environment sourced successfully: {result.stdout}")
     except subprocess.CalledProcessError as e:
         print(f"Error sourcing FreeSurfer environment: {e}")
         raise e
@@ -75,17 +76,14 @@ def autorecon3(input_filepath: str):
     fs_subjects_dir: str = os.path.join(tmp_dir, "freesurfer_subjects")
     os.makedirs(fs_subjects_dir, exist_ok=True)
     
-    cmd = [
-        "recon-all",
-        "-i", input_filepath,
-        "-s", subject_id,
-        "-sd", fs_subjects_dir,
-        "-autorecon3"
-    ]
+    cmd: str = f"""
+    source {freesurfer_location}/SetUpFreeSurfer.sh && \
+    recon-all -i {input_filepath} -s {subject_id} -sd {fs_subjects_dir} -autorecon3
+    """
     
     # Step 3: Run the FreeSurfer command
-    print(f"Running command: {' '.join(cmd)}")
-    result = subprocess.run(cmd, check=True, capture_output=True, text=True)
+    print(f"Running command: {cmd}")
+    result = subprocess.run(cmd, shell=True, check=True, capture_output=True, text=True)
     print(f"FreeSurfer Autorecon3 command finished with return code {result.returncode}")
     
     # Step 4: Prepare outputs
