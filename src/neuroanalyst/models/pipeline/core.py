@@ -1793,6 +1793,8 @@ class NeuPipeline(BaseModel):
 
         logger: logging.Logger = self.logger
         
+        print(f"Starting pipeline execution. Pipeline ID: {self.pipeline_id}. Monitor logs at {self.log_file_path}")
+        
         self.pre_execution()
 
         starting_step_index = 0 if not resume else self.get_earliest_incomplete_step_index()
