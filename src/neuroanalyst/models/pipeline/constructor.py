@@ -618,6 +618,9 @@ class PipelineConstructorConfig(BaseModel):
         )
         pipeline.apply_standard_exec_params()
         
+        for process_exec in pipeline.process_execs:
+            process_exec.save_to_disk()
+        
         # Re-construct the graph in the pipeline
         self.construct_graph()
         
