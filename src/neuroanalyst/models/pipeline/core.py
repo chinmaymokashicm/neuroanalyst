@@ -39,6 +39,13 @@ from ..process.process.core import NeuProcess, NeuProcessDir
 from ..process.logic.core import NeuProcessLogic
 from .executor import ProcessStatus, LSFExecutor, SLURMExecutor, PBSExecutor, LocalExecutor
 
+DEFAULT_SCHEDULER_FLAGS = {
+    HPCScheduler.LSF : {"-n": 2, "-q": "medium", "-M": "20GB", "-W": "12:00"},
+    HPCScheduler.SLURM : {"--cpus-per-task": 2, "--partition": "medium", "--mem": "20G", "--time": "12:00:00"},
+    HPCScheduler.PBS : {"-l": "nodes=1:ppn=2,mem=20gb,walltime=12:00:00", "-q": "medium"},
+    HPCScheduler.LOCAL : {}
+}
+
 class NeuProcessExecStatus(BaseModel):
     """
     NeuProcessExecStatus - Class representing the status of a single process execution.
@@ -626,13 +633,6 @@ class NeuPipeline(BaseModel):
         Returns:
             NeuPipeline: The constructed NeuPipeline instance.
         """
-        # Define default scheduler flags for each scheduler
-        default_scheduler_flags = {
-            HPCScheduler.LSF : {"-n": 2, "-q": "medium", "-M": "20GB", "-W": "12:00"},
-            HPCScheduler.SLURM : {"--cpus-per-task": 2, "--partition": "medium", "--mem": "20G", "--time": "12:00:00"},
-            HPCScheduler.PBS : {"-l": "nodes=1:ppn=2,mem=20gb,walltime=12:00:00", "-q": "medium"},
-            HPCScheduler.LOCAL : {}
-        }
         bids_root: str = str(bids_root)
         execution_mode: ExecutionMode = execution_mode if isinstance(execution_mode, ExecutionMode) else ExecutionMode(execution_mode)
         
@@ -695,7 +695,7 @@ class NeuPipeline(BaseModel):
                     
                     # Set default scheduler flags if not already set
                     if not proc_exec.scheduler_flags:
-                        proc_exec.set_scheduler_flags(default_scheduler_flags[scheduler])
+                        proc_exec.set_scheduler_flags(DEFAULT_SCHEDULER_FLAGS[scheduler])
                         
                     # Set /data bind path if not already set
                     if "/data" not in proc_exec.bind_path_values:
