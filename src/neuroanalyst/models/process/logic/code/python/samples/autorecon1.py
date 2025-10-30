@@ -1,4 +1,4 @@
-import os, subprocess
+import os, subprocess, traceback
 
 import nibabel as nib
 import numpy as np
@@ -34,6 +34,7 @@ def autorecon1(input_filepath: str):
         print(f"FreeSurfer environment sourced successfully: {result.stdout}")
     except subprocess.CalledProcessError as e:
         print(f"Error sourcing FreeSurfer environment: {e}")
+        traceback.print_exc()
         raise e
     
     # Step 2: Prepare FreeSurfer command
@@ -50,10 +51,11 @@ def autorecon1(input_filepath: str):
     # Step 3: Run the FreeSurfer command
     print(f"Running command: {cmd}")
     try:
-        result = subprocess.run(cmd, shell=True, check=True, capture_output=True, text=True)
+        result = subprocess.run(cmd, shell=True, check=True, executable="/bin/bash", capture_output=True, text=True)
         print(f"FreeSurfer Autorecon1 command finished with return code {result.returncode}")
     except subprocess.CalledProcessError as e:
         print(f"Error running FreeSurfer Autorecon1 command: {e.stderr}")
+        traceback.print_exc()
         raise e
     
     # Step 4: Prepare outputs

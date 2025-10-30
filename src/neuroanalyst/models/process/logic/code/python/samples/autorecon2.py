@@ -1,4 +1,4 @@
-import os, subprocess, json
+import os, subprocess, json, traceback
 from pathlib import Path
 from typing import Optional
 
@@ -54,6 +54,7 @@ def autorecon2(input_filepath: str):
         print(f"FreeSurfer environment sourced successfully: {result.stdout}")
     except subprocess.CalledProcessError as e:
         print(f"Error sourcing FreeSurfer environment: {e}")
+        traceback.print_exc()
         raise e
     
     # Load sidecar of input file to check for QC results
@@ -92,10 +93,11 @@ def autorecon2(input_filepath: str):
     # Step 3: Run the FreeSurfer command
     print(f"Running command: {cmd}")
     try:
-        result = subprocess.run(cmd, shell=True, check=True, capture_output=True, text=True)
+        result = subprocess.run(cmd, shell=True, check=True, executable="/bin/bash", capture_output=True, text=True)
         print(f"FreeSurfer Autorecon2 command finished with return code {result.returncode}")
     except subprocess.CalledProcessError as e:
         print(f"Error running FreeSurfer Autorecon2 command: {e.stderr}")
+        traceback.print_exc()
         raise e
 
     # Step 4: Prepare outputs
