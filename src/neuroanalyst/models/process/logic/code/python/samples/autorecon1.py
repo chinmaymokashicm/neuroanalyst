@@ -49,8 +49,12 @@ def autorecon1(input_filepath: str):
     
     # Step 3: Run the FreeSurfer command
     print(f"Running command: {cmd}")
-    result = subprocess.run(cmd, shell=True, check=True, capture_output=True, text=True)
-    print(f"FreeSurfer Autorecon1 command finished with return code {result.returncode}")
+    try:
+        result = subprocess.run(cmd, shell=True, check=True, capture_output=True, text=True)
+        print(f"FreeSurfer Autorecon1 command finished with return code {result.returncode}")
+    except subprocess.CalledProcessError as e:
+        print(f"Error running FreeSurfer Autorecon1 command: {e.stderr}")
+        raise e
     
     # Step 4: Prepare outputs
     brain_filepath: str = os.path.join(fs_subjects_dir, subject_id, "mri", "brain.mgz")

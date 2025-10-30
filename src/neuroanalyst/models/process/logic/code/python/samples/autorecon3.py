@@ -84,8 +84,12 @@ def autorecon3(input_filepath: str):
     
     # Step 3: Run the FreeSurfer command
     print(f"Running command: {cmd}")
-    result = subprocess.run(cmd, shell=True, check=True, capture_output=True, text=True)
-    print(f"FreeSurfer Autorecon3 command finished with return code {result.returncode}")
+    try:
+        result = subprocess.run(cmd, shell=True, check=True, capture_output=True, text=True)
+        print(f"FreeSurfer Autorecon3 command finished with return code {result.returncode}")
+    except subprocess.CalledProcessError as e:
+        print(f"Error running FreeSurfer Autorecon3 command: {e.stderr}")
+        raise e
     
     # Step 4: Prepare outputs
     cortical_surface_filepath: str = os.path.join(fs_subjects_dir, subject_id, "surf", "lh.pial")
