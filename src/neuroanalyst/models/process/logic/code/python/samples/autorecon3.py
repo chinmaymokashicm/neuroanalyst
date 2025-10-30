@@ -51,6 +51,16 @@ def autorecon3(input_filepath: str):
     tmp_dir: str = os.path.join(DATA_DIR, "tmp")  #! Temporary directory for outputs; which would be usually be cleaned up by NeuroAnalyst wrapper, but here we keep it for FreeSurfer's intermediate files.
     os.makedirs(tmp_dir, exist_ok=True)
     
+    freesurfer_location: str = "/opt/freesurfer"  # Assuming FreeSurfer is installed here
+    # Source FreeSurfer and check if 
+    source_cmd = f"source {freesurfer_location}/SetUpFreeSurfer.sh && recon-all -version"
+    os.environ["FREESURFER_HOME"] = freesurfer_location
+    try:
+        subprocess.run(source_cmd, shell=True, executable="/bin/bash")
+    except subprocess.CalledProcessError as e:
+        print(f"Error sourcing FreeSurfer environment: {e}")
+        raise e
+    
     # Load sidecar of input file to check for QC results
     input_sidecar_path: str = input_filepath.replace(".nii.gz", ".nii").replace(".nii", ".json") # Works for both .nii and .nii.gz
     qc_pass_autorecon2: Optional[bool] = None

@@ -25,6 +25,16 @@ def autorecon1(input_filepath: str):
     tmp_dir: str = os.path.join(DATA_DIR, "tmp")  #! Temporary directory for outputs; which would be usually be cleaned up by NeuroAnalyst wrapper, but here we keep it for FreeSurfer's intermediate files.
     os.makedirs(tmp_dir, exist_ok=True)
     
+    freesurfer_location: str = "/opt/freesurfer"  # Assuming FreeSurfer is installed here
+    # Source FreeSurfer and check if 
+    source_cmd = f"source {freesurfer_location}/SetUpFreeSurfer.sh && recon-all -version"
+    os.environ["FREESURFER_HOME"] = freesurfer_location
+    try:
+        subprocess.run(source_cmd, shell=True, executable="/bin/bash")
+    except subprocess.CalledProcessError as e:
+        print(f"Error sourcing FreeSurfer environment: {e}")
+        raise e
+    
     # Step 2: Prepare FreeSurfer command
     entities: dict = parse_file_entities(input_filepath)
     subject_id: str = f"{entities.get('subject', 'unknown')}_{entities.get('session', 'ses-unknown')}"
