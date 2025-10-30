@@ -26,40 +26,63 @@ class NeuroAnalystPaths:
     This class reads environment variables set by the setup process and provides
     easy access to all important directories used by the framework.
     """
+    username: Optional[str] = None
     
-    def __init__(self):
+    def __init__(self, username: Optional[str] = None):
         # Base home directory for NeuroAnalyst
         self._home = os.getenv('NEUROANALYST_HOME', os.path.expanduser('~/neuroanalyst'))
+        if username:
+            self._home = os.path.join(self._home, username)
         
-        # Core directories
-        self._images = os.getenv('NEUROANALYST_IMAGES', 
-                                os.path.join(self._home, 'apptainer', 'images'))
-        self._docs = os.getenv('NEUROANALYST_DOCS', 
-                              os.path.join(self._home, 'apptainer', 'docs'))
-        self._workdir = os.getenv('NEUROANALYST_WORKDIR', 
-                                 os.path.join(self._home, 'working_dirs'))
-        self._pipelines = os.getenv('NEUROANALYST_PIPELINES',
-                                   os.path.join(self._home, 'pipelines'))
-        self._reports = os.getenv('NEUROANALYST_REPORTS', 
-                                 os.path.join(self._home, 'reports'))
-        self._logs = os.getenv('NEUROANALYST_LOGS', 
-                              os.path.join(self._home, 'logs'))
-        self._datasets = os.getenv('NEUROANALYST_DATASETS', 
-                                  os.path.join(self._home, 'datasets'))
-        self._venvs = os.getenv('NEUROANALYST_VENVS', 
-                               os.path.join(self._home, 'virtual_environments'))
-        self._process_execs = os.getenv('NEUROANALYST_PROCESS_EXECS',
-                                      os.path.join(self._home, 'process_execs'))
-        self._config = os.getenv('NEUROANALYST_CONFIG',
-                                os.path.join(self._home, 'config'))
-        self._functions = os.getenv('NEUROANALYST_FUNCTIONS',
-                                   os.path.join(self._home, 'functions'))
+        #! Core directories - commented out to only use NEUROANALYST_HOME.
+        #! The plan is to build user-specific paths under the home directory.
+        #! The MongoDB settings will be project-wide.
+        # self._images = os.getenv('NEUROANALYST_IMAGES', 
+        #                         os.path.join(self._home, 'apptainer', 'images'))
+        # self._docs = os.getenv('NEUROANALYST_DOCS', 
+        #                       os.path.join(self._home, 'apptainer', 'docs'))
+        # self._workdir = os.getenv('NEUROANALYST_WORKDIR', 
+        #                          os.path.join(self._home, 'working_dirs'))
+        # self._pipelines = os.getenv('NEUROANALYST_PIPELINES',
+        #                            os.path.join(self._home, 'pipelines'))
+        # self._reports = os.getenv('NEUROANALYST_REPORTS', 
+        #                          os.path.join(self._home, 'reports'))
+        # self._logs = os.getenv('NEUROANALYST_LOGS', 
+        #                       os.path.join(self._home, 'logs'))
+        # self._datasets = os.getenv('NEUROANALYST_DATASETS', 
+        #                           os.path.join(self._home, 'datasets'))
+        # self._venvs = os.getenv('NEUROANALYST_VENVS', 
+        #                        os.path.join(self._home, 'virtual_environments'))
+        # self._process_execs = os.getenv('NEUROANALYST_PROCESS_EXECS',
+        #                               os.path.join(self._home, 'process_execs'))
+        # self._config = os.getenv('NEUROANALYST_CONFIG',
+        #                         os.path.join(self._home, 'config'))
+        # self._functions = os.getenv('NEUROANALYST_FUNCTIONS',
+        #                            os.path.join(self._home, 'functions'))
+        
+        # # MongoDB configuration
+        # self._db_host = os.getenv('NEUROANALYST_DB_HOST', 'localhost')
+        # self._db_port = int(os.getenv('NEUROANALYST_DB_PORT', '27017'))
+        # self._db_name = os.getenv('NEUROANALYST_DB_NAME', 'neuroanalyst')
+        
+        # Only use the NEURONALYST_HOME env variable for now
+        self._images = os.path.join(self._home, 'apptainer', 'images')
+        self._docs = os.path.join(self._home, 'apptainer', 'docs')
+        self._workdir = os.path.join(self._home, 'working_dirs')
+        self._pipelines = os.path.join(self._home, 'pipelines')
+        self._reports = os.path.join(self._home, 'reports')
+        self._logs = os.path.join(self._home, 'logs')
+        self._datasets = os.path.join(self._home, 'datasets')
+        self._venvs = os.path.join(self._home, 'virtual_environments')
+        self._process_execs = os.path.join(self._home, 'process_execs')
+        self._config = os.path.join(self._home, 'config')
+        self._functions = os.path.join(self._home, 'functions')
         
         # MongoDB configuration
-        self._db_host = os.getenv('NEUROANALYST_DB_HOST', 'localhost')
-        self._db_port = int(os.getenv('NEUROANALYST_DB_PORT', '27017'))
-        self._db_name = os.getenv('NEUROANALYST_DB_NAME', 'neuroanalyst')
-    
+        self._db_host = 'localhost'
+        self._db_port = 27017
+        self._db_name = 'neuroanalyst'
+
     @property
     def home(self) -> Path:
         """Base NeuroAnalyst home directory."""
@@ -68,67 +91,93 @@ class NeuroAnalystPaths:
     @property
     def images(self) -> Path:
         """Directory for Singularity/Apptainer images (base and process images)."""
+        dir_path: Path = Path(self._images)
+        dir_path.mkdir(parents=True, exist_ok=True)
         return Path(self._images)
     
     @property
     def base_images(self) -> Path:
         """Directory for base Singularity images."""
-        return self.images / 'base'
+        dir_path: Path = self.images / 'base'
+        dir_path.mkdir(parents=True, exist_ok=True)
+        return dir_path
     
     @property
     def process_images(self) -> Path:
         """Directory for process Singularity images."""
-        return self.images / 'processes'
+        dir_path: Path = self.images / 'processes'
+        dir_path.mkdir(parents=True, exist_ok=True)
+        return dir_path
     
     @property
     def docs(self) -> Path:
         """Directory for Apptainer/Singularity documentation and def files."""
-        return Path(self._docs)
-    
+        dir_path: Path = Path(self._docs)
+        dir_path.mkdir(parents=True, exist_ok=True)
+        return dir_path
+
     @property
     def workdir(self) -> Path:
         """Working directory containing NeuProcessDir files."""
-        return Path(self._workdir)
-    
+        dir_path: Path = Path(self._workdir)
+        dir_path.mkdir(parents=True, exist_ok=True)
+        return dir_path
+
     @property
     def pipelines(self) -> Path:
         """Directory for storing pipeline scripts and related files."""
-        return Path(self._pipelines)
-    
+        dir_path: Path = Path(self._pipelines)
+        dir_path.mkdir(parents=True, exist_ok=True)
+        return dir_path
+
     @property
     def reports(self) -> Path:
         """Directory for generated reports and outputs."""
-        return Path(self._reports)
+        dir_path: Path = Path(self._reports)
+        dir_path.mkdir(parents=True, exist_ok=True)
+        return dir_path
     
     @property
     def logs(self) -> Path:
         """Directory for log files."""
-        return Path(self._logs)
+        dir_path: Path = Path(self._logs)
+        dir_path.mkdir(parents=True, exist_ok=True)
+        return dir_path
     
     @property
     def datasets(self) -> Path:
         """Directory for BIDS datasets."""
-        return Path(self._datasets)
+        dir_path: Path = Path(self._datasets)
+        dir_path.mkdir(parents=True, exist_ok=True)
+        return dir_path
     
     @property
     def venvs(self) -> Path:
         """Directory for virtual environments."""
-        return Path(self._venvs)
+        dir_path: Path = Path(self._venvs)
+        dir_path.mkdir(parents=True, exist_ok=True)
+        return dir_path
     
     @property
     def process_execs(self) -> Path:
         """Directory for process execution instances."""
-        return Path(self._process_execs)
+        dir_path: Path = Path(self._process_execs)
+        dir_path.mkdir(parents=True, exist_ok=True)
+        return dir_path
 
     @property
     def config(self) -> Path:
         """Directory for configuration files."""
-        return Path(self._config)
+        dir_path: Path = Path(self._config)
+        dir_path.mkdir(parents=True, exist_ok=True)
+        return dir_path
 
     @property
     def functions(self) -> Path:
         """Directory for function files."""
-        return Path(self._functions)
+        dir_path: Path = Path(self._functions)
+        dir_path.mkdir(parents=True, exist_ok=True)
+        return dir_path
 
     @property
     def db_host(self) -> str:
@@ -338,14 +387,14 @@ class NeuroAnalystConfig:
 CONFIG = NeuroAnalystConfig()
 
 
-def ensure_directories() -> None:
-    """
-    Ensure all required NeuroAnalyst directories exist.
+# def ensure_directories() -> None:
+#     """
+#     Ensure all required NeuroAnalyst directories exist.
     
-    This function should be called during initialization to ensure
-    the directory structure is properly set up.
-    """
-    PATHS.create_directories()
+#     This function should be called during initialization to ensure
+#     the directory structure is properly set up.
+#     """
+#     PATHS.create_directories()
     
 
 
@@ -373,20 +422,20 @@ def validate_environment() -> bool:
     """
     required_vars = [
         'NEUROANALYST_HOME',
-        'NEUROANALYST_DOCS',
-        'NEUROANALYST_IMAGES',
-        'NEUROANALYST_WORKDIR',
-        'NEUROANALYST_PIPELINES',
-        'NEUROANALYST_REPORTS',
-        'NEUROANALYST_LOGS',
-        'NEUROANALYST_DATASETS',
-        'NEUROANALYST_VENVS',
-        'NEUROANALYST_PROCESS_EXECS',
-        'NEUROANALYST_CONFIG',
-        'NEUROANALYST_FUNCTIONS',
-        'NEUROANALYST_DB_HOST',
-        'NEUROANALYST_DB_PORT',
-        'NEUROANALYST_DB_NAME'
+        # 'NEUROANALYST_DOCS',
+        # 'NEUROANALYST_IMAGES',
+        # 'NEUROANALYST_WORKDIR',
+        # 'NEUROANALYST_PIPELINES',
+        # 'NEUROANALYST_REPORTS',
+        # 'NEUROANALYST_LOGS',
+        # 'NEUROANALYST_DATASETS',
+        # 'NEUROANALYST_VENVS',
+        # 'NEUROANALYST_PROCESS_EXECS',
+        # 'NEUROANALYST_CONFIG',
+        # 'NEUROANALYST_FUNCTIONS',
+        # 'NEUROANALYST_DB_HOST',
+        # 'NEUROANALYST_DB_PORT',
+        # 'NEUROANALYST_DB_NAME'
     ]
     
     missing_vars = []
@@ -400,7 +449,6 @@ def validate_environment() -> bool:
         return False
     
     return True
-
 
 # Validate environment on import
 if not validate_environment():
