@@ -14,6 +14,7 @@ def autorecon1(input_filepath: str):
     - If a subject directory has been created previously, re-running with -i flag will error out. Remove the flag or delete the subject directory beforehand.
     - If a process is already running for the same subject, it will error out. Run this command to check and remove the lock:
         rm /data/tmp/freesurfer_subjects/{subject_id}/scripts/IsRunning.lh+rh
+    - Add -qcache flag
     
     Args:
         input_filepath (str): Path to input NIfTI file.
@@ -40,11 +41,11 @@ def autorecon1(input_filepath: str):
     os.makedirs(fs_subjects_dir, exist_ok=True)
     
     cmd: str = f"""
-    bash {FREESURFER_HOME}/SetUpFreeSurfer.sh && \
+    source {FREESURFER_HOME}/SetUpFreeSurfer.sh && \
     export OMP_NUM_THREADS=4
     export ITK_GLOBAL_DEFAULT_NUMBER_OF_THREADS=4
 
-    recon-all -i {input_filepath} -s {subject_id} -sd {fs_subjects_dir} -autorecon1
+    recon-all -i {input_filepath} -s {subject_id} -sd {fs_subjects_dir} -autorecon1 -qcache -measure thickness
     """
     
     # Step 3: Run the FreeSurfer command
