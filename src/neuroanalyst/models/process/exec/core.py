@@ -644,7 +644,7 @@ class NeuProcessExec(BaseModel):
         #     bash_script_with_runtime_args_path: str = str(self.generate_and_save_bash_script())
         # else:
         #     bash_script_with_runtime_args_path: str = str(exec_dir / BASH_SCRIPT_NAME)
-        bash_script_with_runtime_args_path: str = str(self.generate_and_save_bash_script())
+        bash_script_with_runtime_args_path, _ = self.generate_bash_script()
         
         # Construct the final command. Include creation of log directory if it doesn't exist within the command.
         if self.scheduler == HPCScheduler.LOCAL:
@@ -863,13 +863,12 @@ class NeuProcessExec(BaseModel):
         
         return result
     
-    def generate_and_save_bash_script(self) -> Path:
+    def generate_bash_script(self) -> tuple[Path, str]:
         """
-        Save the generated bash script to disk.
-        This method saves the bash script to the process_execs directory with the exec_id as the folder name.
+        Generate the bash script for executing the process with the current configuration.
         
         Returns:
-            Path to the saved bash script file
+            tuple: (Path to the bash script, bash script content as a string)
         """
         
         # Create process_execs directory if it doesn't exist
@@ -884,15 +883,9 @@ bash {self.script_path} {' '.join(self.command_flags) if self.command_flags else
     {script_args_str}
         """
         
-        # Save the script to a file
         script_path = exec_dir / BASH_SCRIPT_NAME
-        with open(script_path, "w") as f:
-            f.write(script_str)
-            
-        # Make the script executable
-        os.chmod(script_path, 0o755)
         
-        return script_path
+        return script_path, script_str
     
     def save_to_disk(self) -> Path:
         """
@@ -913,5 +906,12 @@ bash {self.script_path} {' '.join(self.command_flags) if self.command_flags else
         model_path = exec_dir / "model.json"
         with open(model_path, "w") as f:
             json.dump(self.model_dump(), f, indent=4, cls=PathEncoder)
+            
+        # Save the bash script to disk
+        bash_script_path, bash_script_str = self.generate_bash_script()
+        with open(bash_script_path, "w") as f:
+            f.write(bash_script_str)
+
+        os.chmod(bash_script_path, 0o755) # Make the script executable
         
         return model_path
