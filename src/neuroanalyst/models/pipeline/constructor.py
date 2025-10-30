@@ -192,7 +192,9 @@ class PipelineConstructorConfig(BaseModel):
     
     @staticmethod
     def match_dict_entities(producer_entities: dict[str, str], consumer_entities: dict[str, Optional[str | list[str]]]) -> bool:
-        """Check if producer entities satisfy consumer entities."""
+        """Check if producer entities satisfy consumer entities and entities are not missing."""
+        if not consumer_entities:
+            return False
         for key, value in consumer_entities.items():
             if key not in producer_entities:
                 return False
