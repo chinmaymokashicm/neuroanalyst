@@ -1979,7 +1979,7 @@ class NeuPipeline(BaseModel):
         
         try:
             if delete_processes:
-                unique_process_dirs: set[NeuProcessDir] = {proc_exec.process for proc_exec in self.process_execs}
+                unique_process_dirs: set[NeuProcessDir] = {proc_exec.process.process_dir for proc_exec in self.process_execs}
                 for proc_exec in self.process_execs:
                     proc_exec.delete()
                 for process_dir in unique_process_dirs:
