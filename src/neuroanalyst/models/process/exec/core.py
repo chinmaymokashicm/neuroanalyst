@@ -324,13 +324,6 @@ class NeuProcessExec(BaseModel):
         
         # Store the value using the original required path name from the process
         self.bind_path_values[matching_path] = value
-        
-        # Save the updated model to disk
-        try:
-            self.save_to_disk()
-        except Exception as e:
-            # Don't raise an exception if saving fails - just continue
-            print(f"Warning: Failed to save execution model after updating bind path: {e}")
     
     def set_env_var_value(self, env_var: str, value: str) -> None:
         """
@@ -347,13 +340,6 @@ class NeuProcessExec(BaseModel):
             raise ValueError(f"Environment variable '{env_var}' is not required by the process")
         
         self.env_var_values[env_var] = value
-        
-        # Save the updated model to disk
-        try:
-            self.save_to_disk()
-        except Exception as e:
-            # Don't raise an exception if saving fails - just continue
-            print(f"Warning: Failed to save execution model after updating environment variable: {e}")
             
     def set_scheduler_flag(self, flag: str, value: str) -> None:
         """
@@ -378,13 +364,6 @@ class NeuProcessExec(BaseModel):
             set_scheduler_flag('l mem', '4gb')
         """
         self.scheduler_flags[flag] = value
-        
-        # Save the updated model to disk
-        try:
-            self.save_to_disk()
-        except Exception as e:
-            # Don't raise an exception if saving fails - just continue
-            print(f"Warning: Failed to save execution model after setting scheduler flag: {e}")
             
     def set_scheduler_flags(self, flags: Dict[str, str]) -> None:
         """
@@ -404,13 +383,6 @@ class NeuProcessExec(BaseModel):
             set_scheduler_flags({'queue': 'batch', 'l mem': '4gb', 'l walltime': '1:00:00'})
         """
         self.scheduler_flags.update(flags)
-        
-        # Save the updated model to disk
-        try:
-            self.save_to_disk()
-        except Exception as e:
-            # Don't raise an exception if saving fails - just continue
-            print(f"Warning: Failed to save execution model after setting scheduler flags: {e}")
     
     def get_configuration_status(self) -> Dict[str, Dict[str, List[str]] | Dict[str, Any]]:
         """
@@ -692,13 +664,6 @@ class NeuProcessExec(BaseModel):
         
         # Store the generated command in the exec_command field
         self.exec_command = cmd
-        
-        # Try to save the updated model to disk
-        try:
-            self.save_to_disk()
-        except Exception as e:
-            # Don't raise an exception if saving fails - just continue
-            print(f"Warning: Failed to save execution model after generating command: {e}")
         
         return cmd
     
