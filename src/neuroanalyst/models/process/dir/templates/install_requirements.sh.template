@@ -38,6 +38,12 @@ ${system_packages_section}
 # Install core dependencies if not already available
 pip_check_install pydantic
 pip_check_install pybids
+pip_check_install nibabel
+pip_check_install networkx
+pip_check_install matplotlib
+pip_check_install pandas
+pip_check_install nilearn
+pip_check_install rich
 
 # Language-specific packages - only install what's not already available
 ${language_packages_section}
