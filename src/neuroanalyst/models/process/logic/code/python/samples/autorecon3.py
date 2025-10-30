@@ -104,16 +104,23 @@ def autorecon3(input_filepath: str):
         raise e
     
     # Step 4: Prepare outputs
-    cortical_surface_filepath: str = os.path.join(fs_subjects_dir, subject_id, "surf", "lh.pial")
+    lh_cortical_surface_filepath: str = os.path.join(fs_subjects_dir, subject_id, "surf", "lh.pial")
+    rh_cortical_surface_filepath: str = os.path.join(fs_subjects_dir, subject_id, "surf", "rh.pial")
     # Convert surface to nibabel Gifti format
-    vertices, faces = nib.freesurfer.read_geometry(cortical_surface_filepath)
-    
+    lh_vertices, lh_faces = nib.freesurfer.read_geometry(lh_cortical_surface_filepath)
+    rh_vertices, rh_faces = nib.freesurfer.read_geometry(rh_cortical_surface_filepath)
+
     output_data = nib.GiftiImage()
-    coords = nib.GiftiDataArray(data=vertices, intent=nib.nifti1.intent_codes['NIFTI_INTENT_POINTSET'])
-    faces_array = nib.GiftiDataArray(data=faces, intent=nib.nifti1.intent_codes['NIFTI_INTENT_TRIANGLE'])
-    output_data.add_gifti_data_array(coords)
-    output_data.add_gifti_data_array(faces_array)
-    
+    lh_coords = nib.GiftiDataArray(data=lh_vertices, intent=nib.nifti1.intent_codes['NIFTI_INTENT_POINTSET'])
+    lh_faces_array = nib.GiftiDataArray(data=lh_faces, intent=nib.nifti1.intent_codes['NIFTI_INTENT_TRIANGLE'])
+    output_data.add_gifti_data_array(lh_coords)
+    output_data.add_gifti_data_array(lh_faces_array)
+
+    rh_coords = nib.GiftiDataArray(data=rh_vertices, intent=nib.nifti1.intent_codes['NIFTI_INTENT_POINTSET'])
+    rh_faces_array = nib.GiftiDataArray(data=rh_faces, intent=nib.nifti1.intent_codes['NIFTI_INTENT_TRIANGLE'])
+    output_data.add_gifti_data_array(rh_coords)
+    output_data.add_gifti_data_array(rh_faces_array)
+
     # Step 5: Prepare metrics and output entities
     qc_results = qc_autorecon3(os.path.join(fs_subjects_dir, subject_id, "stats"))
     metrics = {

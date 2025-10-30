@@ -131,6 +131,7 @@ def autorecon2(input_filepath: str):
     metrics = {
         "total_brain_volume": np.sum(aseg_data > 0),
         "white_matter_volume": np.sum(wm_data > 0),
+        "num_labels": int(len(np.unique(aseg_data))),
         "segmentation_dimensions": aseg_data.shape,
         "segmentation_classes": int(np.max(aseg_data)),
         "output_channels": [

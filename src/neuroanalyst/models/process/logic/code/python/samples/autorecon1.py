@@ -69,20 +69,20 @@ def autorecon1(input_filepath: str):
         raise e
     
     # Step 4: Prepare outputs
-    brain_filepath: str = os.path.join(fs_subjects_dir, subject_id, "mri", "brain.mgz")
+    t1_filepath: str = os.path.join(fs_subjects_dir, subject_id, "mri", "T1.mgz")
     brain_mask_filepath: str = os.path.join(fs_subjects_dir, subject_id, "mri", "brainmask.mgz")
 
-    brain_img = nib.load(brain_filepath)
-    brain_mask_img = nib.load(brain_mask_filepath)
-    brain_data = np.stack([brain_img.get_fdata(), brain_mask_img.get_fdata()], axis=-1)
+    t1_img: nib.Nifti1Image = nib.load(t1_filepath)
+    brain_mask_img: nib.Nifti1Image = nib.load(brain_mask_filepath)
+    t1_data = np.stack([t1_img.get_fdata(), brain_mask_img.get_fdata()], axis=-1)
     
     # QC metrics
-    mask_ratio: float = np.sum(brain_mask_img.get_fdata() > 0) / brain_data.size
-    mask_intensity_mean: float = np.mean(brain_img.get_fdata()[brain_mask_img.get_fdata() > 0])
+    mask_ratio = np.sum(brain_mask_img.get_fdata() > 0) / np.prod(t1_img.shape)
+    mask_intensity_mean: float = np.mean(t1_img.get_fdata()[brain_mask_img.get_fdata() > 0])
 
     metrics = {
         "brain_volume": np.sum(brain_mask_img.get_fdata() > 0),
-        "brain_dimensions": brain_data.shape[:-1],
+        "brain_dimensions": t1_data.shape[:-1],
         "mask_ratio": mask_ratio,
         "mask_intensity_mean": mask_intensity_mean,
         "qc_pass": 0.25 <= mask_ratio <= 0.6 and 40 <= mask_intensity_mean <= 200,
@@ -118,4 +118,4 @@ def autorecon1(input_filepath: str):
     # Save supplementary outputs by BIDS compliance
     # talairach_filepath: str = os.path.join(fs_subjects_dir, subject_id, "mri", "talairach.mgz")
 
-    return brain_data, metrics, output_entities, forced_outputs
+    return t1_data, metrics, output_entities, forced_outputs
