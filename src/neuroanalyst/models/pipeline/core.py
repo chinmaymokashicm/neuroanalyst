@@ -1775,6 +1775,21 @@ class NeuPipeline(BaseModel):
         # Ensure pipeline directory and bash script exist
         if not self.script_path.exists():
             self.create_pipeline_dir()
+            
+        # Ensure all environments are created
+        for step in self.steps:
+            checked_processes = set()
+            for proc_exec in step.process_execs:
+                if proc_exec.execution_mode == ExecutionMode.CONTAINER:
+                    if proc_exec.process.process_id not in checked_processes:
+                        if not proc_exec.process.is_image_built():
+                            raise RuntimeError(f"Container image for process {proc_exec.process.process_id} is not built. Please build the image before execution.")
+                        checked_processes.add(proc_exec.process.process_id)
+                    elif proc_exec.execution_mode == ExecutionMode.VENV:
+                        if proc_exec.process.process_id not in checked_processes:
+                            if not proc_exec.process.is_venv_created():
+                                raise RuntimeError(f"Virtual environment for process {proc_exec.process.process_id} is not created. Please create the venv before execution.")
+                            checked_processes.add(proc_exec.process.process_id)
 
         logger: logging.Logger = self.logger
         
