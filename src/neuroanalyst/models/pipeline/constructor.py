@@ -626,6 +626,8 @@ class PipelineConstructorConfig(BaseModel):
         for process_exec in pipeline.process_execs:
             process_exec.save_to_disk()
         
+        pipeline.create_pipeline_dir()
+        
         # Re-construct the graph in the pipeline
         self.construct_graph()
         
