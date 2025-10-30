@@ -4,7 +4,7 @@ Pipeline Routes
 This module contains the API endpoints for NeuPipeline operations.
 """
 from ..models import About, NeuPipeline
-from ..utils.constants import PATHS
+from ..utils.constants import NeuroAnalystPaths
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, status, Body
@@ -94,12 +94,13 @@ async def get_pipeline(pipeline_id: str):
         )
 
 @router.get("/", response_model=List[NeuPipeline])
-async def list_pipelines():
+async def list_pipelines(username: Optional[str] = None):
     """
     List all available pipelines.
     """
     try:
-        pipeline_dir: Path = PATHS.pipelines
+        paths = NeuroAnalystPaths(username=username)
+        pipeline_dir: Path = paths.pipelines
         pipelines: List[NeuPipeline] = []
         for pipeline_path in pipeline_dir.iterdir():
             if pipeline_path.is_dir():

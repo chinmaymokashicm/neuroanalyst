@@ -13,7 +13,7 @@ from typing import Optional, Dict, Any, List, Union, Tuple
 
 from pydantic import Field
 
-from ...utils.constants import PATHS
+from ...utils.constants import NeuroAnalystPaths
 from ..database import MongoDBClient, CollectionNames
 from .core import SyncBase, SyncDirection, SyncStrategy, SyncConfig
 
@@ -36,7 +36,7 @@ class LogSync(SyncBase):
         self.mongo_client = MongoDBClient()
         self.mongo_client.connect()
     
-    def load_from_hpc(self, component_id: str, component_type: str) -> Optional[Dict[str, Any]]:
+    def load_from_hpc(self, component_id: str, component_type: str, username: Optional[str] = None) -> Optional[Dict[str, Any]]:
         """
         Load log data from HPC storage.
         
@@ -50,7 +50,8 @@ class LogSync(SyncBase):
         self.logger.info(f"Loading logs for {component_type} {component_id} from HPC storage")
         
         # Determine log file path based on component type
-        log_dir_path = PATHS.logs / component_type / component_id
+        paths = NeuroAnalystPaths(username=username)
+        log_dir_path = paths.logs / component_type / component_id
         
         if component_type == 'process':
             log_files = ["stdout.log", "stderr.log", "exec.log"]
@@ -250,7 +251,7 @@ class LogSync(SyncBase):
             doc_id = self.mongo_client.insert_one(CollectionNames.LOGS, log_data)
             return doc_id
     
-    def sync_from_db(self, component_id: str, component_type: str) -> bool:
+    def sync_from_db(self, component_id: str, component_type: str, username: Optional[str] = None) -> bool:
         """
         Sync log data from DB to HPC.
         
@@ -271,7 +272,8 @@ class LogSync(SyncBase):
         
         try:
             # Determine log directory path
-            log_dir_path = PATHS.logs / component_type / component_id
+            paths = NeuroAnalystPaths(username=username)
+            log_dir_path = paths.logs / component_type / component_id
             
             # Create log directory if it doesn't exist
             log_dir_path.mkdir(parents=True, exist_ok=True)

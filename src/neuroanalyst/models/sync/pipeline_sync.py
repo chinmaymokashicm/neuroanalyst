@@ -13,7 +13,7 @@ from typing import Optional, Dict, Any, List, Union, Tuple
 
 from pydantic import Field
 
-from ...utils.constants import PATHS
+from ...utils.constants import NeuroAnalystPaths
 from ..database import MongoDBClient, CollectionNames
 from ..pipeline.core import NeuPipeline
 from .core import SyncBase, SyncDirection, SyncStrategy, SyncConfig
@@ -50,7 +50,8 @@ class NeuPipelineSync(SyncBase):
         self.logger.info(f"Loading NeuPipeline {pipeline_id} from HPC storage")
         
         # Check if pipeline directory exists
-        pipeline_dir_path = PATHS.pipelines / pipeline_id
+        paths = NeuroAnalystPaths()
+        pipeline_dir_path = paths.pipelines / pipeline_id
         if not pipeline_dir_path.exists():
             self.logger.warning(f"Pipeline directory {pipeline_dir_path} does not exist")
             return None
@@ -218,7 +219,8 @@ class NeuPipelineSync(SyncBase):
         
         try:
             # Create the pipeline directory if it doesn't exist
-            pipeline_dir_path = PATHS.pipelines / pipeline_id
+            paths = NeuroAnalystPaths()
+            pipeline_dir_path = paths.pipelines / pipeline_id
             pipeline_dir_path.mkdir(parents=True, exist_ok=True)
             
             # Save model.json

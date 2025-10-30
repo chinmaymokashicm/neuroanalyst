@@ -53,7 +53,7 @@ class LogicListScreen(BaseScreen):
         table.clear(columns=True)
         table.cursor_type = "row"
         
-        logics: list[NeuProcessLogic] = NeuProcessLogic.get_all_registered_logics()
+        logics: list[NeuProcessLogic] = NeuProcessLogic.get_all_registered_logics(username=self.app.global_vars.get("username"))
         table.add_columns("Name", "Description", "Author", "Language")
         for logic in logics:
             table.add_row(
@@ -94,7 +94,7 @@ class LogicListScreen(BaseScreen):
     def confirm_delete_logic(self, result: bool) -> None:
         """Callback to confirm deletion of logic."""
         if result and self.selected_logic_name:
-            logic: NeuProcessLogic = NeuProcessLogic.from_func_name(self.selected_logic_name)
+            logic: NeuProcessLogic = NeuProcessLogic.from_func_name(self.selected_logic_name, username=self.app.global_vars.get("username"))
             logic.delete()
             self.notify(f"Logic '{self.selected_logic_name}' deleted", severity="warning")
             self.update_logic_table()
@@ -123,7 +123,7 @@ class LogicListScreen(BaseScreen):
     def confirm_delete_all_logics(self, result: bool) -> None:
         """Callback to confirm deletion of all logics."""
         if result:
-            all_logics: list[NeuProcessLogic] = NeuProcessLogic.get_all_registered_logics()
+            all_logics: list[NeuProcessLogic] = NeuProcessLogic.get_all_registered_logics(username=self.app.global_vars.get("username"))
             for logic in all_logics:
                 logic.delete()
             self.notify("All registered logics deleted", severity="warning")

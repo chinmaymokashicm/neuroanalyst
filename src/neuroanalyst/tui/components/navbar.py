@@ -1,6 +1,11 @@
 """
 Navbar component for the NeuroAnalyst TUI application.
 """
+import sys
+from pathlib import Path
+# sys.path.append(str(Path(__file__).resolve().parents[2]))
+# from tui.components.modal import InfoModal
+
 
 from typing import Iterable
 
@@ -9,6 +14,7 @@ from textual.containers import Horizontal
 from textual.widgets import Static, Button, Select
 from textual.screen import Screen
 from textual.reactive import reactive
+from textual import on
 
 class NavbarCategory(Select):
     """A category in the navbar."""
@@ -44,3 +50,22 @@ class Navbar(Horizontal):
         
         for category in self.categories:
             yield category
+        yield Select([(username, username) for username in self.app.global_vars.get("registered_users", [])], id="user_select", prompt="User")
+        
+    def on_mount(self) -> None:
+        """Set up the user selection on mount."""
+        user_select = self.query_one("#user_select", Select)
+        users = self.app.global_vars.get("registered_users", [])
+        user_select.options = [(user, user) for user in users]
+        current_user = self.app.global_vars.get("username", None)
+        if current_user:
+            user_select.value = current_user
+            
+    @on(Select.Changed, "#user_select")
+    def on_user_select_changed(self, event: Select.Changed) -> None:
+        """Handle user selection changes."""
+        selected_user = event.value
+        if selected_user in self.app.global_vars.get("registered_users", []):
+            self.app.global_vars["username"] = selected_user
+            # self.app.push_screen(InfoModal(f"Switched to user: {selected_user}"))
+            self.app.notify(f"Switched to user: {selected_user}", severity="info")

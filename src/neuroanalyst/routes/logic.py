@@ -10,7 +10,7 @@ from ..models import (
     CodeGenerationResult,
     About
 )
-from ..utils.constants import PATHS
+from ..utils.constants import NeuroAnalystPaths
 
 from typing import Optional, List, Dict, Any
 from pathlib import Path
@@ -145,12 +145,13 @@ async def get_process_logic(logic_name: str):
         )
 
 @router.get("/", response_model=List[NeuProcessLogic])
-async def list_process_logic():
+async def list_process_logic(username: Optional[str] = None):
     """
     List all available NeuProcessLogic functions.
     """
     try:
-       logic_dir: Path = PATHS.functions
+       neuroanalyst_paths = NeuroAnalystPaths(username=username)
+       logic_dir: Path = Path(neuroanalyst_paths.functions)
        logic_name: list[str] = [subdir.name for subdir in logic_dir.iterdir() if subdir.is_dir()]
        return [NeuProcessLogic.from_func_name(name) for name in logic_name]
     except Exception as e:

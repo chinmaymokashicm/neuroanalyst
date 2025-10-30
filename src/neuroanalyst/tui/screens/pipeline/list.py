@@ -10,7 +10,6 @@ from ..pipeline.wizard import PipelineWizardScreen
 
 sys.path.append(str(Path(__file__).resolve().parents[4]))
 from neuroanalyst.models.pipeline.core import NeuPipeline
-from neuroanalyst.utils.constants import PATHS
 
 sys.path.append(str(Path(__file__).resolve().parents[3]))
 from tui.components.modal import ConfirmModal
@@ -60,7 +59,7 @@ class PipelineListScreen(BaseScreen):
         table.clear(columns=True)
         table.cursor_type = "row"
         
-        pipelines: list[NeuPipeline] = NeuPipeline.get_all_pipelines()
+        pipelines: list[NeuPipeline] = NeuPipeline.get_all_pipelines(username=self.app.global_vars.get("username"))
         table.add_columns(
             "ID",
             "Directory Name",
@@ -68,11 +67,12 @@ class PipelineListScreen(BaseScreen):
             "Author",
             "Number of Steps",
             "Scheduler",
-            "Start from Raw Data",
+            # "Start from Raw Data",
             "Ready for Execution"
         )
         if not pipelines:
-            table.add_row("No pipelines found ", "", "", "", "", "", "", "")
+            # table.add_row("No pipelines found ", "", "", "", "", "", "", "")
+            table.add_row("No pipelines found ", "", "", "", "", "", "")
             return
         for pipeline in pipelines:
             table.add_row(
@@ -82,8 +82,8 @@ class PipelineListScreen(BaseScreen):
                 pipeline.about.author if pipeline.about else "N/A",
                 str(len(pipeline.steps)) if pipeline.steps else "0",
                 pipeline.scheduler,
-                "YES" if pipeline.start_from_raw_bids else "NO",
-                "YES" if pipeline.is_ready else "NO"
+                # "YES" if pipeline.start_from_raw_bids else "NO",
+                "YES" if not pipeline.get_missing_configs() else "NO"
             )
     
     def on_data_table_row_highlighted(self, event: DataTable.RowSelected) -> None:
@@ -147,7 +147,7 @@ class PipelineListScreen(BaseScreen):
     def confirm_delete_all_pipelines(self, result: bool) -> None:
         """Callback to confirm deletion of all pipelines."""
         if result:
-            all_pipelines: list[NeuPipeline] = NeuPipeline.get_all_pipelines()
+            all_pipelines: list[NeuPipeline] = NeuPipeline.get_all_pipelines(username=self.app.global_vars.get("username"))
             for pipeline in all_pipelines:
                 pipeline.delete(delete_execs=True)
             self.notify("All pipelines deleted", severity="warning")

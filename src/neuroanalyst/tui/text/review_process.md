@@ -1,5 +1,5 @@
 # Review the Process
-**You have created a Process, review it's details.**
+**You have created a Process, review its details.**
 
 At this step-
 1. Review the details of this process.

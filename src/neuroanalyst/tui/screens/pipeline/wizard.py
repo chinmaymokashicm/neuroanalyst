@@ -6,7 +6,7 @@ import sys, asyncio
 from pathlib import Path
 
 sys.path.append(str(Path(__file__).resolve().parents[4]))
-from neuroanalyst.utils.constants import PATHS
+from neuroanalyst.utils.constants import NeuroAnalystPaths
 from neuroanalyst.models.pipeline.core import NeuPipeline, ExecutionMode
 from neuroanalyst.models.process.process.core import NeuProcess
 
@@ -77,13 +77,13 @@ class PipelineWizardScreen(BaseScreen):
         self.current_step = 1
         self.total_steps = 3
         
-        datasets_path = PATHS.datasets
+        datasets_path = NeuroAnalystPaths(username=self.app.global_vars.get("username")).datasets
         self.datasets_options = [(str(p.name), str(p)) for p in datasets_path.iterdir() if p.is_dir()]
         
         self.n_pipeline_steps: int = reactive(1)  # Default number of steps
         
         self.pipeline_id: Optional[str] = pipeline_id
-        self.pipeline: Optional[NeuPipeline] = NeuPipeline.from_pipeline_id(pipeline_id) if pipeline_id else None
+        self.pipeline: Optional[NeuPipeline] = NeuPipeline.from_pipeline_id(pipeline_id, username=self.app.global_vars.get("username")) if pipeline_id else None
         self.review_mode: bool = True if self.pipeline else False
         
         self.notify(
@@ -445,6 +445,7 @@ class PipelineWizardScreen(BaseScreen):
                 "version": fields["pipeline_version"],
                 "author": fields["pipeline_author"],
             },
+            username=self.app.global_vars.get("username"),
             bids_root=fields["bids_dataset"],
             steps_info=steps_info,
             process_configs=process_configs,
@@ -485,7 +486,7 @@ class PipelineWizardScreen(BaseScreen):
         for step_idx, step in enumerate(self.pipeline.steps, start=1):
             unique_process_ids: set[str] = set(process_exec.process.process_id for process_exec in step.process_execs)
             for process_id in unique_process_ids:
-                process: NeuProcess = NeuProcess.from_process_id(process_id)
+                process: NeuProcess = NeuProcess.from_process_id(process_id, username=self.app.global_vars.get("username"))
                 process_logic_name: str = (
                     process.process_dir.logic.about.name
                     if process.process_dir.logic

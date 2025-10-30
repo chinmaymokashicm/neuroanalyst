@@ -3,13 +3,14 @@ Process list screen for the NeuroAnalyst TUI application.
 """
 import sys
 from pathlib import Path
+from typing import Optional
 
 from ..base import BaseScreen
 from ..process.wizard import ProcessWizardScreen
 
 sys.path.append(str(Path(__file__).resolve().parents[4]))
 from neuroanalyst.models.process.dir.core import NeuProcessDir
-from neuroanalyst.utils.constants import PATHS
+from neuroanalyst.utils.constants import NeuroAnalystPaths
 
 sys.path.append(str(Path(__file__).resolve().parents[3]))
 from tui.components.modal import ConfirmModal
@@ -33,6 +34,7 @@ from textual import on
 class ProcessListScreen(BaseScreen):
     """Screen that displays a list of all available processes."""
     selected_process_id: reactive[str | None] = reactive(None)
+    username: Optional[str] = None
 
     def compose_content(self):
         yield Static("# Process Management", classes="title")
@@ -59,7 +61,7 @@ class ProcessListScreen(BaseScreen):
         table.clear(columns=True)
         table.cursor_type = "row"
         
-        process_dirs: list[NeuProcessDir] = NeuProcessDir.get_all_process_dirs()
+        process_dirs: list[NeuProcessDir] = NeuProcessDir.get_all_process_dirs(username=self.app.global_vars.get("username"))
         table.add_columns(
             "ID",
             "Logic",
@@ -72,9 +74,10 @@ class ProcessListScreen(BaseScreen):
         if not process_dirs:
             table.add_row("No processes found", "", "", "", "", "", "")
             return
+        paths = NeuroAnalystPaths(username=self.username)
         for process in process_dirs:
-            image_exists: bool = Path(PATHS.images / process.process_id).exists()
-            venv_exists: bool = Path(PATHS.venvs / process.process_id).exists()
+            image_exists: bool = (paths.get_process_image_path(process.process_id)).exists()
+            venv_exists: bool = (paths.get_venv_path(process.process_id)).exists()
             
             table.add_row(
                 process.process_id,
@@ -147,10 +150,11 @@ class ProcessListScreen(BaseScreen):
     def confirm_delete_all_processes(self, result: bool) -> None:
         """Callback to confirm deletion of all processes."""
         if result:
-            all_processes: list[NeuProcessDir] = NeuProcessDir.get_all_process_dirs()
+            paths = NeuroAnalystPaths(username=self.username)
+            all_processes: list[NeuProcessDir] = NeuProcessDir.get_all_process_dirs(username=self.app.global_vars.get("username"))
             for process in all_processes:
-                process_image_path: Path = PATHS.images / process.process_id
-                process_venv_path: Path = PATHS.venvs / process.process_id
+                process_image_path: Path = paths.get_process_image_path(process.process_id)
+                process_venv_path: Path = paths.get_venv_path(process.process_id)
                 if process_image_path.exists():
                     process_image_path.unlink()
                 if process_venv_path.exists():

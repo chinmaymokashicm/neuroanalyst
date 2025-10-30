@@ -61,6 +61,10 @@ class NeuroAnalystTUI(App):
     def __init__(self):
         super().__init__()
         self.title = "NeuroAnalyst TUI"
+        self.global_vars = {
+            "username": "cmokashi",
+            "registered_users": ["cmokashi", "alice", "bob"]
+        }
     
     def on_mount(self) -> None:
         """Called when the app is mounted."""

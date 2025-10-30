@@ -3,7 +3,7 @@ Dataset Routes
 
 This module contains the API endpoints for datasets operations.
 """
-from ..utils.constants import PATHS
+from ..utils.constants import NeuroAnalystPaths
 from ..utils.dir import generate_directory_tree
 
 from typing import Optional, List, Dict, Any
@@ -24,7 +24,7 @@ router = APIRouter(
 )
 
 @router.get("/list", response_model=List[Dict[str, str]])
-async def list_datasets():
+async def list_datasets(username: Optional[str] = None):
     """
     List all available datasets with their names and paths.
     
@@ -32,7 +32,8 @@ async def list_datasets():
         List[Dict[str, str]]: A list of datasets with their names and paths.
     """
     try:
-        datasets_path = Path(PATHS.datasets)
+        paths = NeuroAnalystPaths(username=username)
+        datasets_path = Path(paths.datasets)
         
         if not datasets_path.exists():
             return []
@@ -53,7 +54,7 @@ async def list_datasets():
         )
 
 @router.get("/tree/{dataset_name}")
-async def get_dataset_tree(dataset_name: str, path: Optional[str] = None):
+async def get_dataset_tree(dataset_name: str, path: Optional[str] = None, username: Optional[str] = None):
     """
     Generate directory tree for a dataset, recursively listing all files and folders.
     
@@ -66,7 +67,8 @@ async def get_dataset_tree(dataset_name: str, path: Optional[str] = None):
     """
     try:
         # Get base path for the dataset
-        dataset_base_path = Path(PATHS.datasets) / dataset_name
+        neuroanalyst_paths = NeuroAnalystPaths(username=username)
+        dataset_base_path = Path(neuroanalyst_paths.datasets) / dataset_name
         
         if not dataset_base_path.exists():
             raise HTTPException(
@@ -151,7 +153,7 @@ async def load_dataset_file(file_path: str):
         )
 
 @router.get("/file")
-async def get_file(file_path: str, download: bool = False):
+async def get_file(file_path: str, download: bool = False, username: Optional[str] = None):
     """
     Serve a file directly through the API.
     
@@ -173,7 +175,8 @@ async def get_file(file_path: str, download: bool = False):
             
         # Ensure the file is within the datasets directory for security
         try:
-            datasets_path = Path(PATHS.datasets)
+            neuroanalyst_paths = NeuroAnalystPaths(username=username)
+            datasets_path = Path(neuroanalyst_paths.datasets)
             # Check if the file_path is within the datasets directory
             if not str(file_path.absolute()).startswith(str(datasets_path.absolute())):
                 raise HTTPException(
@@ -211,7 +214,7 @@ async def get_file(file_path: str, download: bool = False):
         )
 
 @router.get("/stream")
-async def stream_file(file_path: str):
+async def stream_file(file_path: str, username: Optional[str] = None):
     """
     Stream a file through the API with chunked transfer.
     This is useful for large files that should be streamed rather than loaded into memory.
@@ -232,7 +235,9 @@ async def stream_file(file_path: str):
             )
             
         # Ensure the file is within the datasets directory for security
-        datasets_path = Path(PATHS.datasets)
+        
+        neuroanalyst_paths = NeuroAnalystPaths(username=username)
+        datasets_path = Path(neuroanalyst_paths.datasets)
         if not str(file_path.absolute()).startswith(str(datasets_path.absolute())):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,

@@ -256,9 +256,16 @@ class LoadingDataModal(ModalScreen[None]):
             else:
                 result = await asyncio.to_thread(self.function)
             result = str(result)
-            
+
             log_widget.clear()
-            for line in result.split("\n"):
+            
+            if not result.strip():
+                log_widget.write_line("Data loaded successfully. No output to display.")
+                return
+            
+            lines: list[str] = result.split("\n")
+            log_widget.write_line(f"Data loaded successfully. Count: {len(lines)}")
+            for line in lines:
                 if line.strip():
                     log_widget.write_line(line)
         except Exception as e:
@@ -282,9 +289,9 @@ class StepUpdateModal(ModalScreen[None]):
         self.step_name = step_name
         self.step_description = step_description
         self.available_processes_options: list[tuple[str, str]] = [
-            (f"{proc} - {NeuProcess.from_process_id(proc).process_dir.logic.about.name}", proc) for proc in available_processes
+            (f"{proc} - {NeuProcess.from_process_id(proc, username=self.app.global_vars.get('username')).process_dir.logic.about.name}", proc) for proc in available_processes
         ]
-        self.processes: list[str] = processes
+        self.processes: list[str] = [proc for proc in processes]
         self.extra_parameters: list[str] = []
 
     def compose(self):
@@ -325,11 +332,11 @@ class StepUpdateModal(ModalScreen[None]):
         selected_processes_list = self.query_one("#selected_processes_list", ListView)
         selected_process = processes_available_select.value
         if selected_process and selected_process not in self.processes:
-            selected_processes_list.append(ListItem(Label(selected_process), id=f"proc_{len(selected_processes_list.children)}"))
             self.processes.append(selected_process)
+            selected_processes_list.append(ListItem(Label(selected_process), id=f"proc_{len(selected_processes_list.children)}"))
             
             # Add extra parameters
-            process: NeuProcess = NeuProcess.from_process_id(selected_process)
+            process: NeuProcess = NeuProcess.from_process_id(selected_process, username=self.app.global_vars.get("username"))
             self.app.notify(f"Extra parameters: {process.get_non_standard_parameters()}")
             self.app.push_screen(
                 AddParametersModal(selected_process),
@@ -360,8 +367,6 @@ class StepUpdateModal(ModalScreen[None]):
         self.step_description = step_description_input.text
         self.processes = [item.query_one(Label).content for item in processes_list.children]
         
-        # self.notify(f"Extra parameters collected for processes: {self.extra_parameters}", severity="info")
-        
         self.dismiss({
             "step_name": self.step_name,
             "step_description": self.step_description,
@@ -375,21 +380,22 @@ class StepUpdateModal(ModalScreen[None]):
         
 class AddParametersModal(ModalScreen[dict[str, str] | None]):
     BINDINGS = [
-        Binding("escape", "dismiss(None)", "Cancel"),
+        Binding("escape", "dismiss()", "Cancel"),
     ]
     
     def __init__(self, process_id: str):
         super().__init__()
         self.process_id: list[str] = [process_id]
         self.parameters: dict[str, any] = {}
-        process: NeuProcess = NeuProcess.from_process_id(process_id)
+        process: NeuProcess = NeuProcess.from_process_id(process_id, username=self.app.global_vars.get("username"))
         self.parameters = {
             "bind_paths": {item: None for item in process.get_non_standard_bind_paths()},
             "environment_variables": {item: None for item in process.get_non_standard_environment_variables()}
             }
+        self.result: dict[str, str] = {"bind_paths": {}, "environment_variables": {}}
         if not self.parameters["bind_paths"] and not self.parameters["environment_variables"]:
             self.app.notify("No extra parameters required for this process.", severity="info")
-            self.dismiss({})
+            self.dismiss(self.result)
 
     def compose(self):
         with Container(id="parameters_dialog"):
@@ -405,20 +411,25 @@ class AddParametersModal(ModalScreen[dict[str, str] | None]):
 
     @on(Button.Pressed, "#submit-button")
     def on_submit_pressed(self) -> None:
-        result: dict[str, str] = {"bind_paths": {}, "environment_variables": {}}
         for param in self.parameters["bind_paths"].keys():
             input_field = self.query_one(f"#input_bind_{list(self.parameters['bind_paths'].keys()).index(param)}", Input)
-            result["bind_paths"][param] = input_field.value.strip()
+            self.result["bind_paths"][param] = input_field.value.strip()
         for param in self.parameters["environment_variables"].keys():
             input_field = self.query_one(f"#input_env_{list(self.parameters['environment_variables'].keys()).index(param)}", Input)
-            result["environment_variables"][param] = input_field.value.strip()
+            self.result["environment_variables"][param] = input_field.value.strip()
                 
-        if any(value is None or value == "" for value in result.values()):
-            # self.app.notify("All parameters must be filled out.", severity="error")
-            self.app.push_screen(ErrorModal("All parameters must be filled out."))
+        if any(value is None or len(value) == 0 for value in self.result["bind_paths"].values()):
+            self.app.push_screen(ErrorModal("All parameters in bind_paths must be filled out."))
+            return
+        if any(value is None or len(value) == 0 for value in self.result["environment_variables"].values()):
+            self.app.push_screen(ErrorModal("All parameters in environment_variables must be filled out."))
             return
 
-        self.dismiss(result)
+        self.dismiss(self.result)
+        
+    @on(Button.Pressed, "#cancel-button")
+    def on_cancel_pressed(self) -> None:
+        self.dismiss()
             
     def on_input_submitted(self, event: Input.Submitted):
         self.on_submit_pressed()

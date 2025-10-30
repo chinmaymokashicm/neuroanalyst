@@ -13,7 +13,7 @@ from typing import Optional, Dict, Any, List, Union, Tuple
 
 from pydantic import Field
 
-from ...utils.constants import PATHS
+from ...utils.constants import NeuroAnalystPaths
 from ..database import MongoDBClient, CollectionNames
 from ..process.exec.core import NeuProcessExec
 from .core import SyncBase, SyncDirection, SyncStrategy, SyncConfig
@@ -37,7 +37,7 @@ class NeuProcessExecSync(SyncBase):
         self.mongo_client = MongoDBClient()
         self.mongo_client.connect()
     
-    def load_from_hpc(self, exec_id: str) -> Optional[NeuProcessExec]:
+    def load_from_hpc(self, exec_id: str, username: Optional[str] = None) -> Optional[NeuProcessExec]:
         """
         Load NeuProcessExec data from HPC storage.
         
@@ -50,7 +50,8 @@ class NeuProcessExecSync(SyncBase):
         self.logger.info(f"Loading NeuProcessExec {exec_id} from HPC storage")
         
         # Check if exec directory exists
-        exec_dir_path = PATHS.get_process_exec_path(exec_id)
+        paths = NeuroAnalystPaths(username=username)
+        exec_dir_path = paths.get_process_exec_path(exec_id)
         if not exec_dir_path.exists():
             self.logger.warning(f"Exec directory {exec_dir_path} does not exist")
             return None
@@ -200,7 +201,7 @@ class NeuProcessExecSync(SyncBase):
             doc_id = self.mongo_client.insert_one(CollectionNames.EXECUTIONS, exec_doc)
             return doc_id
     
-    def sync_from_db(self, exec_id: str) -> bool:
+    def sync_from_db(self, exec_id: str, username: Optional[str] = None) -> bool:
         """
         Sync NeuProcessExec data from DB to HPC.
         
@@ -220,7 +221,8 @@ class NeuProcessExecSync(SyncBase):
         
         try:
             # Create the exec directory if it doesn't exist
-            exec_dir_path = PATHS.get_process_exec_path(exec_id)
+            paths = NeuroAnalystPaths(username=username)
+            exec_dir_path = paths.get_process_exec_path(exec_id)
             exec_dir_path.mkdir(parents=True, exist_ok=True)
             
             # Save model.json

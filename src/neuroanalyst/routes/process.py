@@ -9,7 +9,7 @@ from ..models import (
     NeuProcessDirConfig,
     NeuProcessLogic
 )
-from ..utils.constants import PATHS
+from ..utils.constants import NeuroAnalystPaths
 
 from typing import Literal, Optional, List, Dict, Any
 from pathlib import Path
@@ -140,12 +140,13 @@ async def get_process(process_id: str):
         )
 
 @router.get("/", response_model=List[NeuProcess] | List[str])
-async def list_processes(id_only: bool = False):
+async def list_processes(id_only: bool = False, username: Optional[str] = None):
     """
     List all available NeuProcesses.
     """
     try:
-        process_ids: list[str] = [subdir.name for subdir in PATHS.workdir.iterdir() if subdir.is_dir()]
+        paths = NeuroAnalystPaths(username=username)
+        process_ids: list[str] = [subdir.name for subdir in paths.workdir.iterdir() if subdir.is_dir()]
         if id_only:
             return [NeuProcess.from_process_id(pid).process_id for pid in process_ids]
         return [NeuProcess.from_process_id(pid) for pid in process_ids]
@@ -156,12 +157,13 @@ async def list_processes(id_only: bool = False):
         )
 
 @router.get("/base-images", response_model=List[str])
-async def get_available_base_images() -> List[str]:
+async def get_available_base_images(username: Optional[str] = None) -> List[str]:
     """
     Get a list of available base images for process creation.
     """
     try:
-        base_images_path = PATHS.base_images
+        paths = NeuroAnalystPaths(username=username)
+        base_images_path = paths.base_images
         if not base_images_path.exists():
             return []
         images = [str(item) for item in base_images_path.iterdir() if item.is_file() and item.suffix in {".sif"}]
@@ -174,7 +176,7 @@ async def get_available_base_images() -> List[str]:
         )
         
 @router.get("/build-status/{process_id}", response_model=List[bool])
-async def is_build_complete(process_id: str) -> list[bool, bool]:
+async def is_build_complete(process_id: str, username: Optional[str] = None) -> list[bool, bool]:
     """
     Check if the Singularity image and virtual environment builds are complete for a given process.
     
@@ -184,8 +186,9 @@ async def is_build_complete(process_id: str) -> list[bool, bool]:
         List containing two booleans: [is_image_built, is_venv_built]
     """
     try:
-        image_path: Path = PATHS.get_process_image_path(process_id)
-        venv_path: Path = PATHS.get_venv_path(process_id)
+        paths = NeuroAnalystPaths(username=username)
+        image_path: Path = paths.get_process_image_path(process_id)
+        venv_path: Path = paths.get_venv_path(process_id)
         is_image_built: bool = image_path.exists()
         is_venv_built: bool = venv_path.exists()
         return [is_image_built, is_venv_built]

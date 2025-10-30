@@ -10,7 +10,7 @@ import os
 sys.path.append(str(Path(__file__).resolve().parents[4]))
 from neuroanalyst.models.process.dir.core import NeuProcessDir
 from neuroanalyst.models.process.logic.core import NeuProcessLogic
-from neuroanalyst.utils.constants import PATHS
+from neuroanalyst.utils.constants import NeuroAnalystPaths
 
 sys.path.append(str(Path(__file__).resolve().parents[3]))
 from tui.components.list import MultiParameterListComponent
@@ -55,14 +55,11 @@ INFO_TEXTS: dict[str, str] = {
     "step_3": read_doc("build_process"),
 }
 
-def get_all_logic_options() -> list[tuple[str, str]]:
-    """Retrieve all registered NeuProcessLogic instances as options."""
-    all_logics: list[NeuProcessLogic] = NeuProcessLogic.get_all_registered_logics()
-    return [(logic.about.name, logic.about.name) for logic in all_logics]
 
 class ProcessWizardScreen(BaseScreen):
     """Wizard screen for creating or editing a process."""
     bootstrap_method: reactive[Literal["docker", "localimage"]] = reactive("localimage")
+    username: Optional[str] = None
     
     CSS = """
     #base_image_container {
@@ -107,7 +104,7 @@ class ProcessWizardScreen(BaseScreen):
         self.total_steps = 3
         
         self.process_dir: Optional[NeuProcessDir] = None
-        logic_select_options = get_all_logic_options()
+        logic_select_options = self.get_all_logic_options()
         self.logic_select = Select(
             logic_select_options,
             id="logic_select",
@@ -117,7 +114,7 @@ class ProcessWizardScreen(BaseScreen):
         
         try:
             print(f"Loading existing process with ID: {process_id}")
-            self.process_dir= NeuProcessDir.from_process_id(process_id)
+            self.process_dir= NeuProcessDir.from_process_id(process_id, username=self.app.global_vars.get("username"))
             self.logic_name = self.process_dir.logic.about.name
             self.review_mode = True
             self.current_step = 2
@@ -127,7 +124,6 @@ class ProcessWizardScreen(BaseScreen):
             self.logic_name = ""
             # self.navigate_to_step(1)
             
-        print(self.review_mode, self.current_step)
             
     def on_mount(self):
         super().on_mount()
@@ -145,7 +141,7 @@ class ProcessWizardScreen(BaseScreen):
         """Handle logic selection changes."""
         selected_logic_name = event.value
         try:
-            logic: NeuProcessLogic = NeuProcessLogic.from_func_name(selected_logic_name)
+            logic: NeuProcessLogic = NeuProcessLogic.from_func_name(selected_logic_name, username=self.app.global_vars.get("username"))
             self.logic_name = logic.about.name
         except Exception:
             self.logic_name = ""
@@ -216,6 +212,11 @@ class ProcessWizardScreen(BaseScreen):
         self.reset_wizard()
         self.app.push_screen(SCREEN_NAMES["process"]["list"]) # Pop back to the main screen
         
+    def get_all_logic_options(self) -> list[tuple[str, str]]:
+        """Retrieve all registered NeuProcessLogic instances as options."""
+        all_logics: list[NeuProcessLogic] = NeuProcessLogic.get_all_registered_logics(username=self.app.global_vars.get("username"))
+        return [(logic.about.name, logic.about.name) for logic in all_logics]
+    
     def reset_wizard(self) -> None:
         """Reset the wizard to its initial state."""
         self.current_step = 1
@@ -261,11 +262,12 @@ class ProcessWizardScreen(BaseScreen):
     def get_base_image_component(self, bootstrap_method: Literal["docker", "localimage"]) -> Input | Select:
         """Return the appropriate base image component based on the bootstrap method."""
         if bootstrap_method == "localimage":
+            paths = NeuroAnalystPaths(username=self.app.global_vars.get("username"))
             options: list[tuple[str, str]] = [
-                (img.name, str(img)) for img in PATHS.base_images.iterdir() if img.is_file() and img.suffix in {".sif", ".img"}
+                (img.name, str(img)) for img in paths.base_images.iterdir() if img.is_file() and img.suffix in {".sif", ".img"}
             ]
             if not options:
-                self.app.notify(f"No local base images found at {PATHS.base_images} . Please add images to proceed.", severity="error")
+                self.app.notify(f"No local base images found at {paths.base_images} . Please add images to proceed.", severity="error")
             return Select(
                 options,
                 id="base_image_select",
@@ -312,19 +314,20 @@ class ProcessWizardScreen(BaseScreen):
         
     def set_ui_fields_for_step_2(self) -> None:
         if self.process_dir:
-                self.query_one("#review_process_id_input", Input).value = self.process_dir.process_id
-                self.query_one("#review_logic_name_input", Input).value = self.process_dir.logic.about.name
-                self.query_one("#review_bootstrap_method_input", Input).value = self.process_dir.config.bootstrap_method
-                self.query_one("#review_base_image_input", Input).value = self.process_dir.config.base_image
-                self.query_one("#review_author_input", Input).value = self.process_dir.logic.about.author
-                self.query_one("#review_build_script_input", Input).value = str(Path(self.process_dir.script_paths["build"]["image"]).relative_to(PATHS.workdir)) or ""
-                self.query_one("#review_venv_build_script_input", Input).value = str(Path(self.process_dir.script_paths["build"]["venv"]).relative_to(PATHS.workdir)) or ""
-                self.query_one("#review_env_vars_input", TextArea).text = "\n".join(self.process_dir.config.environment_variables)
-                self.query_one("#review_binds_input", TextArea).text = "\n".join(self.process_dir.config.bind_paths)
-                self.query_one("#review_command_flags_input", TextArea).text = "\n".join(self.process_dir.config.command_flags)
-                self.query_one("#review_system_packages_input", TextArea).text = "\n".join(self.process_dir.config.system_packages)
-                self.query_one("#review_python_packages_input", TextArea).text = "\n".join(self.process_dir.config.language_packages.get("python", []))
-                self.query_one("#review_working_dir_input", Input).value = str(self.process_dir.working_dir.relative_to(PATHS.home))
+            paths = NeuroAnalystPaths(username=self.app.global_vars.get("username"))
+            self.query_one("#review_process_id_input", Input).value = self.process_dir.process_id
+            self.query_one("#review_logic_name_input", Input).value = self.process_dir.logic.about.name
+            self.query_one("#review_bootstrap_method_input", Input).value = self.process_dir.config.bootstrap_method
+            self.query_one("#review_base_image_input", Input).value = self.process_dir.config.base_image
+            self.query_one("#review_author_input", Input).value = self.process_dir.logic.about.author
+            self.query_one("#review_build_script_input", Input).value = str(Path(self.process_dir.script_paths["build"]["image"]).relative_to(paths.workdir)) or ""
+            self.query_one("#review_venv_build_script_input", Input).value = str(Path(self.process_dir.script_paths["build"]["venv"]).relative_to(paths.workdir)) or ""
+            self.query_one("#review_env_vars_input", TextArea).text = "\n".join(self.process_dir.config.environment_variables)
+            self.query_one("#review_binds_input", TextArea).text = "\n".join(self.process_dir.config.bind_paths)
+            self.query_one("#review_command_flags_input", TextArea).text = "\n".join(self.process_dir.config.command_flags)
+            self.query_one("#review_system_packages_input", TextArea).text = "\n".join(self.process_dir.config.system_packages)
+            self.query_one("#review_python_packages_input", TextArea).text = "\n".join(self.process_dir.config.language_packages.get("python", []))
+            self.query_one("#review_working_dir_input", Input).value = str(self.process_dir.working_dir.relative_to(paths.home))
                 
     def set_ui_fields_for_step_3(self) -> None:
         if self.process_dir:
@@ -332,9 +335,10 @@ class ProcessWizardScreen(BaseScreen):
             build_venv_btn = self.query_one("#build_venv_btn", Button)
             
             # Check if builds exist
-            image_exists: bool = Path(PATHS.images / f"{self.process_dir.process_id}.sif").exists()
-            venv_exists: bool = Path(PATHS.venvs / self.process_dir.process_id).exists()
-            
+            paths = NeuroAnalystPaths(username=self.app.global_vars.get("username"))
+            image_exists: bool = (paths.get_process_image_path(self.process_dir.process_id)).exists()
+            venv_exists: bool = (paths.get_venv_path(self.process_dir.process_id)).exists()
+
             if image_exists:
                 build_image_btn.disabled = True
                 build_image_btn.label = "Singularity Image Built"

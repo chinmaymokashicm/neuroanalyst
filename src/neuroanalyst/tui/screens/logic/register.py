@@ -62,14 +62,14 @@ class RegisterLogicScreen(BaseScreen):
         self.update_logic_fields(self.logic_name)
         
     def if_logic_already_registered(self, logic_name: str) -> bool:
-        all_logics: list[NeuProcessLogic] = NeuProcessLogic.get_all_registered_logics()
+        all_logics: list[NeuProcessLogic] = NeuProcessLogic.get_all_registered_logics(username=self.app.global_vars.get("username"))
         for logic in all_logics:
             if logic.about.name == logic_name:
                 return True
         return False
     
     def set_updated_logics_select_options(self, default_logic_name: Optional[str] = None) -> list[tuple[str, str]]:
-        all_logics: list[NeuProcessLogic] = NeuProcessLogic.get_all_registered_logics()
+        all_logics: list[NeuProcessLogic] = NeuProcessLogic.get_all_registered_logics(username=self.app.global_vars.get("username"))
         all_logic_names: list[str] = [logic.about.name for logic in all_logics]
         
         logic_select_options: list[tuple[str, str]] = [(option, option) for option in all_logic_names + [CHOOSE_LOGIC_DEFAULT]]
@@ -92,7 +92,7 @@ class RegisterLogicScreen(BaseScreen):
         self.logic_name: str = logic_name
         logic_name: str = self.logic_select.value
         if logic_name and logic_name != "Choose Logic to Edit":
-            logic: NeuProcessLogic = NeuProcessLogic.from_func_name(logic_name)
+            logic: NeuProcessLogic = NeuProcessLogic.from_func_name(logic_name, username=self.app.global_vars.get("username"))
             self.query_one("#logic_name_input", TextArea).text = logic.about.name
             self.query_one("#logic_description_input", TextArea).text = logic.about.description if logic.about.description else ""
             self.query_one("#logic_version_input", TextArea).text = logic.about.version if logic.about.version else ""
@@ -275,6 +275,7 @@ class RegisterLogicScreen(BaseScreen):
             logic.about.version = self.query_one("#logic_version_input", TextArea).text
             logic.about.author = self.query_one("#logic_author_input", TextArea).text
             logic.about.tag = self.query_one("#logic_tag_input", TextArea).text
+            logic.username = self.app.global_vars.get("username")
             
             # Determine if we are updating or registering new
             if self.logic_name == logic.about.name:

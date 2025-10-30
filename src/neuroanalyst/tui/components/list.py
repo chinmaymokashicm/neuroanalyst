@@ -4,7 +4,7 @@ from pathlib import Path
 sys.path.append(str(Path(__file__).resolve().parents[4]))
 from neuroanalyst.models.process.logic.core import ALLOWED_PYBIDS_ENTITY_KEYS
 from neuroanalyst.models.pipeline.core import NeuPipeline
-from neuroanalyst.utils.constants import PATHS
+from neuroanalyst.utils.constants import NeuroAnalystPaths
 from neuroanalyst.utils.bids import get_bids_files
 
 from .modal import InputModal, SelectModal, StepUpdateModal, InfoModal, ErrorModal, LoadingDataModal
@@ -426,7 +426,7 @@ class BIDSEntityListComponent(Horizontal):
                     "relative_path": True,
                     "return_as_list": False
                     },
-                message=f"Loading BIDS files matching BIDS entities {self.bids_entities} in {bids_root} with scope {scope}..."
+                message=f"Loading BIDS files matching BIDS entities {self.bids_entities} in {bids_root} within scope '{scope}'..."
             )
         )
 
@@ -438,7 +438,6 @@ class PipelineStepsComponent(Horizontal):
     n_steps: int = reactive(1)
     selected_step_index: Optional[int] = None
     steps: list[tuple[str, str, list[str], dict]] = []
-    available_processes: list[str] = [subdir.name for subdir in PATHS.workdir.iterdir() if subdir.is_dir()]
     
     def __init__(self, n_steps: int = 1, process_separator: str = " + "):
         super().__init__()
@@ -447,6 +446,8 @@ class PipelineStepsComponent(Horizontal):
         self.table = DataTable(id="pipeline_steps_table", cursor_type="row", zebra_stripes=True)
         self.process_separator = process_separator
         self.id = "pipeline_steps_component"
+        paths = NeuroAnalystPaths(username=self.app.global_vars.get("username"))
+        self.available_processes: list[str] = [subdir.name for subdir in paths.workdir.iterdir() if subdir.is_dir()]
         
     def on_mount(self) -> None:
         """Called when the component is mounted."""
