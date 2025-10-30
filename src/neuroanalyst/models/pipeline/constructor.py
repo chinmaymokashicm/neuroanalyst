@@ -300,6 +300,10 @@ class PipelineConstructorConfig(BaseModel):
             # Update consumer's input entities to match producer's outputs
             consumer_process_config.input_bids_filters = {**producer_output_entities}
             
+        # Do not add if edge already exists
+        if self.graph.has_edge(self.get_node_name(producer_process_config), self.get_node_name(consumer_process_config)):
+            print("Edge already exists in the graph. Skipping addition.")
+            return
         self.graph.add_edge(self.get_node_name(producer_process_config), self.get_node_name(consumer_process_config))
     
     def get_config_by_name(self, node_name: str) -> tuple[Optional[ProcessConstructorConfig], int]:
