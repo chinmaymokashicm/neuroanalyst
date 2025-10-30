@@ -1086,7 +1086,10 @@ class NeuPipeline(BaseModel):
         """Create the pipeline directory structure."""
         # Create the main pipeline directory
         pipeline_dir = self.pipeline_dir_path
-        pipeline_dir.mkdir(parents=True, exist_ok=False)
+        try:
+            pipeline_dir.mkdir(parents=True, exist_ok=False)
+        except FileExistsError:
+            print(f"Pipeline directory '{pipeline_dir}' already exists. Using existing directory.")
         
         # Initialize status tracking
         self._initialize_status_tracking()
