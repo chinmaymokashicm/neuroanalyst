@@ -242,7 +242,7 @@ class NeuProcess(BaseModel):
     @property
     def venv_path(self) -> Path:
         """Get the path to the virtual environment."""
-        venv_path = NeuroAnalystPaths(username=self.username).get_process_venv_path(self.process_id)
+        venv_path = NeuroAnalystPaths(username=self.username).get_venv_path(self.process_id)
         venv_path.parent.mkdir(parents=True, exist_ok=True)
         return venv_path
 

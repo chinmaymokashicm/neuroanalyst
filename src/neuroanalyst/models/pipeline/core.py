@@ -13,6 +13,7 @@ NeuPipeline is responsible for:
 
 import os
 import json
+import shutil
 import time
 import subprocess
 import logging
@@ -34,7 +35,7 @@ from ...utils.data import flatten_dict
 from ..about import About
 from ..bids import BIDSDatasetDescription, BIDSGeneratedByToolInfo, PipelineDescriptionSpec
 from ..process.exec.core import NeuProcessExec, HPCScheduler, ExecutionMode
-from ..process.process.core import NeuProcess
+from ..process.process.core import NeuProcess, NeuProcessDir
 from ..process.logic.core import NeuProcessLogic
 from .executor import ProcessStatus, LSFExecutor, SLURMExecutor, PBSExecutor, LocalExecutor
 
@@ -1955,3 +1956,41 @@ class NeuPipeline(BaseModel):
                         print(f"Warning: Could not load pipeline from {pipeline_dir}: {e}")
         
         return pipeline_list
+
+    def delete(self) -> None:
+        """Delete the pipeline directory and all associated data."""
+        if self.pipeline_dir_path.exists():
+            shutil.rmtree(self.pipeline_dir_path)
+            self.logger.info(f"Deleted pipeline directory at {self.pipeline_dir_path}")
+        else:
+            self.logger.warning(f"Pipeline directory {self.pipeline_dir_path} does not exist. Nothing to delete.")
+    
+    def clear_pipeline(self, delete_processes: bool = True, delete_compute_env: bool = False) -> None:
+        """Clear the config and log directories (if specified) of-
+            - the pipeline
+            - associated processes and process executions (if specified)
+        
+        Args:
+            delete_processes: If True, delete associated processes and process executions.
+            delete_compute_env: If True, delete associated compute environments (containers/venvs).
+        """
+        # Delete pipeline directory
+        self.delete()
+        
+        try:
+            if delete_processes:
+                unique_process_dirs: set[NeuProcessDir] = {proc_exec.process for proc_exec in self.process_execs}
+                for proc_exec in self.process_execs:
+                    proc_exec.delete()
+                for process_dir in unique_process_dirs:
+                    process_dir.delete()
+                    
+                if delete_compute_env:
+                    for process_dir in unique_process_dirs:
+                        process: NeuProcess = NeuProcess.from_process_dir(process_dir)
+                        process.image_path.unlink(missing_ok=True)
+                        if process.venv_path.exists() and process.venv_path.is_dir():
+                            shutil.rmtree(process.venv_path)
+        except Exception as e:
+            print(f"Error clearing pipeline processes or compute environments: {e}")
+            self.logger.error(f"Error clearing pipeline processes or compute environments: {e}")
