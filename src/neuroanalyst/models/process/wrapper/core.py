@@ -193,6 +193,7 @@ def neuprocess_decorator(config: NeuProcessDecoratorConfig):
 Traceback: {traceback.format_exc()}
 Error message: {str(func_error)}
                     """
+                    print(func_error_message)
                     raise RuntimeError(func_error_message)
                     # func_error_message = str(func_error)
 
