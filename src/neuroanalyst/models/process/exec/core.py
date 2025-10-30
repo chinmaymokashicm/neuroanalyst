@@ -668,10 +668,11 @@ class NeuProcessExec(BaseModel):
 
         # Generate the bash script if not already set and save to disk
         exec_dir: Path = Path(NeuroAnalystPaths(username=self.username).process_execs) / self.exec_id
-        if not Path(exec_dir / BASH_SCRIPT_NAME).exists():
-            bash_script_with_runtime_args_path: str = str(self.save_bash_script_to_disk())
-        else:
-            bash_script_with_runtime_args_path: str = str(exec_dir / BASH_SCRIPT_NAME)
+        # if not Path(exec_dir / BASH_SCRIPT_NAME).exists():
+        #     bash_script_with_runtime_args_path: str = str(self.generate_and_save_bash_script())
+        # else:
+        #     bash_script_with_runtime_args_path: str = str(exec_dir / BASH_SCRIPT_NAME)
+        bash_script_with_runtime_args_path: str = str(self.generate_and_save_bash_script())
         
         # Construct the final command. Include creation of log directory if it doesn't exist within the command.
         if self.scheduler == HPCScheduler.LOCAL:
@@ -897,7 +898,7 @@ class NeuProcessExec(BaseModel):
         
         return result
     
-    def save_bash_script_to_disk(self) -> Path:
+    def generate_and_save_bash_script(self) -> Path:
         """
         Save the generated bash script to disk.
         This method saves the bash script to the process_execs directory with the exec_id as the folder name.
