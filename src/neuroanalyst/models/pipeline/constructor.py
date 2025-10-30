@@ -46,10 +46,15 @@ class ProcessConstructorConfig(BaseModel):
             subjects: Optional[str | list[str]] = subject_session_pair[0]
             sessions: Optional[str | list[str]] = subject_session_pair[1]
             
+            if isinstance(subjects, str | None):
+                subjects = [subjects]
+            if isinstance(sessions, str | None):
+                sessions = [sessions]
+
             bids_filters: dict[str, Optional[str | list[Optional[str | int]]]] = self.input_bids_filters.copy()
-            if subjects:
+            if len(subjects) > 0 and subjects != [None]:
                 bids_filters["subject"] = subjects
-            if sessions:
+            if len(sessions) > 0 and sessions != [None]:
                 bids_filters["session"] = sessions
             process_exec: NeuProcessExec = NeuProcessExec.generate_from_process_id(process_id=self.process_id, username=self.username)
             
