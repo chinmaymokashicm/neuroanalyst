@@ -38,15 +38,17 @@ def autorecon1(input_filepath: str):
     entities: dict = parse_file_entities(input_filepath)
     subject_id: str = f"{entities.get('subject', 'unknown')}_{entities.get('session', 'ses-unknown')}"
     fs_subjects_dir: str = os.path.join(tmp_dir, "freesurfer_subjects")
+    # Handle spaces in path
+    fs_subjects_dir = fs_subjects_dir.replace(" ", "\\ ")
     os.makedirs(fs_subjects_dir, exist_ok=True)
     
     cmd = [
         "bash", "-c",
         f"""
-        source '{FREESURFER_HOME}/SetUpFreeSurfer.sh' && \\
+        source {FREESURFER_HOME}/SetUpFreeSurfer.sh && \\
         export OMP_NUM_THREADS=4 && \\
         export ITK_GLOBAL_DEFAULT_NUMBER_OF_THREADS=4 && \\
-        recon-all -i '{input_filepath}' -s '{subject_id}' -sd '{fs_subjects_dir}' -autorecon1
+        recon-all -i '{input_filepath}' -s '{subject_id}' -sd {fs_subjects_dir} -autorecon1
         """
     ]
     
