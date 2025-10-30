@@ -115,7 +115,7 @@ class NeuProcess(BaseModel):
         Returns:
             NeuProcess instance
         """
-        return cls(process_dir=process_dir, **kwargs)
+        return cls(process_id=process_dir.process_id, process_dir=process_dir, **kwargs)
     
     @classmethod
     def from_dir_path(cls, dir_path: Path, **kwargs):
