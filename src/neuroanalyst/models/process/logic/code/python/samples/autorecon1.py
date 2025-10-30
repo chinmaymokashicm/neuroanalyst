@@ -41,11 +41,10 @@ def autorecon1(input_filepath: str):
     os.makedirs(fs_subjects_dir, exist_ok=True)
     
     cmd: str = f"""
-    source {FREESURFER_HOME}/SetUpFreeSurfer.sh && \
-    export OMP_NUM_THREADS=4
-    export ITK_GLOBAL_DEFAULT_NUMBER_OF_THREADS=4
-
-    recon-all -i {input_filepath} -s {subject_id} -sd {fs_subjects_dir} -autorecon1 -qcache -measure thickness
+    source '{FREESURFER_HOME}'/SetUpFreeSurfer.sh && \\
+    export OMP_NUM_THREADS=4 && \\
+    export ITK_GLOBAL_DEFAULT_NUMBER_OF_THREADS=4 && \\
+    recon-all -i '{input_filepath}' -s '{subject_id}' -sd '{fs_subjects_dir}' -autorecon1 -qcache -measure thickness
     """
     
     # Step 3: Run the FreeSurfer command
