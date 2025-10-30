@@ -302,11 +302,19 @@ class NeuPipeline(BaseModel):
     def validate_about(cls, v: dict | About) -> About:
         """Ensure 'about' is an About instance."""
         if isinstance(v, dict):
-            return About(**v)
+            # return About(**v)
+            v = About(**v)
         elif isinstance(v, About):
-            return v
+            # return v
+            pass
         else:
             raise TypeError("about must be an instance of About or a dict")
+        
+        # Name cannot have spaces
+        if ' ' in v.name:
+            raise ValueError("Pipeline name in 'about' cannot contain spaces")
+        
+        return v
     
     @model_validator(mode='after')
     def validate_model(self) -> 'NeuPipeline':
