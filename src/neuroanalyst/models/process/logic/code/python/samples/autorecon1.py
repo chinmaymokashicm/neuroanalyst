@@ -22,13 +22,13 @@ def autorecon1(input_filepath: str):
     # Step 1: Prepare environment and paths
     DATA_DIR: str = "/data"  # shared data dir bind
     PIPELINE_NAME: str = os.getenv("PIPELINE_NAME", "default_pipeline")
+    FREESURFER_HOME: str = os.getenv("FREESURFER_HOME", None)
+    if not FREESURFER_HOME:
+        raise EnvironmentError("FREESURFER_HOME environment variable is not set.")
     tmp_dir: str = os.path.join(DATA_DIR, "tmp")  #! Temporary directory for outputs; which would be usually be cleaned up by NeuroAnalyst wrapper, but here we keep it for FreeSurfer's intermediate files.
     os.makedirs(tmp_dir, exist_ok=True)
     
-    freesurfer_location: str = "/opt/freesurfer"  # Assuming FreeSurfer is installed here
-    # Source FreeSurfer and check if 
-    source_cmd: str = f"source {freesurfer_location}/SetUpFreeSurfer.sh && recon-all -version"
-    os.environ["FREESURFER_HOME"] = freesurfer_location
+    source_cmd: str = f"source {FREESURFER_HOME}/SetUpFreeSurfer.sh && recon-all -version"
     try:
         result = subprocess.run(source_cmd, shell=True, executable="/bin/bash", check=True, capture_output=True, text=True)
         print(f"FreeSurfer environment sourced successfully: {result.stdout}")
@@ -43,7 +43,7 @@ def autorecon1(input_filepath: str):
     os.makedirs(fs_subjects_dir, exist_ok=True)
     
     cmd: str = f"""
-    source {freesurfer_location}/SetUpFreeSurfer.sh && \
+    source {FREESURFER_HOME}/SetUpFreeSurfer.sh && \
     recon-all -i {input_filepath} -s {subject_id} -sd {fs_subjects_dir} -autorecon1
     """
     
