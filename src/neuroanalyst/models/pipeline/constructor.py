@@ -2,7 +2,7 @@
 Constructor module for building NeuPipeline instances.
 """
 from ..about import About
-from .core import NeuPipeline, NeuPipelineStep, HPCScheduler, ExecutionMode, NeuPipelineStatus
+from .core import NeuPipeline, NeuPipelineStep, HPCScheduler, ExecutionMode, NeuPipelineStatus, DEFAULT_SCHEDULER_FLAGS
 from .executor import ProcessStatus
 from ..process.process.core import NeuProcess, STANDARD_BIND_PATHS, STANDARD_ENV_VARS
 from ..process.dir.core import NeuProcessDir
@@ -624,6 +624,8 @@ class PipelineConstructorConfig(BaseModel):
         pipeline.apply_standard_exec_params()
         
         for process_exec in pipeline.process_execs:
+            # Set scheduler flags
+            process_exec.set_scheduler_flags(DEFAULT_SCHEDULER_FLAGS[self.scheduler])
             process_exec.save_to_disk()
         
         pipeline.create_pipeline_dir()
