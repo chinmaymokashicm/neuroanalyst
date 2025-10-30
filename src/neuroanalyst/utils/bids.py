@@ -80,7 +80,12 @@ def split_by_subject_session(
     # 1. Get all matching files
     files = bids_layout.get(**bids_filters, return_type="file", target="subject")
     if not files:
-        return []
+        print("No files found with the given filters.")
+        return [{
+            "bids_filters": bids_filters,
+            "n_files": 0,
+            "subject_session_pair": ([], [])
+        }]
 
     # 2. Get metadata for each file: subject and session
     grouped = {}
