@@ -84,7 +84,7 @@ def autorecon3(input_filepath: str):
     # Step 3: Run the FreeSurfer command
     print(f"Running command: {cmd}")
     try:
-        result = subprocess.run(cmd, shell=True, check=True, capture_output=True)
+        result = subprocess.run(cmd, shell=True, check=True, capture_output=True, executable="/bin/bash")
         print(f"FreeSurfer Autorecon3 command finished with return code {result.returncode}")
     except subprocess.CalledProcessError as e:
         print(f"Error running FreeSurfer Autorecon3 command: {e.stderr}")
