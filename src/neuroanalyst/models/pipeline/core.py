@@ -1793,6 +1793,11 @@ class NeuPipeline(BaseModel):
                         raise RuntimeError(f"Virtual environment for process {proc_exec.process.process_id} is not created. Please create the venv before execution.")
 
                 checked_processes.add(proc_exec.process.process_id)
+                
+        # Ensure all execs are stored
+        for step in self.steps:
+            for proc_exec in step.process_execs:
+                proc_exec.save_to_disk()
 
         logger: logging.Logger = self.logger
         
