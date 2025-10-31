@@ -122,7 +122,14 @@ def autorecon3(input_filepath: str):
     output_data.add_gifti_data_array(rh_faces_array)
 
     # Step 5: Prepare metrics and output entities
-    qc_results = qc_autorecon3(os.path.join(fs_subjects_dir, subject_id, "stats"))
+    try:
+        qc_results = qc_autorecon3(os.path.join(fs_subjects_dir, subject_id, "stats"))
+        if qc_pass_autorecon2 is None:
+            qc_pass_autorecon2 = qc_results["qc_pass"]
+    except Exception as e:
+        print(f"Error computing QC metrics for Autorecon3: {e}")
+        qc_results = {"mean_thickness": None, "surface_area": None, "qc_pass": None}
+        
     metrics = {
         "parameters": {
             "FreeSurfer_version": os.getenv("FREESURFER_VERSION", "unknown"),

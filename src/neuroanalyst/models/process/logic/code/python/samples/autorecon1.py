@@ -76,12 +76,14 @@ def autorecon1(input_filepath: str):
     brain_mask_img: nib.Nifti1Image = nib.load(brain_mask_filepath)
     t1_data = np.stack([t1_img.get_fdata(), brain_mask_img.get_fdata()], axis=-1)
     
+    brain_volume: int = int((brain_mask_img.get_fdata() > 0).sum())
+    
     # QC metrics
     mask_ratio = np.sum(brain_mask_img.get_fdata() > 0) / np.prod(t1_img.shape)
     mask_intensity_mean: float = np.mean(t1_img.get_fdata()[brain_mask_img.get_fdata() > 0])
 
     metrics = {
-        "brain_volume": np.sum(brain_mask_img.get_fdata() > 0),
+        "brain_volume": brain_volume,
         "brain_dimensions": t1_data.shape[:-1],
         "mask_ratio": mask_ratio,
         "mask_intensity_mean": mask_intensity_mean,
