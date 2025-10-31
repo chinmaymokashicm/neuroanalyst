@@ -393,15 +393,14 @@ class PipelineConstructorConfig(BaseModel):
         
         self.graph = graph
         return graph
-        
-    def visualize(self, show_header_box: bool = True, show_status: bool = True) -> None:
+
+    def visualize(self, show_header_box: bool = True, show_status: bool = True) -> plt.Figure:
         """
-        Visualize the DAG top-down with processes in the same step horizontally aligned.
+        Visualize the DAG top-down with processes in the same step horizontally aligned. Returns a matplotlib figure to save if needed.
         
         Args:
             show_header_box (bool): Whether to show a gray rounded rectangle behind the title area.
             show_status (bool): Whether to display the current status of the pipeline processes.
-        
         """
         if not self.graph:
             print("Graph not constructed yet. Run `construct_graph()` first.")
@@ -546,6 +545,8 @@ class PipelineConstructorConfig(BaseModel):
         ax.axis("off")
         plt.show()
 
+        return fig
+
         
     def set_descendant_subject_session_pairs(self, root_node: str) -> None:
         """Set subject-session pairs for all descendant process configs based on the root node."""
@@ -567,7 +568,7 @@ class PipelineConstructorConfig(BaseModel):
                 continue
             desc_config.subject_session_pairs = subject_session_pairs
     
-    def to_pipeline(self, bids_root: str | Path) -> NeuPipeline:
+    def to_pipeline(self, bids_root: str | Path, save_fig: bool = True) -> NeuPipeline:
         """Construct a NeuPipeline instance from the configuration."""
         if not self.graph:
             self.construct_graph()
@@ -628,5 +629,12 @@ class PipelineConstructorConfig(BaseModel):
         
         # Re-construct the graph in the pipeline
         self.construct_graph()
+        
+        if save_fig:
+            fig_name: str = "graph.png"
+            fig_path: Path = pipeline.pipeline_dir_path / fig_name
+            fig: plt.Figure = self.visualize(show_header_box=True, show_status=True)
+            fig.savefig(fig_path, dpi=300)
+            print(f"Saved pipeline graph visualization to {fig_path}")
         
         return pipeline
