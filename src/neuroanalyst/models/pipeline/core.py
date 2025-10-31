@@ -1096,21 +1096,26 @@ class NeuPipeline(BaseModel):
         pipeline_dir = self.pipeline_dir_path
         try:
             pipeline_dir.mkdir(parents=True, exist_ok=False)
+            
+            # Initialize status tracking
+            self._initialize_status_tracking()
+            
+            # Create the execution script
+            self._generate_execution_script()
+            
+            # Create README.md with pipeline information
+            self._generate_readme()
+            
+            # Save the model file for reproducibility
+            with open(self.model_path, "w") as f:
+                f.write(self.model_dump_json(indent=2))
+                
         except FileExistsError:
             print(f"Pipeline directory '{pipeline_dir}' already exists. Using existing directory.")
         
-        # Initialize status tracking
-        self._initialize_status_tracking()
-        
-        # Create the execution script
-        self._generate_execution_script()
-        
-        # Create README.md with pipeline information
-        self._generate_readme()
-        
-        # Save the model file for reproducibility
-        with open(self.model_path, "w") as f:
-            f.write(self.model_dump_json(indent=2))
+        except Exception as e:
+            print(f"Error creating pipeline directory '{pipeline_dir}': {e}")
+            raise e
         
         return pipeline_dir
     
