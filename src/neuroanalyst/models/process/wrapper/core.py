@@ -302,6 +302,29 @@ Error message: {str(func_error)}
                         # sidecar_filepath = output_filepath.with_suffix(CONFIG.BIDS_SIDECAR_SUFFIX)
                         sidecar_filepath = str(output_filepath).split(".")[0] + f'{CONFIG.BIDS_SIDECAR_SUFFIX}'
                     
+                    # Make sure metadata is JSON-serializable. If problematic types cannot be converted, pass a None value.
+                    def make_json_serializable(obj: Any) -> Any:
+                        if isinstance(obj, (np.integer, np.floating)):
+                            return obj.item()
+                        elif isinstance(obj, np.ndarray):
+                            return obj.tolist()
+                        elif isinstance(obj, (pd.DataFrame, pd.Series)):
+                            return obj.to_dict(orient='records')
+                        elif isinstance(obj, Path):
+                            return str(obj)
+                        elif isinstance(obj, (list, dict)):
+                            return {k: make_json_serializable(v) for k, v in (obj.items() if isinstance(obj, dict) else enumerate(obj))}
+                        else:
+                            try:
+                                json.dumps(obj)
+                                return obj
+                            except (TypeError, OverflowError):
+                                return str(obj)
+                            except Exception:
+                                return None
+
+                    metadata = {k: make_json_serializable(v) for k, v in metadata.items()}
+
                     with open(sidecar_filepath, 'w') as f:
                         json.dump(metadata, f, indent=2)
                 
