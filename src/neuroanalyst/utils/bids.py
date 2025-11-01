@@ -1,8 +1,11 @@
 import json, subprocess
 from pathlib import Path
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 
 from bids import BIDSLayout
+from pydantic import validate_call, ConfigDict
+
+allow_arbitrary_config = ConfigDict(arbitrary_types_allowed=True)
 
 def get_bids_files(bids_filters: dict, scope: str, bids_root: Path, relative_path: bool = False, return_as_list: bool = True) -> List[str] | str:
     """
@@ -38,10 +41,13 @@ def get_bids_files(bids_filters: dict, scope: str, bids_root: Path, relative_pat
     else:
         return "\n".join(files)
 
+@validate_call(config=allow_arbitrary_config)
 def split_by_subject_session(
     bids_layout: BIDSLayout, 
     bids_filters: dict, 
-    max_chunk_size: int = 5
+    max_chunk_size: int = 5,
+    subjects: Optional[list[str]] = None,
+    sessions: Optional[list[str]] = None
 ) -> list[dict]:
     """
     Split a BIDS query into the minimum number of filter dicts such that
@@ -59,7 +65,11 @@ def split_by_subject_session(
         Filters to apply to the BIDS query. Should not contain 'subject' or 'session' keys.
     max_chunk_size : int, optional
         Maximum number of files per chunk (default: 5).
-        
+    subjects : list[str], optional
+        List of subjects to consider. If None, all subjects are considered.
+    sessions : list[str], optional
+        List of sessions to consider, only if subjects is provided. If None, all sessions are considered.
+
     Returns:
     --------
     list[dict]
@@ -76,6 +86,18 @@ def split_by_subject_session(
     for key in ["subject", "session"]:
         if key in bids_filters:
             raise ValueError(f"'bids_filters' should not contain '{key}' key. It is handled separately.")
+
+    subject_session_filters: dict = {}
+    if subjects is not None:
+        subjects = [subject for subject in subjects if subject is not None] # Clean None values
+        if subjects: # Only add if list is not empty
+            subject_session_filters["subject"] = subjects
+            if sessions is not None:
+                sessions = [session for session in sessions if session is not None] # Clean None values
+                if sessions: # Only add if list is not empty
+                    subject_session_filters["session"] = sessions
+            
+    bids_filters = {**bids_filters, **subject_session_filters}
     
     # 1. Get all matching files
     files = bids_layout.get(**bids_filters, return_type="file", target="subject")
