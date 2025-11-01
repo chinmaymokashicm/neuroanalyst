@@ -61,7 +61,7 @@ class NeuProcessExec(BaseModel):
     - SLURM: partition, mem, time, cpus-per-task, etc.
     - PBS: queue, mem, walltime, nodes, etc.
     """
-    model_config = ConfigDict(validate_assignment=True)
+    # model_config = ConfigDict(validate_assignment=True)
     
     # Basic information
     exec_id: str = Field(default_factory=generate_process_exec_id, 
