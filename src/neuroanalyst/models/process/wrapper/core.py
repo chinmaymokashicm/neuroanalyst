@@ -496,7 +496,7 @@ def _write_output_data(data: Any, output_filepath: Union[str, Path]) -> None:
         print(f"Detected Gifti format: {suffix}")
         print(f"Data type: {type(data)}")
         if isinstance(data, nib.gifti.GiftiImage):
-            print("Saving Gifti image directly")
+            print("Saving Gifti directly")
             nib.save(data, str(output_filepath))
         else:
             raise ValueError(f"Unsupported data type {type(data)} for {suffix}")
@@ -521,6 +521,23 @@ def _write_output_data(data: Any, output_filepath: Union[str, Path]) -> None:
         elif isinstance(data, (list, dict, np.ndarray)):
             df = pd.DataFrame(data)
             df.to_csv(output_filepath, sep=sep, index=False)
+        else:
+            raise ValueError(f"Unsupported data type {type(data)} for {suffix}")
+    
+    #! Excel format does not appear to be BIDS-compliant, but included for completeness
+    elif suffix == ".xlsx":
+        # Excel format - expects a dictionary of DataFrames or a single DataFrame
+        # If dictionary, each key will be a sheet name
+        # Requires openpyxl
+        if isinstance(data, pd.DataFrame):
+            data.to_excel(output_filepath, index=False)
+        elif isinstance(data, dict):
+            with pd.ExcelWriter(output_filepath, engine='openpyxl') as writer:
+                for sheet_name, df in data.items():
+                    if isinstance(df, pd.DataFrame):
+                        df.to_excel(writer, sheet_name=sheet_name, index=False)
+                    else:
+                        raise ValueError(f"Value for sheet '{sheet_name}' is not a DataFrame")
         else:
             raise ValueError(f"Unsupported data type {type(data)} for {suffix}")
 

@@ -147,8 +147,13 @@ class NeuProcessLogic(BaseModel):
         for key, value in v.items():
             if not isinstance(value, str):
                 raise ValueError(f"Value for key '{key}' must be a string, got {type(value).__name__}")
+            
+        # Check 2: Values should not have spaces, commas, underscores, hyphens, or special characters
+        for key, value in v.items():
+            if any(char in value for char in [' ', ',', '_', '-', '/', '\\', '!', '@', '#', '$', '%', '^', '&', '*', '(', ')']):
+                raise ValueError(f"Value for key '{key}' contains invalid characters. Only alphanumeric characters are allowed.")
         
-        # Check 2: All keys must be from the allowed set
+        # Check 3: All keys must be from the allowed set
         for key in v:
             if key not in ALLOWED_PYBIDS_ENTITY_KEYS:
                 allowed_keys_str = ", ".join(f"'{k}'" for k in ALLOWED_PYBIDS_ENTITY_KEYS)

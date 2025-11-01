@@ -18,16 +18,16 @@ import networkx as nx
 from matplotlib import pyplot as plt
 from bids.layout import BIDSLayout
 
-class ProcessConstructorConfig(BaseModel):
+class ProcessConstructorConfig(BaseModel, validate_assignment=True):
     """Configuration for passing a NeuProcess to a NeuPipeline constructor."""
     username: Optional[str] = Field(None, description="Username of the process owner.")
     process_id: str = Field(..., description="Unique identifier for the process.")
     extra_bind_paths: dict[str, str] = Field(default_factory=dict, description="Extra bind paths required by the process.")
     extra_environment_variables: dict[str, str] = Field(default_factory=dict, description="Extra environment variables required by the process.")
     input_bids_filters: dict[str, Optional[str | list[Optional[str | int]]]] = Field(default_factory=dict, description="BIDS filters for input data selection.")
-    subject_session_pairs: Optional[list[tuple[Optional[str | list[str]], Optional[str | list[str]]]]] = Field(description="List of (subject, session) pairs for which to create process execs.", default_factory=lambda: [(None, None)])
+    subject_session_pairs: list[tuple[list[Optional[str]], list[Optional[str]]]] = Field(description="List of (subject, session) pairs for which to create process execs.", default_factory=lambda: [([None], [None])])
     execution_mode: ExecutionMode = Field(default=ExecutionMode.CONTAINER, description="Execution mode for the process within the pipeline.")
-    
+
     @property
     def process(self) -> NeuProcess:
         """Get the NeuProcess instance for the given process_id."""
@@ -38,17 +38,23 @@ class ProcessConstructorConfig(BaseModel):
         """Get the output BIDS entities from the process logic."""
         return self.process.logic.output_entities
 
+    def add_subject_session_pair(self, subject: Optional[str | list[Optional[str]]], session: Optional[str | list[Optional[str]]]) -> None:
+        """Add a (subject, session) pair to the configuration."""
+        if isinstance(subject, str | None):
+            subject = [subject]
+        if isinstance(session, str | None):
+            session = [session]
+        # If the current list has only the default (None, None) pair, remove it
+        if self.subject_session_pairs == [([None], [None])]:
+            self.subject_session_pairs = []
+        self.subject_session_pairs.append((subject, session))
+
     def generate_process_execs(self, scheduler_flags: dict) -> list[NeuProcessExec]:
         """Get the list of NeuProcessExec instances for this configuration."""
         process_execs: list[NeuProcessExec] = []
-        for subject_session_pair in self.subject_session_pairs or [(None, None)]:
-            subjects: Optional[str | list[str]] = subject_session_pair[0]
-            sessions: Optional[str | list[str]] = subject_session_pair[1]
-            
-            if isinstance(subjects, str | None):
-                subjects = [subjects]
-            if isinstance(sessions, str | None):
-                sessions = [sessions]
+        for subject_session_pair in self.subject_session_pairs:
+            subjects: list[Optional[str]] = subject_session_pair[0]
+            sessions: list[Optional[str]] = subject_session_pair[1]
 
             bids_filters: dict[str, Optional[str | list[Optional[str | int]]]] = self.input_bids_filters.copy()
             if len(subjects) > 0 and subjects != [None]:
@@ -394,11 +400,12 @@ class PipelineConstructorConfig(BaseModel):
         self.graph = graph
         return graph
 
-    def visualize(self, show_header_box: bool = True, show_status: bool = True) -> plt.Figure:
+    def plot_graph(self, visualize: bool = False, show_header_box: bool = True, show_status: bool = True, return_fig: bool = False) -> Optional[plt.Figure]:
         """
         Visualize the DAG top-down with processes in the same step horizontally aligned. Returns a matplotlib figure to save if needed.
         
         Args:
+            visualize (bool): Whether to display the plot immediately.
             show_header_box (bool): Whether to show a gray rounded rectangle behind the title area.
             show_status (bool): Whether to display the current status of the pipeline processes.
         """
@@ -543,9 +550,11 @@ class PipelineConstructorConfig(BaseModel):
 
         fig.subplots_adjust(top=0.80)  # 👈 now this works as expected
         ax.axis("off")
-        plt.show()
+        if visualize:
+            plt.show()
 
-        return fig
+        if return_fig:
+            return fig
 
         
     def set_descendant_subject_session_pairs(self, root_node: str) -> None:
@@ -579,20 +588,21 @@ class PipelineConstructorConfig(BaseModel):
         # Set subject-session pairs for all root nodes
         for root_node in self.get_root_nodes():
             process_config, _ = self.get_config_by_name(root_node)
-            # If subject-session pairs are set, it means that the pipeline should not run on all subjects/sessions.
-            if len(process_config.subject_session_pairs) == 0:
-                subjects, sessions = process_config.subject_session_pairs[0]
-                if isinstance(subjects, str | None):
-                    subjects = [subjects]
-                if isinstance(sessions, str | None):
-                    sessions = [sessions]
-                if any(subjects) or any(sessions):
-                    continue  # Subject/session filtering is already set
-                
+            subject_session_pairs: list[tuple[list[str | None], list[str | None]]] = process_config.subject_session_pairs
+
+            subjects: list[Optional[str]] = [pair[0] for pair in process_config.subject_session_pairs]
+            sessions: list[Optional[str]] = [pair[1] for pair in process_config.subject_session_pairs]
+            
+            # Flatten subjects and sessions lists
+            subjects: list[str] = [subj for sublist in subjects for subj in (sublist if isinstance(sublist, list) else [sublist]) if subj is not None]
+            sessions: list[str] = [sess for sublist in sessions for sess in (sublist if isinstance(sublist, list) else [sublist]) if sess is not None]
+
             _, subject_session_pairs = NeuProcessExec.spawn_optimized_execs(
                 process=process_config.process,
                 bids_filters=process_config.input_bids_filters,
-                bids_layout=bids_layout
+                bids_layout=bids_layout,
+                subjects=subjects,
+                sessions=sessions,
             )
             process_config.subject_session_pairs = subject_session_pairs
             # Set subject-session pairs for all descendants
@@ -633,8 +643,9 @@ class PipelineConstructorConfig(BaseModel):
         if save_fig:
             fig_name: str = "graph.png"
             fig_path: Path = pipeline.pipeline_dir_path / fig_name
-            fig: plt.Figure = self.visualize(show_header_box=True, show_status=True)
+            fig: plt.Figure = self.plot_graph(visualize=False, show_header_box=True, show_status=True, return_fig=True)
             fig.savefig(fig_path, dpi=300)
+            plt.close(fig)
             print(f"Saved pipeline graph visualization to {fig_path}")
         
         return pipeline

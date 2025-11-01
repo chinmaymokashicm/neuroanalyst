@@ -16,7 +16,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Optional, List, Dict, Any, Union, ClassVar
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator, ConfigDict
 from bids import BIDSLayout
 
 from ....utils.constants import NeuroAnalystPaths
@@ -61,6 +61,8 @@ class NeuProcessExec(BaseModel):
     - SLURM: partition, mem, time, cpus-per-task, etc.
     - PBS: queue, mem, walltime, nodes, etc.
     """
+    model_config = ConfigDict(validate_assignment=True)
+    
     # Basic information
     exec_id: str = Field(default_factory=generate_process_exec_id, 
                         description="Unique identifier for the execution instance")
@@ -89,7 +91,21 @@ class NeuProcessExec(BaseModel):
     exec_command: Optional[str] = Field(default=None,
                                       description="Generated execution command")
     
-    # Class variables
+    @field_validator("env_var_values", mode="before")
+    def validate_env_var_values(cls, v):
+        """Validate that env_var_values keys and values are strings without special characters."""
+        if not isinstance(v, dict):
+            raise ValueError("env_var_values must be a dictionary")
+        
+        # Check 1: All values must be strings (no nesting)
+        for key, value in v.items():
+            if not isinstance(value, str):
+                raise ValueError(f"Value for key '{key}' must be a string, got {type(value).__name__}")
+            
+        # Check 2: Values should not have spaces, commas, underscores, hyphens, or special characters
+        for key, value in v.items():
+            if any(char in value for char in [' ', ',', '_', '-', '/', '\\', '!', '@', '#', '$', '%', '^', '&', '*', '(', ')']):
+                raise ValueError(f"Value for key '{key}' contains invalid characters. Only alphanumeric characters are allowed.")
     
     @property
     def username(self) -> Optional[str]:
@@ -223,7 +239,14 @@ class NeuProcessExec(BaseModel):
             raise ValueError(f"Failed to load NeuProcessExec from disk: {e}")
     
     @staticmethod
-    def spawn_optimized_execs(process: NeuProcess, bids_filters: dict, bids_layout: BIDSLayout, max_chunk_size: int = 5) -> tuple[list["NeuProcessExec"], list[tuple[list[str], list[str]]]]:
+    def spawn_optimized_execs(
+        process: NeuProcess,
+        bids_filters: dict,
+        bids_layout: BIDSLayout,
+        max_chunk_size: int = 5,
+        subjects: Optional[list[str]] = None,
+        sessions: Optional[list[str]] = None
+    ) -> tuple[list["NeuProcessExec"], list[tuple[list[str], list[str]]]]:
         """
         Create multiple NeuProcessExec instances by splitting BIDS filters into optimized chunks.
         This method uses the split_by_subject_session function to divide the BIDS query
@@ -234,12 +257,20 @@ class NeuProcessExec(BaseModel):
             bids_filters: Base BIDS filters to apply (should not include 'subject' or 'session')
             bids_layout: BIDSLayout object for querying the BIDS dataset
             max_chunk_size: Maximum number of files per chunk (default: 5)
+            subjects: Optional list of subjects to consider. If None, all subjects are considered.
+            sessions: Optional list of sessions to consider. If None, all sessions are considered.
         Returns:
             tuple: (list of NeuProcessExec instances, list of subject-session pairs for each exec)
         """
         process_execs: list[NeuProcessExec] = []
         subject_session_pairs: list[tuple[list[str], list[str]]] = []
-        for chunk in split_by_subject_session(bids_layout=bids_layout, bids_filters=bids_filters, max_chunk_size=max_chunk_size):
+        for chunk in split_by_subject_session(
+            bids_layout=bids_layout,
+            bids_filters=bids_filters,
+            max_chunk_size=max_chunk_size,
+            subjects=subjects,
+            sessions=sessions
+            ):
             if chunk["n_files"] == 0:
                 print(f"Warning: No files found for the given BIDS filters ( {bids_filters} ) chunk. Skipping this chunk.")
                 continue
