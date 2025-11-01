@@ -61,7 +61,7 @@ class NeuProcessExec(BaseModel):
     - SLURM: partition, mem, time, cpus-per-task, etc.
     - PBS: queue, mem, walltime, nodes, etc.
     """
-    # model_config = ConfigDict(validate_assignment=True)
+    model_config = ConfigDict(validate_assignment=True)
     
     # Basic information
     exec_id: str = Field(default_factory=generate_process_exec_id, 
@@ -106,6 +106,8 @@ class NeuProcessExec(BaseModel):
         # for key, value in v.items():
         #     if any(char in value for char in [' ', ',', '_', '-', '/', '\\', '!', '@', '#', '$', '%', '^', '&', '*', '(', ')']):
         #         raise ValueError(f"Value for key '{key}' contains invalid characters. Only alphanumeric characters are allowed.")
+        
+        return v
     
     @property
     def username(self) -> Optional[str]:
