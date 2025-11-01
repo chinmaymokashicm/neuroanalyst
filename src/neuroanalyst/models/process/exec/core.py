@@ -102,10 +102,10 @@ class NeuProcessExec(BaseModel):
             if not isinstance(value, str):
                 raise ValueError(f"Value for key '{key}' must be a string, got {type(value).__name__}")
             
-        # Check 2: Values should not have spaces, commas, underscores, hyphens, or special characters
-        for key, value in v.items():
-            if any(char in value for char in [' ', ',', '_', '-', '/', '\\', '!', '@', '#', '$', '%', '^', '&', '*', '(', ')']):
-                raise ValueError(f"Value for key '{key}' contains invalid characters. Only alphanumeric characters are allowed.")
+        # # Check 2: Values should not have spaces, commas, underscores, hyphens, or special characters
+        # for key, value in v.items():
+        #     if any(char in value for char in [' ', ',', '_', '-', '/', '\\', '!', '@', '#', '$', '%', '^', '&', '*', '(', ')']):
+        #         raise ValueError(f"Value for key '{key}' contains invalid characters. Only alphanumeric characters are allowed.")
     
     @property
     def username(self) -> Optional[str]:
