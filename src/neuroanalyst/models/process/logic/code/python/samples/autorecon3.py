@@ -1,3 +1,5 @@
+from neuroanalyst.analysis.freesurfer import extract_all_freesurfer_metrics, export_metrics
+
 import os, subprocess, json
 from pathlib import Path
 import traceback
@@ -5,6 +7,7 @@ from typing import Optional
 
 import nibabel as nib
 import numpy as np
+import pandas as pd
 from bids.layout import parse_file_entities
 from bids.layout.writing import build_path
 
@@ -13,6 +16,17 @@ def autorecon3(input_filepath: str):
     FreeSurfer Autorecon3. Performs cortical surface reconstruction.
     Runs FreeSurfer's autorecon3 on the input NIfTI file. (https://surfer.nmr.mgh.harvard.edu/fswiki/recon-all).
     Assumes that autorecon2 has been run previously and the subject directory exists.
+    24. Spherical Mapping
+    25. Spherical Registration 
+    26. Spherical Registration, Contralater hemisphere
+    27. Map average curvature to subject
+    28. Cortical Parcellation (Labeling)
+    29. Cortical Parcellation Statistics
+    30. Pial Surfs
+    31. WM/GM Contrast
+    32. Cortical Ribbon Mask
+    33. Cortical Parcellation mapped to ASeg
+    34  Brodmann and exvio EC labels
     
     Notes for future implementations and error handling:
     - If a subject directory has been created previously, re-running with -i flag will error out. Remove the flag or delete the subject directory beforehand.
@@ -58,7 +72,8 @@ def autorecon3(input_filepath: str):
     FREESURFER_HOME: str = os.getenv("FREESURFER_HOME", None)
     if not FREESURFER_HOME:
         raise EnvironmentError("FREESURFER_HOME environment variable is not set.")
-    tmp_dir: str = os.path.join(DATA_DIR, "derivatives", PIPELINE_NAME, "tmp")  #! Temporary directory for outputs; which would be usually be cleaned up by NeuroAnalyst wrapper, but here we keep it for FreeSurfer's intermediate files.
+    pipeline_dir: str = os.path.join(DATA_DIR, "derivatives", PIPELINE_NAME)
+    tmp_dir: str = os.path.join(pipeline_dir, "tmp")  #! Temporary directory for outputs; which would be usually be cleaned up by NeuroAnalyst wrapper, but here we keep it for FreeSurfer's intermediate files.
     os.makedirs(tmp_dir, exist_ok=True)
     
     # Load sidecar of input file to check for QC results
@@ -70,8 +85,8 @@ def autorecon3(input_filepath: str):
         qc_pass_autorecon2 = input_sidecar.get("metrics", {}).get("qc_pass", {}).get("autorecon2", None)
     
     # Step 2: Prepare FreeSurfer command
-    entities: dict = parse_file_entities(input_filepath)
-    subject_id: str = f"{entities.get('subject', 'unknown')}_{entities.get('session', 'ses-unknown')}"
+    input_entities: dict = parse_file_entities(input_filepath)
+    subject_id: str = f"{input_entities.get('subject', 'unknown')}_{input_entities.get('session', 'ses-unknown')}"
     fs_subjects_dir: str = os.path.join(tmp_dir, "freesurfer_subjects")
     os.makedirs(fs_subjects_dir, exist_ok=True)
     
@@ -104,25 +119,57 @@ def autorecon3(input_filepath: str):
         raise e
     
     # Step 4: Prepare outputs
-    lh_cortical_surface_filepath: str = os.path.join(fs_subjects_dir, subject_id, "surf", "lh.pial")
-    rh_cortical_surface_filepath: str = os.path.join(fs_subjects_dir, subject_id, "surf", "rh.pial")
-    # Convert surface to nibabel Gifti format
-    lh_vertices, lh_faces = nib.freesurfer.read_geometry(lh_cortical_surface_filepath)
-    rh_vertices, rh_faces = nib.freesurfer.read_geometry(rh_cortical_surface_filepath)
+    all_metrics: dict = extract_all_freesurfer_metrics(os.path.join(fs_subjects_dir, subject_id))
+    # Separate values that are dicts and those that are pd.DataFrames
+    # The dictionary metrics will go into sidecar, while DataFrames will be saved as CSV outputs.
+    dict_metrics: dict = {}
+    for key, value in all_metrics.items():
+        if isinstance(value, dict):
+            dict_metrics[key] = value
+        else:
+            pass
 
-    output_data = nib.GiftiImage()
-    lh_coords = nib.GiftiDataArray(data=lh_vertices, intent=nib.nifti1.intent_codes['NIFTI_INTENT_POINTSET'])
-    lh_faces_array = nib.GiftiDataArray(data=lh_faces, intent=nib.nifti1.intent_codes['NIFTI_INTENT_TRIANGLE'])
-    output_data.add_gifti_data_array(lh_coords)
-    output_data.add_gifti_data_array(lh_faces_array)
-
-    rh_coords = nib.GiftiDataArray(data=rh_vertices, intent=nib.nifti1.intent_codes['NIFTI_INTENT_POINTSET'])
-    rh_faces_array = nib.GiftiDataArray(data=rh_faces, intent=nib.nifti1.intent_codes['NIFTI_INTENT_TRIANGLE'])
-    output_data.add_gifti_data_array(rh_coords)
-    output_data.add_gifti_data_array(rh_faces_array)
+    # Save all metrics to directory
+    metrics_output_dir = os.path.join(pipeline_dir, "freesurfer_metrics", subject_id)
+    os.makedirs(metrics_output_dir, exist_ok=True)
+    export_metrics(all_metrics, output_dir=metrics_output_dir)
+    
+    # Return surface stats as output data and save cortical metrics DataFrames as CSV
+    try:
+        output_data: pd.DataFrame = pd.read_csv(os.path.join(metrics_output_dir, "surface_statistics.csv"))
+    except Exception as e:
+        print(f"Error loading surface_statistics.csv: {e}")
+        output_data = pd.DataFrame()
+    try:
+        df_cortical_bilateral: pd.DataFrame = pd.read_csv(os.path.join(metrics_output_dir, "cortical_regional_metrics_bilateral.csv"))
+    except Exception as e:
+        print(f"Error loading cortical_regional_metrics_bilateral.csv: {e}")
+        df_cortical_bilateral = pd.DataFrame()
+    
+        cortical_file_entities: dict = {**input_entities}
+        cortical_file_entities.update({
+            "desc": "cortical",
+            "suffix": "stats",
+            "extension": ".csv",
+            })
+        
+        custom_path_patterns = [
+            "[sub-{subject}/][ses-{session}/]{datatype}/sub-{subject}_[ses-{session}_][acq-{acquisition}_][run-{run}_][desc-{desc}_]{suffix}{extension}",
+            "[sub-{subject}/][ses-{session}/]{datatype}/sub-{subject}_[ses-{session}_][task-{task}_][acq-{acquisition}_][ce-{ce}_][dir-{dir}_][rec-{rec}_][run-{run}_][echo-{echo}_][desc-{desc}_]{suffix}{extension}",
+            "[sub-{subject}/][ses-{session}/]{datatype}/sub-{subject}_[ses-{session}_][task-{task}_][acq-{acquisition}_][run-{run}_][desc-{desc}_]{suffix}{extension}",
+            "[sub-{subject}/][ses-{session}/]{datatype}/sub-{subject}_[ses-{session}_][space-{space}_][hemi-{hemi}_][model-{model}_][desc-{desc}_]{suffix}{extension}",
+            "[sub-{subject}/][ses-{session}/][sample-{sample}/]{datatype}/sub-{subject}_[ses-{session}_][sample-{sample}_][desc-{desc}_]{suffix}{extension}",
+            "[sub-{subject}/][ses-{session}/][sample-{sample}/][modality-{modality}_]{datatype}/sub-{subject}_[ses-{session}_][sample-{sample}_][modality-{modality}_][desc-{desc}_]{suffix}{extension}"
+            ]
+        
+        cortical_output_filename: str = build_path(cortical_file_entities, path_patterns=custom_path_patterns)
+        cortical_output_filepath: str = os.path.join(os.path.dirname(input_filepath), cortical_output_filename)
+        os.makedirs(os.path.dirname(cortical_output_filepath), exist_ok=True)
+        df_cortical_bilateral.to_csv(cortical_output_filepath, index=False)
 
     # Step 5: Prepare metrics and output entities
     try:
+        # QC metrics
         qc_results = qc_autorecon3(os.path.join(fs_subjects_dir, subject_id, "stats"))
         if qc_pass_autorecon2 is None:
             qc_pass_autorecon2 = qc_results["qc_pass"]
@@ -139,13 +186,14 @@ def autorecon3(input_filepath: str):
         "qc_pass": {
             "autorecon2": qc_pass_autorecon2,
             "autorecon3": qc_results["qc_pass"]
-        }
+        },
+        **dict_metrics
     }
     
     output_entities = {
-        "desc": "cortical_surface",
-        "suffix": "surf",
-        "extension": ".surf.gii",
+        "desc": "surface",
+        "suffix": "stats",
+        "extension": ".csv",
     }
     
     return output_data, metrics, output_entities, []

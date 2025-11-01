@@ -3,6 +3,7 @@ from pathlib import Path
 from typing import Optional
 
 import nibabel as nib
+from nibabel import gifti
 import numpy as np
 from bids.layout import parse_file_entities
 from bids.layout.writing import build_path
@@ -13,6 +14,25 @@ def autorecon2(input_filepath: str):
     FreeSurfer Autorecon2. Performs tissue segmentation.
     Runs FreeSurfer's autorecon2 on the input NIfTI file. (https://surfer.nmr.mgh.harvard.edu/fswiki/recon-all).
     Assumes that autorecon1 has been run previously and the subject directory exists.
+    6.  EM Register (linear volumetric registration)
+    7.  CA Intensity Normalization
+    8.  CA Non-linear Volumetric Registration 
+    9.  Remove neck
+    10. EM Register, with skull
+    11. CA Label (Aseg: Volumetric Labeling) and Statistics
+
+    12. Intensity Normalization 2 (start here for control points)
+    13. White matter segmentation
+    14. Edit WM With ASeg
+    15. Fill (start here for wm edits)
+    16. Tessellation (begins per-hemisphere operations)
+    17. Smooth1
+    18. Inflate1
+    19. QSphere
+    20. Automatic Topology Fixer
+    21. White Surfs (start here for brain edits for pial surf)
+    22. Smooth2
+    23. Inflate2
     
     Notes for future implementations and error handling:
     - If a subject directory has been created previously, re-running with -i flag will error out. Remove the flag or delete the subject directory beforehand.
@@ -20,10 +40,11 @@ def autorecon2(input_filepath: str):
         rm /data/tmp/freesurfer_subjects/{subject_id}/scripts/IsRunning.lh+rh
     
     Args:
-        input_filepath (str): Path to input NIfTI file.
+        input_filepath (str): Path to input NIfTI file. Loads the reference image from the previous autorecon1 step. Has 2 channels - intensity-normalized brain and skull-stripped brain.
     Returns:
-        output_data (np.ndarray): Array of segmentation data. 
-            Shape will be (X, Y, Z, 1) where the last dimension corresponds to [segmentation].
+        output_data (np.ndarray): Array of segmentation data ("aseg.presurf.mgz") and white matter separated ("wm.mgz").
+            Shape will be (X, Y, Z, 2) where the last dimension corresponds to [segmentation, white_matter].
+            *Note - this output is only as a reference for downstream processing; the actual outputs are saved in FreeSurfer's subject directory structure.
         metrics (dict): Dictionary of relevant metrics.
         output_entities (dict): Dictionary of BIDS entities for the output file.
         forced_outputs (list): List of file paths that are saved as outputs but not BIDS-compliant.
@@ -43,6 +64,12 @@ def autorecon2(input_filepath: str):
         wm_ok = 200000 < vols.get("Left-Cerebral-White-Matter", 0) < 400000
         bs_ok = 15000 < vols.get("Brain-Stem", 0) < 30000
         return {"qc_pass": wm_ok and bs_ok, "volumes": vols}
+    
+    def to_gifti(vertices: np.ndarray, faces: np.ndarray):
+        gii = gifti.GiftiImage()
+        gii.add_gifti_data_array(gifti.GiftiDataArray(data=vertices, intent='NIFTI_INTENT_POINTSET'))
+        gii.add_gifti_data_array(gifti.GiftiDataArray(data=faces, intent='NIFTI_INTENT_TRIANGLE'))
+        return gii
 
     # Step 1: Prepare environment and paths
     DATA_DIR: str = "/data"  # shared data dir bind
@@ -90,28 +117,31 @@ def autorecon2(input_filepath: str):
         recon-all -s {subject_id} -sd {fs_subjects_dir} -autorecon2
         """
     ]
-    
-    # Step 3: Run the FreeSurfer command
-    print(f"Running command: {cmd}")
-    try:
-        result = subprocess.run(cmd, check=True, capture_output=True, text=True)
-        print(f"FreeSurfer Autorecon1 command finished with return code {result.returncode}")
-        if result.stdout:
-            print(result.stdout)
-        if result.stderr:
-            print(result.stderr)
-    except subprocess.CalledProcessError as e:
-        print(f"Error running FreeSurfer Autorecon1 command: {e}")
-        if getattr(e, "stdout", None):
-            print("Stdout:", e.stdout)
-        if getattr(e, "stderr", None):
-            print("Stderr:", e.stderr)
-        traceback.print_exc()
-        raise e
 
-    # Step 4: Prepare outputs
-    aseg_filepath: str = os.path.join(fs_subjects_dir, subject_id, "mri", "aseg.mgz")
-    wm_filepath: str = os.path.join(fs_subjects_dir, subject_id, "mri", "wm.mgz")
+    # Step 3: Prepare outputs
+    aseg_filepath: str = os.path.join(fs_subjects_dir, subject_id, "mri", "aseg.presurf.mgz")
+    wm_filepath: str = os.path.join(fs_subjects_dir, subject_id, "mri", "wm.seg.mgz")
+    
+    if not os.path.exists(aseg_filepath) or not os.path.exists(wm_filepath):
+        # Step 4: Run the FreeSurfer command
+        print(f"Running command: {cmd}")
+        try:
+            result = subprocess.run(cmd, check=True, capture_output=True, text=True)
+            print(f"FreeSurfer Autorecon2 command finished with return code {result.returncode}")
+            if result.stdout:
+                print(result.stdout)
+            if result.stderr:
+                print(result.stderr)
+        except subprocess.CalledProcessError as e:
+            print(f"Error running FreeSurfer Autorecon1 command: {e}")
+            if getattr(e, "stdout", None):
+                print("Stdout:", e.stdout)
+            if getattr(e, "stderr", None):
+                print("Stderr:", e.stderr)
+            traceback.print_exc()
+            raise e
+    else:
+        print("Outputs already exist. Skipping FreeSurfer command execution.")
     
     aseg_data = nib.load(aseg_filepath).get_fdata()
     wm_data = nib.load(wm_filepath).get_fdata()
@@ -135,15 +165,15 @@ def autorecon2(input_filepath: str):
         "segmentation_dimensions": aseg_data.shape,
         "segmentation_classes": int(np.max(aseg_data)),
         "output_channels": [
-            "segmentation",
-            "white_matter"
+            {"name": "segmentation", "description": "Automated segmentation (aseg.presurf.mgz)"},
+            {"name": "white_matter", "description": "White matter segmentation (wm.mgz)"}
         ],
         "qc_pass": {
             "autorecon1": qc_pass_autorecon1,
             "autorecon2": qc_results.get("qc_pass", None)
         },
         "parameters": {
-            "FreeSurfer_version": os.getenv("FREESURFER_VERSION", "unknown"),
+            "FreeSurfer_version": FREESURFER_HOME.split("/")[-1],
         },
         "original_output_path": fs_subjects_dir,
     }
@@ -157,52 +187,52 @@ def autorecon2(input_filepath: str):
     # forced_outputs = [aseg_filepath, wm_filepath]
     forced_outputs = []
     
-    # Save supplementary outputs by BIDS compliance
-    lh_surface_filepath: str = os.path.join(fs_subjects_dir, subject_id, "surf", "lh.white")
-    rh_surface_filepath: str = os.path.join(fs_subjects_dir, subject_id, "surf", "rh.white")
-    lh_surface_bids_entities: dict = {**entities, **{
-        "hemi": "L",
-        "desc": "surf",
-        "suffix": "pial",
-        "extension": ".surf.gii",
-    }}
-    rh_surface_bids_entities: dict = {**entities, **{
-        "hemi": "R",
-        "desc": "surf",
-        "suffix": "pial",
-        "extension": ".surf.gii",
-    }}
-    custom_path_patterns = [
-        "[sub-{subject}/][ses-{session}/]{datatype}/sub-{subject}_[ses-{session}_][acq-{acquisition}_][run-{run}_][desc-{desc}_]{suffix}{extension}",
-        "[sub-{subject}/][ses-{session}/]{datatype}/sub-{subject}_[ses-{session}_][task-{task}_][acq-{acquisition}_][ce-{ce}_][dir-{dir}_][rec-{rec}_][run-{run}_][echo-{echo}_][desc-{desc}_]{suffix}{extension}",
-        "[sub-{subject}/][ses-{session}/]{datatype}/sub-{subject}_[ses-{session}_][task-{task}_][acq-{acquisition}_][run-{run}_][desc-{desc}_]{suffix}{extension}",
-        "[sub-{subject}/][ses-{session}/]{datatype}/sub-{subject}_[ses-{session}_][space-{space}_][hemi-{hemi}_][model-{model}_][desc-{desc}_]{suffix}{extension}",
-        "[sub-{subject}/][ses-{session}/][sample-{sample}/]{datatype}/sub-{subject}_[ses-{session}_][sample-{sample}_][desc-{desc}_]{suffix}{extension}",
-        "[sub-{subject}/][ses-{session}/][sample-{sample}/][modality-{modality}_]{datatype}/sub-{subject}_[ses-{session}_][sample-{sample}_][modality-{modality}_][desc-{desc}_]{suffix}{extension}"
-        ]
-    
-    lh_surface_bids_filename: str = build_path(lh_surface_bids_entities, path_patterns=custom_path_patterns)
-    rh_surface_bids_filename: str = build_path(rh_surface_bids_entities, path_patterns=custom_path_patterns)
-    lh_surface_bids_filepath: str = os.path.join(pipeline_dir, lh_surface_bids_filename)
-    rh_surface_bids_filepath: str = os.path.join(pipeline_dir, rh_surface_bids_filename)
-    os.makedirs(os.path.dirname(lh_surface_bids_filepath), exist_ok=True)
-    os.makedirs(os.path.dirname(rh_surface_bids_filepath), exist_ok=True)
-    
     try:
-        for hemi_surface_filepath, bids_filepath in [
-            (lh_surface_filepath, lh_surface_bids_filepath),
-            (rh_surface_filepath, rh_surface_bids_filepath)
-        ]:
-            mris_convert_cmd = [
-                "mris_convert",
-                hemi_surface_filepath,
-                bids_filepath
+        # Save supplementary outputs by BIDS compliance
+        lh_surface_filepath: str = os.path.join(fs_subjects_dir, subject_id, "surf", "lh.smoothwm")
+        rh_surface_filepath: str = os.path.join(fs_subjects_dir, subject_id, "surf", "rh.smoothwm")
+        lh_surface_bids_entities: dict = {**entities, **{
+            "hemi": "L",
+            "desc": "surf",
+            "suffix": "smoothwm",
+            "extension": ".surf.gii",
+        }}
+        rh_surface_bids_entities: dict = {**entities, **{
+            "hemi": "R",
+            "desc": "surf",
+            "suffix": "smoothwm",
+            "extension": ".surf.gii",
+        }}
+        custom_path_patterns = [
+            "[sub-{subject}/][ses-{session}/]{datatype}/sub-{subject}_[ses-{session}_][acq-{acquisition}_][run-{run}_][desc-{desc}_]{suffix}{extension}",
+            "[sub-{subject}/][ses-{session}/]{datatype}/sub-{subject}_[ses-{session}_][task-{task}_][acq-{acquisition}_][ce-{ce}_][dir-{dir}_][rec-{rec}_][run-{run}_][echo-{echo}_][desc-{desc}_]{suffix}{extension}",
+            "[sub-{subject}/][ses-{session}/]{datatype}/sub-{subject}_[ses-{session}_][task-{task}_][acq-{acquisition}_][run-{run}_][desc-{desc}_]{suffix}{extension}",
+            "[sub-{subject}/][ses-{session}/]{datatype}/sub-{subject}_[ses-{session}_][space-{space}_][hemi-{hemi}_][model-{model}_][desc-{desc}_]{suffix}{extension}",
+            "[sub-{subject}/][ses-{session}/][sample-{sample}/]{datatype}/sub-{subject}_[ses-{session}_][sample-{sample}_][desc-{desc}_]{suffix}{extension}",
+            "[sub-{subject}/][ses-{session}/][sample-{sample}/][modality-{modality}_]{datatype}/sub-{subject}_[ses-{session}_][sample-{sample}_][modality-{modality}_][desc-{desc}_]{suffix}{extension}"
             ]
-            print(f"Running command: {' '.join(mris_convert_cmd)}")
-            result = subprocess.run(mris_convert_cmd, check=True, capture_output=True, text=True)
-            print(f"mris_convert command finished with return code {result.returncode}")
-            # forced_outputs.append(bids_filepath)
+        
+        lh_surface_bids_filename: str = build_path(lh_surface_bids_entities, path_patterns=custom_path_patterns)
+        rh_surface_bids_filename: str = build_path(rh_surface_bids_entities, path_patterns=custom_path_patterns)
+        input_dir: str = os.path.dirname(input_filepath)
+        lh_surface_bids_filepath: str = os.path.join(input_dir, lh_surface_bids_filename)
+        rh_surface_bids_filepath: str = os.path.join(input_dir, rh_surface_bids_filename)
+        os.makedirs(os.path.dirname(lh_surface_bids_filepath), exist_ok=True)
+        os.makedirs(os.path.dirname(rh_surface_bids_filepath), exist_ok=True)
+        
+        try:
+            for hemi_surface_filepath, bids_filepath in [
+                (lh_surface_filepath, lh_surface_bids_filepath),
+                (rh_surface_filepath, rh_surface_bids_filepath)
+            ]:
+                vertices, faces = nib.freesurfer.read_geometry(hemi_surface_filepath)
+                gii_data = to_gifti(vertices, faces)
+                nib.save(gii_data, bids_filepath)
+                forced_outputs.append(bids_filepath)
+        except Exception as e:
+            print(f"Warning: Could not save supplementary surface outputs: {e}")
     except Exception as e:
-        print(f"Warning: Could not convert surface to GIFTI: {e}")
+        print(f"Warning: Could not save supplementary surface outputs: {e}")
+    
 
     return output_data, metrics, output_entities, forced_outputs
