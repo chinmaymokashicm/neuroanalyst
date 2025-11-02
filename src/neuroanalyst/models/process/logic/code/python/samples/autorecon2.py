@@ -169,7 +169,7 @@ def autorecon2(input_filepath: str):
         ],
         "qc_pass": {
             "autorecon1": qc_pass_autorecon1,
-            "autorecon2": qc_results.get("qc_pass", None)
+            # "autorecon2": qc_results.get("qc_pass", None)
         },
         "parameters": {
             "FreeSurfer_version": FREESURFER_HOME.split("/")[-1],
