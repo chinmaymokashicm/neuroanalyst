@@ -314,8 +314,6 @@ Error message: {str(func_error)}
                             return None
                         elif isinstance(obj, np.ndarray):
                             return obj.tolist()
-                        elif isinstance(obj, (pd.DataFrame, pd.Series)):
-                            return obj.to_dict(orient='records')
                         elif isinstance(obj, Path):
                             return str(obj)
                         elif isinstance(obj, (list, dict)):
@@ -324,8 +322,8 @@ Error message: {str(func_error)}
                             try:
                                 json.dumps(obj)
                                 return obj
-                            except (TypeError, OverflowError):
-                                return str(obj)
+                            # except (TypeError, OverflowError):
+                            #     return str(obj)
                             except Exception:
                                 return None
 
@@ -333,6 +331,7 @@ Error message: {str(func_error)}
 
                     with open(sidecar_filepath, 'w') as f:
                         json.dump(metadata, f, indent=2)
+                        print(f"Created sidecar JSON file: {sidecar_filepath}")
                 
                 return NeuProcessResult(
                     output_filepath=output_filepath,

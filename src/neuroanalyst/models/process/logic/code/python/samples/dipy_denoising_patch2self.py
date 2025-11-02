@@ -47,12 +47,12 @@ def dipy_denoising_patch2self(input_filepath: str):
     
     input_dir: str = Path(input_filepath).parent
     input_file_stem: str = Path(input_filepath).stem.split(".")[0]
+    bval_file, bvec_file, _ = [os.path.join(input_dir, f"{input_file_stem}{extension}") for extension in [".bval", ".bvec", ".json"]]
     try:
-        bval_file, bvec_file, json_file = [os.path.join(input_dir, f"{input_file_stem}{extension}") for extension in [".bval", ".bvec", ".json"]]
+        bvals, bvecs = read_bvals_bvecs(bval_file, bvec_file)
     except Exception as e:
         warn(f"BVAL or BVECS file not found for the given input NIfTI file.: {e}")
         return None, {}, {}, []
-    bvals, bvecs = read_bvals_bvecs(bval_file, bvec_file)
     gtab = gradient_table(bvals=bvals, bvecs=bvecs)
     dwi_data, affine = load_nifti(input_filepath)
     
@@ -60,11 +60,18 @@ def dipy_denoising_patch2self(input_filepath: str):
     denoised_img = nib.Nifti1Image(denoised_data, affine)
     
     # Prepare metrics and output entities
-    snr_before = calculate_snr(dwi_data)
-    snr_after = calculate_snr(denoised_data)
-    
+    snr_before = None
+    try:
+        snr_before = calculate_snr(dwi_data)
+    except Exception as e:
+        warn(f"Could not calculate SNR before denoising: {e}")
+    snr_after = None
+    try:
+        snr_after = calculate_snr(denoised_data)
+    except Exception as e:
+        warn(f"Could not calculate SNR after denoising: {e}")
+
     metrics: dict = {
-        "num_volumes": dwi_data.shape[-1] if len(dwi_data.shape) == 4 else 1,
         "snr_before": float(snr_before) if snr_before is not None else None,
         "snr_after": float(snr_after) if snr_after is not None else None,
     }
