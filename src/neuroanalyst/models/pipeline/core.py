@@ -1982,31 +1982,55 @@ class NeuPipeline(BaseModel):
             self.logger.warning(f"Pipeline directory {self.pipeline_dir_path} does not exist. Nothing to delete.")
     
     def clear_pipeline(self, delete_processes: bool = True, delete_compute_env: bool = False) -> None:
-        """Clear the config and log directories (if specified) of-
+        """
+        Clear the config and log directories (if specified) of-
             - the pipeline
             - associated processes and process executions (if specified)
+        
+        Steps:
+            1. Load all unique processes associated with the pipeline's process executions.
+            2. For each process execution, delete its configuration and log directories.
+            3. For each unique process, delete its configuration and log directories if:
+                - delete_processes is True
+                - the process is not associated with any other pipeline.
+            4. If delete_compute_env is True, also delete the associated compute environments (containers/venvs).
         
         Args:
             delete_processes: If True, delete associated processes and process executions.
             delete_compute_env: If True, delete associated compute environments (containers/venvs).
         """
-        # Delete pipeline directory
-        self.delete()
+        paths = NeuroAnalystPaths(username=self.username)
+        # Get all unique processes associated with the pipeline's process executions
+        unique_processes: Dict[str, NeuProcessDir] = {}
+        for proc_exec in self.process_execs:
+            process_id = proc_exec.process.process_dir.process_id
+            if process_id not in unique_processes:
+                unique_processes[process_id] = proc_exec.process.process_dir
         
-        try:
-            if delete_processes:
-                unique_process_dirs: set[NeuProcessDir] = {proc_exec.process.process_dir for proc_exec in self.process_execs}
-                for proc_exec in self.process_execs:
-                    proc_exec.delete()
-                for process_dir in unique_process_dirs:
-                    process_dir.delete()
-                    
+        # Get all pipelines to check for shared processes
+        all_pipelines = NeuPipeline.get_all_pipelines(username=self.about.author)
+        not_shared_process_ids: Set[str] = set(unique_processes.keys())
+        for pipeline in all_pipelines:
+            if pipeline.pipeline_id != self.pipeline_id:
+                for proc_exec in pipeline.process_execs:
+                    not_shared_process_ids.discard(proc_exec.process.process_dir.process_id)
+
+        # Delete all process executions associated with this pipeline
+        for proc_exec in self.process_execs:
+            proc_exec.delete(delete_compute_env=delete_compute_env)
+            
+        # Delete all unique processes if specified and not shared
+        if delete_processes:
+            for process_id, process in unique_processes.items():
+                if process_id in not_shared_process_ids:
+                    process.delete()
                 if delete_compute_env:
-                    for process_dir in unique_process_dirs:
-                        process: NeuProcess = NeuProcess.from_process_dir(process_dir)
-                        process.image_path.unlink(missing_ok=True)
-                        if process.venv_path.exists() and process.venv_path.is_dir():
-                            shutil.rmtree(process.venv_path)
-        except Exception as e:
-            print(f"Error clearing pipeline processes or compute environments: {e}")
-            self.logger.error(f"Error clearing pipeline processes or compute environments: {e}")
+                    if process.is_image_built:
+                        image_path: Path = paths.get_process_image_path(process.process_id)
+                        image_path.unlink(missing_ok=True)
+                    if process.is_venv_created:
+                        venv_path: Path = paths.get_process_venv_path(process.process_id)
+                        shutil.rmtree(venv_path, ignore_errors=True)
+                        
+        # Delete the pipeline itself
+        self.delete()
