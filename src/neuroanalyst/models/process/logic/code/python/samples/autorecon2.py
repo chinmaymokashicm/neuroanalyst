@@ -77,9 +77,8 @@ def autorecon2(input_filepath: str):
     FREESURFER_HOME: str = os.getenv("FREESURFER_HOME", None)
     if not FREESURFER_HOME:
         raise EnvironmentError("FREESURFER_HOME environment variable is not set.")
-    tmp_dir: str = os.path.join(DATA_DIR, "derivatives", PIPELINE_NAME, "tmp")  #! Temporary directory for outputs; which would be usually be cleaned up by NeuroAnalyst wrapper, but here we keep it for FreeSurfer's intermediate files.
-    pipeline_dir: str = os.path.join(DATA_DIR, "pipelines", PIPELINE_NAME)
-    os.makedirs(tmp_dir, exist_ok=True)
+    freesurfer_outputs_dir: str = os.path.join(DATA_DIR, "derivatives", PIPELINE_NAME, "tmp")  #! Temporary directory for outputs; which would be usually be cleaned up by NeuroAnalyst wrapper, but here we keep it for FreeSurfer's intermediate files.
+    os.makedirs(freesurfer_outputs_dir, exist_ok=True)
     
     # Load sidecar of input file to check for QC results
     input_sidecar_path: str = input_filepath.replace(".nii.gz", ".nii").replace(".nii", ".json") # Works for both .nii and .nii.gz
@@ -106,7 +105,7 @@ def autorecon2(input_filepath: str):
     # Step 2: Prepare FreeSurfer command
     entities: dict = parse_file_entities(input_filepath)
     subject_id: str = f"{entities.get('subject', 'unknown')}_{entities.get('session', 'ses-unknown')}"
-    fs_subjects_dir: str = os.path.join(tmp_dir, "freesurfer_subjects")
+    fs_subjects_dir: str = os.path.join(freesurfer_outputs_dir, "freesurfer_subjects")
     os.makedirs(fs_subjects_dir, exist_ok=True)
     
     cmd: list[str] = [
@@ -170,7 +169,7 @@ def autorecon2(input_filepath: str):
         ],
         "qc_pass": {
             "autorecon1": qc_pass_autorecon1,
-            # "autorecon2": qc_results.get("qc_pass", None)
+            "autorecon2": qc_results.get("qc_pass", None)
         },
         "parameters": {
             "FreeSurfer_version": FREESURFER_HOME.split("/")[-1],

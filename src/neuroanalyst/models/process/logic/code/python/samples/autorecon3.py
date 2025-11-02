@@ -104,22 +104,26 @@ def autorecon3(input_filepath: str):
     ]
     
     # Step 3: Run the FreeSurfer command
-    print(f"Running command: {cmd}")
-    try:
-        result = subprocess.run(cmd, check=True, capture_output=True, text=True)
-        print(f"FreeSurfer Autorecon1 command finished with return code {result.returncode}")
-        if result.stdout:
-            print(result.stdout)
-        if result.stderr:
-            print(result.stderr)
-    except subprocess.CalledProcessError as e:
-        print(f"Error running FreeSurfer Autorecon1 command: {e}")
-        if getattr(e, "stdout", None):
-            print("Stdout:", e.stdout)
-        if getattr(e, "stderr", None):
-            print("Stderr:", e.stderr)
-        traceback.print_exc()
-        raise e
+    output_dir: str = str(Path(input_filepath).parent / "freesurfer_metrics")
+    output_filepath: str = os.path.join(output_dir, "surface_statistics.csv")
+    
+    if not Path(output_filepath).exists():
+        print(f"Running command: {cmd}")
+        try:
+            result = subprocess.run(cmd, check=True, capture_output=True, text=True)
+            print(f"FreeSurfer Autorecon1 command finished with return code {result.returncode}")
+            if result.stdout:
+                print(result.stdout)
+            if result.stderr:
+                print(result.stderr)
+        except subprocess.CalledProcessError as e:
+            print(f"Error running FreeSurfer Autorecon1 command: {e}")
+            if getattr(e, "stdout", None):
+                print("Stdout:", e.stdout)
+            if getattr(e, "stderr", None):
+                print("Stderr:", e.stderr)
+            traceback.print_exc()
+            raise e
     
     # Step 4: Prepare outputs
     all_metrics: dict = extract_all_freesurfer_metrics(os.path.join(fs_subjects_dir, subject_id))
@@ -137,42 +141,42 @@ def autorecon3(input_filepath: str):
 
     try:
         # Save all metrics to directory
-        export_metrics(all_metrics, output_dir=Path(input_filepath).parent / "freesurfer_metrics")
+        export_metrics(all_metrics, output_dir=output_dir)
     except Exception as e:
         print(f"Error exporting FreeSurfer metrics: {e}")
     
     # Return surface stats as output data and save cortical metrics DataFrames as CSV
     try:
-        output_data: pd.DataFrame = pd.read_csv(os.path.join(os.path.dirname(input_filepath), "surface_statistics.csv"))
+        output_data: pd.DataFrame = pd.read_csv(output_filepath)
     except Exception as e:
         print(f"Error loading surface_statistics.csv: {e}")
         output_data = pd.DataFrame()
     try:
-        df_cortical_bilateral: pd.DataFrame = pd.read_csv(os.path.join(os.path.dirname(input_filepath), "cortical_regional_metrics_bilateral.csv"))
+        df_cortical_bilateral: pd.DataFrame = pd.read_csv(os.path.join(output_dir, "cortical_bilateral.csv"))
     except Exception as e:
         print(f"Error loading cortical_regional_metrics_bilateral.csv: {e}")
         df_cortical_bilateral = pd.DataFrame()
     
-        cortical_file_entities: dict = {**input_entities}
-        cortical_file_entities.update({
-            "desc": "cortical",
-            "suffix": "stats",
-            "extension": ".csv",
-            })
-        
-        custom_path_patterns = [
-            "[sub-{subject}/][ses-{session}/]{datatype}/sub-{subject}_[ses-{session}_][acq-{acquisition}_][run-{run}_][desc-{desc}_]{suffix}{extension}",
-            "[sub-{subject}/][ses-{session}/]{datatype}/sub-{subject}_[ses-{session}_][task-{task}_][acq-{acquisition}_][ce-{ce}_][dir-{dir}_][rec-{rec}_][run-{run}_][echo-{echo}_][desc-{desc}_]{suffix}{extension}",
-            "[sub-{subject}/][ses-{session}/]{datatype}/sub-{subject}_[ses-{session}_][task-{task}_][acq-{acquisition}_][run-{run}_][desc-{desc}_]{suffix}{extension}",
-            "[sub-{subject}/][ses-{session}/]{datatype}/sub-{subject}_[ses-{session}_][space-{space}_][hemi-{hemi}_][model-{model}_][desc-{desc}_]{suffix}{extension}",
-            "[sub-{subject}/][ses-{session}/][sample-{sample}/]{datatype}/sub-{subject}_[ses-{session}_][sample-{sample}_][desc-{desc}_]{suffix}{extension}",
-            "[sub-{subject}/][ses-{session}/][sample-{sample}/][modality-{modality}_]{datatype}/sub-{subject}_[ses-{session}_][sample-{sample}_][modality-{modality}_][desc-{desc}_]{suffix}{extension}"
-            ]
-        
-        cortical_output_filename: str = Path(build_path(cortical_file_entities, path_patterns=custom_path_patterns)).name
-        cortical_output_filepath: str = os.path.join(os.path.dirname(input_filepath), cortical_output_filename)
-        os.makedirs(os.path.dirname(cortical_output_filepath), exist_ok=True)
-        df_cortical_bilateral.to_csv(cortical_output_filepath, index=False)
+    cortical_file_entities: dict = {**input_entities}
+    cortical_file_entities.update({
+        "desc": "cortical",
+        "suffix": "stats",
+        "extension": ".csv",
+        })
+    
+    custom_path_patterns = [
+        "[sub-{subject}/][ses-{session}/]{datatype}/sub-{subject}_[ses-{session}_][acq-{acquisition}_][run-{run}_][desc-{desc}_]{suffix}{extension}",
+        "[sub-{subject}/][ses-{session}/]{datatype}/sub-{subject}_[ses-{session}_][task-{task}_][acq-{acquisition}_][ce-{ce}_][dir-{dir}_][rec-{rec}_][run-{run}_][echo-{echo}_][desc-{desc}_]{suffix}{extension}",
+        "[sub-{subject}/][ses-{session}/]{datatype}/sub-{subject}_[ses-{session}_][task-{task}_][acq-{acquisition}_][run-{run}_][desc-{desc}_]{suffix}{extension}",
+        "[sub-{subject}/][ses-{session}/]{datatype}/sub-{subject}_[ses-{session}_][space-{space}_][hemi-{hemi}_][model-{model}_][desc-{desc}_]{suffix}{extension}",
+        "[sub-{subject}/][ses-{session}/][sample-{sample}/]{datatype}/sub-{subject}_[ses-{session}_][sample-{sample}_][desc-{desc}_]{suffix}{extension}",
+        "[sub-{subject}/][ses-{session}/][sample-{sample}/][modality-{modality}_]{datatype}/sub-{subject}_[ses-{session}_][sample-{sample}_][modality-{modality}_][desc-{desc}_]{suffix}{extension}"
+        ]
+    
+    cortical_output_filename: str = Path(build_path(cortical_file_entities, path_patterns=custom_path_patterns)).name
+    cortical_output_filepath: str = os.path.join(os.path.dirname(input_filepath), cortical_output_filename)
+    os.makedirs(os.path.dirname(cortical_output_filepath), exist_ok=True)
+    df_cortical_bilateral.to_csv(cortical_output_filepath, index=False)
 
     # Step 5: Prepare metrics and output entities
     try:
