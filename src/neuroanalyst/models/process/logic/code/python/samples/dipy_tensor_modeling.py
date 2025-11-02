@@ -28,7 +28,11 @@ def dipy_tensor_modeling(input_filepath: str):
     input_dir: str = Path(input_filepath).parent
     input_file_stem: str = Path(input_filepath).stem.split(".")[0]
     bval_file, bvec_file, json_file = [os.path.join(input_dir, f"{input_file_stem}{extension}") for extension in [".bval", ".bvec", ".json"]]
-    bvals, bvecs = read_bvals_bvecs(bval_file, bvec_file)
+    try:
+        bvals, bvecs = read_bvals_bvecs(bval_file, bvec_file)
+    except Exception as e:
+        print(f"BVAL or BVECS file not found for the given input NIfTI file.: {e}")
+        return None, {}, {}, []
     gtab = gradient_table(bvals=bvals, bvecs=bvecs)
     dwi_data, affine = load_nifti(input_filepath)
     

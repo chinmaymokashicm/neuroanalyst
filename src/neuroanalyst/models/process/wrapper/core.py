@@ -195,7 +195,6 @@ Error message: {str(func_error)}
                     """
                     print(func_error_message)
                     raise RuntimeError(func_error_message)
-                    # func_error_message = str(func_error)
 
                 # Validate the result format using NeuProcessOutput
                 if not error_in_func:
@@ -233,27 +232,27 @@ Error message: {str(func_error)}
                 
                 # Construct output filepath using PyBIDS
                 output_entities = validated_result.metadata.get('output_bids_entities', {})
-                print(f"Output BIDS entities from function: {output_entities}")
-                output_filepath = _construct_output_path(
-                    input_path=input_path,
-                    config=config,
-                    output_entities=output_entities
-                )
-                print(f"Input file: {input_path}")
-                print(f"Output file: {output_filepath}")
+                if not output_entities:
+                    output_filepath = None
+                else:
+                    output_filepath = _construct_output_path(
+                        input_path=input_path,
+                        config=config,
+                        output_entities=output_entities
+                    )
                 
-                if input_filepath == output_filepath:
-                    raise ValueError("Input and output file paths cannot be the same.")
+                    if input_filepath == output_filepath:
+                        raise ValueError("Input and output file paths cannot be the same.")
 
-                # Create output directory if it doesn't exist
-                output_filepath.parent.mkdir(parents=True, exist_ok=True)
-                
-                # Check if output file exists and handle overwrite
-                if output_filepath.exists() and not config.overwrite:
-                    raise FileExistsError(f"Output file already exists: {output_filepath}")
-                
-                # Write output data
-                _write_output_data(validated_result.data, output_filepath)
+                    # Create output directory if it doesn't exist
+                    output_filepath.parent.mkdir(parents=True, exist_ok=True)
+                    
+                    # Check if output file exists and handle overwrite
+                    if output_filepath.exists() and not config.overwrite:
+                        raise FileExistsError(f"Output file already exists: {output_filepath}")
+                    
+                    # Write output data
+                    _write_output_data(validated_result.data, output_filepath)
                 
                 # Delete files under forced_outputs if specified
                 if forced_outputs:
