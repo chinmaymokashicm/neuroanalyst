@@ -310,7 +310,7 @@ Error message: {str(func_error)}
                             return bool(obj)
                         elif isinstance(obj, (np.ndarray, pd.Index)):
                             return obj.tolist()
-                        elif isinstance(obj, np.nan):
+                        elif obj is None or (isinstance(obj, float) and np.isnan(obj)):
                             return None
                         elif isinstance(obj, Path):
                             return str(obj)
@@ -320,8 +320,6 @@ Error message: {str(func_error)}
                             try:
                                 json.dumps(obj)
                                 return obj
-                            # except (TypeError, OverflowError):
-                            #     return str(obj)
                             except Exception:
                                 return None
 

@@ -1315,7 +1315,8 @@ class NeuPipeline(BaseModel):
         with open(status_path, "r") as f:
             status_data = json.load(f)
         
-        return NeuPipelineStatus.model_validate(status_data)
+        # return NeuPipelineStatus.model_validate(status_data)
+        return NeuPipelineStatus(**status_data)
     
     def print_pipeline_status(self) -> None:
         """Print a formatted report of the current pipeline status."""
@@ -1981,7 +1982,12 @@ class NeuPipeline(BaseModel):
         else:
             self.logger.warning(f"Pipeline directory {self.pipeline_dir_path} does not exist. Nothing to delete.")
     
-    def clear_pipeline(self, delete_processes: bool = True, delete_compute_env: bool = False) -> None:
+    def clear_pipeline(
+        self,
+        delete_processes: bool = True,
+        delete_compute_env: bool = False,
+        exclude_pipelines: Optional[List[str]] = None
+        ) -> None:
         """
         Clear the config and log directories (if specified) of-
             - the pipeline
@@ -1998,6 +2004,7 @@ class NeuPipeline(BaseModel):
         Args:
             delete_processes: If True, delete associated processes and process executions.
             delete_compute_env: If True, delete associated compute environments (containers/venvs).
+            exclude_pipelines: Optional list of pipeline IDs to exclude when checking for shared processes.
         """
         paths = NeuroAnalystPaths(username=self.username)
         # Get all unique processes associated with the pipeline's process executions
@@ -2009,6 +2016,8 @@ class NeuPipeline(BaseModel):
         
         # Get all pipelines to check for shared processes
         all_pipelines = NeuPipeline.get_all_pipelines(username=self.about.author)
+        if exclude_pipelines:
+            all_pipelines = [p for p in all_pipelines if p.pipeline_id not in exclude_pipelines]
         not_shared_process_ids: Set[str] = set(unique_processes.keys())
         for pipeline in all_pipelines:
             if pipeline.pipeline_id != self.pipeline_id:
