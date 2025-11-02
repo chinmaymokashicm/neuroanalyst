@@ -286,6 +286,7 @@ Error message: {str(func_error)}
                     'FunctionModule': func.__module__,
                     **validated_result.metadata  # Include any additional metadata
                 }
+                print(f"Sidecar metadata prepared: {metadata.keys()}")
                 
                 # Create sidecar JSON file if enabled
                 sidecar_filepath = None
@@ -326,11 +327,11 @@ Error message: {str(func_error)}
                             except Exception:
                                 return None
 
+                    print(f"Metadata before serialization: {metadata}")
                     metadata = {k: make_json_serializable(v) for k, v in metadata.items()}
 
                     with open(sidecar_filepath, 'w') as f:
                         json.dump(metadata, f, indent=2)
-                        print(f"Created sidecar JSON file: {sidecar_filepath}")
                 
                 return NeuProcessResult(
                     output_filepath=output_filepath,
