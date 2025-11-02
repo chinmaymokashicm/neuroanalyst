@@ -148,15 +148,15 @@ def autorecon2(input_filepath: str):
     
     output_data = np.stack([aseg_data, wm_data], axis=-1)
     
-    # Step 5: Prepare metrics and output entities
-    aseg_stats_path: str = os.path.join(fs_subjects_dir, subject_id, "stats", "aseg.stats")
-    try:
-        qc_results = qc_autorecon2(aseg_stats_path)
-        if qc_pass is None:
-            qc_pass = qc_results["qc_pass"]
-    except Exception as e:
-        print(f"Warning: Could not parse aseg stats for QC metrics: {e}")
-        qc_results = {}
+    # # Step 5: Prepare metrics and output entities
+    # aseg_stats_path: str = os.path.join(fs_subjects_dir, subject_id, "stats", "aseg.stats")
+    # try:
+    #     qc_results = qc_autorecon2(aseg_stats_path)
+    #     if qc_pass is None:
+    #         qc_pass = qc_results["qc_pass"]
+    # except Exception as e:
+    #     print(f"Warning: Could not parse aseg stats for QC metrics: {e}")
+    #     qc_results = {}
     
     metrics = {
         "total_brain_volume": int(np.sum(aseg_data > 0)),
@@ -170,7 +170,7 @@ def autorecon2(input_filepath: str):
         ],
         "qc_pass": {
             "autorecon1": qc_pass_autorecon1,
-            "autorecon2": qc_results.get("qc_pass", None)
+            # "autorecon2": qc_results.get("qc_pass", None)
         },
         "parameters": {
             "FreeSurfer_version": FREESURFER_HOME.split("/")[-1],
