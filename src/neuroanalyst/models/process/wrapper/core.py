@@ -329,9 +329,11 @@ Error message: {str(func_error)}
 
                     print(f"Metadata before serialization: {metadata}")
                     metadata = {k: make_json_serializable(v) for k, v in metadata.items()}
+                    print(f"Metadata after serialization: {metadata}")
 
                     with open(sidecar_filepath, 'w') as f:
                         json.dump(metadata, f, indent=2)
+                        print(f"Sidecar JSON file created at: {sidecar_filepath}")
                 
                 return NeuProcessResult(
                     output_filepath=output_filepath,
