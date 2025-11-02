@@ -336,18 +336,18 @@ def compute_vertex_wise_statistics(vertex_data: np.ndarray) -> dict[str, float]:
     >>> stats = compute_vertex_wise_statistics(thickness)
     >>> print(stats)
     """
-    valid_data = vertex_data[~np.isnan(vertex_data)]
+    valid_data: np.ndarray = vertex_data[~np.isnan(vertex_data)]
 
     stats = {
-        'Mean': np.mean(valid_data),
-        'Median': np.median(valid_data),
-        'Std': np.std(valid_data),
-        'Min': np.min(valid_data),
-        'Max': np.max(valid_data),
-        'P5': np.percentile(valid_data, 5),
-        'P95': np.percentile(valid_data, 95),
-        'Skewness': float(pd.Series(valid_data).skew()),
-        'Kurtosis': float(pd.Series(valid_data).kurtosis()),
+        'Mean': np.mean(valid_data) if valid_data.size > 0 else np.nan,
+        'Median': np.median(valid_data) if valid_data.size > 0 else np.nan,
+        'Std': np.std(valid_data) if valid_data.size > 0 else np.nan,
+        'Min': np.min(valid_data) if valid_data.size > 0 else np.nan,
+        'Max': np.max(valid_data) if valid_data.size > 0 else np.nan,
+        'P5': np.percentile(valid_data, 5) if valid_data.size > 0 else np.nan,
+        'P95': np.percentile(valid_data, 95) if valid_data.size > 0 else np.nan,
+        'Skewness': float(pd.Series(valid_data).skew()) if valid_data.size > 0 else np.nan,
+        'Kurtosis': float(pd.Series(valid_data).kurtosis()) if valid_data.size > 0 else np.nan,
         'NValid': len(valid_data),
         'NInvalid': np.sum(np.isnan(vertex_data)),
     }
@@ -491,11 +491,13 @@ def extract_gwr_statistics(subject_dir: str) -> dict[str, float]:
     for hemisphere in ['lh', 'rh']:
         gwr = load_gwr_overlay(subject_dir, hemisphere=hemisphere)
         if gwr is not None:
-            stats = compute_vertex_wise_statistics(gwr)
-            prefix = 'LH' if hemisphere == 'lh' else 'RH'
-            for key, val in stats.items():
-                gwr_stats[f'{prefix}_{key}'] = val
-
+            try:
+                stats = compute_vertex_wise_statistics(gwr)
+                prefix = 'LH' if hemisphere == 'lh' else 'RH'
+                for key, val in stats.items():
+                    gwr_stats[f'{prefix}_{key}'] = val
+            except Exception as e:
+                print(f"Error computing GWR statistics for {hemisphere}: {e}")
     return gwr_stats
 
 

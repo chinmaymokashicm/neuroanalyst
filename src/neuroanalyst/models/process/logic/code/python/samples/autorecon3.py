@@ -80,10 +80,13 @@ def autorecon3(input_filepath: str):
     input_sidecar_path: str = input_filepath.replace(".nii.gz", ".nii").replace(".nii", ".json") # Works for both .nii and .nii.gz
     qc_pass_autorecon2: Optional[bool] = None
     if os.path.exists(input_sidecar_path):
-        with open(input_sidecar_path, 'r') as f:
-            input_sidecar = json.load(f)
-        qc_pass_autorecon2 = input_sidecar.get("metrics", {}).get("qc_pass", {}).get("autorecon2", None)
-    
+        try:
+            with open(input_sidecar_path, 'r') as f:
+                input_sidecar = json.load(f)
+            qc_pass_autorecon2 = input_sidecar.get("metrics", {}).get("qc_pass", {}).get("autorecon2", None)
+        except Exception as e:
+            print(f"Error reading sidecar JSON file: {e}")
+
     # Step 2: Prepare FreeSurfer command
     input_entities: dict = parse_file_entities(input_filepath)
     subject_id: str = f"{input_entities.get('subject', 'unknown')}_{input_entities.get('session', 'ses-unknown')}"
@@ -129,19 +132,20 @@ def autorecon3(input_filepath: str):
         else:
             pass
 
-    # Save all metrics to directory
-    metrics_output_dir = os.path.join(pipeline_dir, "freesurfer_metrics", subject_id)
-    os.makedirs(metrics_output_dir, exist_ok=True)
-    export_metrics(all_metrics, output_dir=metrics_output_dir)
+    try:
+        # Save all metrics to directory
+        export_metrics(all_metrics, output_dir=os.path.dirname(input_filepath))
+    except Exception as e:
+        print(f"Error exporting FreeSurfer metrics: {e}")
     
     # Return surface stats as output data and save cortical metrics DataFrames as CSV
     try:
-        output_data: pd.DataFrame = pd.read_csv(os.path.join(metrics_output_dir, "surface_statistics.csv"))
+        output_data: pd.DataFrame = pd.read_csv(os.path.join(os.path.dirname(input_filepath), "surface_statistics.csv"))
     except Exception as e:
         print(f"Error loading surface_statistics.csv: {e}")
         output_data = pd.DataFrame()
     try:
-        df_cortical_bilateral: pd.DataFrame = pd.read_csv(os.path.join(metrics_output_dir, "cortical_regional_metrics_bilateral.csv"))
+        df_cortical_bilateral: pd.DataFrame = pd.read_csv(os.path.join(os.path.dirname(input_filepath), "cortical_regional_metrics_bilateral.csv"))
     except Exception as e:
         print(f"Error loading cortical_regional_metrics_bilateral.csv: {e}")
         df_cortical_bilateral = pd.DataFrame()
