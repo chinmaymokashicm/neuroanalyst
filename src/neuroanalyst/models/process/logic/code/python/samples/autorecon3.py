@@ -128,13 +128,16 @@ def autorecon3(input_filepath: str):
     dict_metrics: dict = {}
     for key, value in all_metrics.items():
         if isinstance(value, dict):
+            # Skip cortical regional metrics as they are saved as CSV
+            if key.startswith("cortical_regional_metrics"):
+                continue
             dict_metrics[key] = value
         else:
             pass
 
     try:
         # Save all metrics to directory
-        export_metrics(all_metrics, output_dir=os.path.dirname(input_filepath))
+        export_metrics(all_metrics, output_dir=Path(input_filepath).parent / "freesurfer_metrics")
     except Exception as e:
         print(f"Error exporting FreeSurfer metrics: {e}")
     
@@ -166,7 +169,7 @@ def autorecon3(input_filepath: str):
             "[sub-{subject}/][ses-{session}/][sample-{sample}/][modality-{modality}_]{datatype}/sub-{subject}_[ses-{session}_][sample-{sample}_][modality-{modality}_][desc-{desc}_]{suffix}{extension}"
             ]
         
-        cortical_output_filename: str = build_path(cortical_file_entities, path_patterns=custom_path_patterns)
+        cortical_output_filename: str = Path(build_path(cortical_file_entities, path_patterns=custom_path_patterns)).name
         cortical_output_filepath: str = os.path.join(os.path.dirname(input_filepath), cortical_output_filename)
         os.makedirs(os.path.dirname(cortical_output_filepath), exist_ok=True)
         df_cortical_bilateral.to_csv(cortical_output_filepath, index=False)
