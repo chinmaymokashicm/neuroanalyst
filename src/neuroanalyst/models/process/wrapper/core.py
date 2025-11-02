@@ -306,6 +306,12 @@ Error message: {str(func_error)}
                     def make_json_serializable(obj: Any) -> Any:
                         if isinstance(obj, (np.integer, np.floating)):
                             return obj.item()
+                        elif isinstance(obj, (np.bool_)):
+                            return bool(obj)
+                        elif isinstance(obj, (np.ndarray, pd.Index)):
+                            return obj.tolist()
+                        elif isinstance(obj, np.nan):
+                            return None
                         elif isinstance(obj, np.ndarray):
                             return obj.tolist()
                         elif isinstance(obj, (pd.DataFrame, pd.Series)):
