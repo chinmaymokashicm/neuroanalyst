@@ -339,15 +339,15 @@ def compute_vertex_wise_statistics(vertex_data: np.ndarray) -> dict[str, float]:
     valid_data: np.ndarray = vertex_data[~np.isnan(vertex_data)]
 
     stats = {
-        'Mean': np.mean(valid_data) if valid_data.size > 0 else np.nan,
-        'Median': np.median(valid_data) if valid_data.size > 0 else np.nan,
-        'Std': np.std(valid_data) if valid_data.size > 0 else np.nan,
-        'Min': np.min(valid_data) if valid_data.size > 0 else np.nan,
-        'Max': np.max(valid_data) if valid_data.size > 0 else np.nan,
-        'P5': np.percentile(valid_data, 5) if valid_data.size > 0 else np.nan,
-        'P95': np.percentile(valid_data, 95) if valid_data.size > 0 else np.nan,
-        'Skewness': float(pd.Series(valid_data).skew()) if valid_data.size > 0 else np.nan,
-        'Kurtosis': float(pd.Series(valid_data).kurtosis()) if valid_data.size > 0 else np.nan,
+        'Mean': np.mean(valid_data) if valid_data.size > 0 else None,
+        'Median': np.median(valid_data) if valid_data.size > 0 else None,
+        'Std': np.std(valid_data) if valid_data.size > 0 else None,
+        'Min': np.min(valid_data) if valid_data.size > 0 else None,
+        'Max': np.max(valid_data) if valid_data.size > 0 else None,
+        'P5': np.percentile(valid_data, 5) if valid_data.size > 0 else None,
+        'P95': np.percentile(valid_data, 95) if valid_data.size > 0 else None,
+        'Skewness': float(pd.Series(valid_data).skew()) if valid_data.size > 0 else None,
+        'Kurtosis': float(pd.Series(valid_data).kurtosis()) if valid_data.size > 0 else None,
         'NValid': len(valid_data),
         'NInvalid': np.sum(np.isnan(vertex_data)),
     }
