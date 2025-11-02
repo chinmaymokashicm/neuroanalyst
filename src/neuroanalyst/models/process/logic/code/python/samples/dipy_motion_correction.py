@@ -14,7 +14,7 @@ from dipy.segment.mask import median_otsu
 
 def dipy_motion_correction(input_filepath: str):
     """
-    Motion and eddy current correction using dipy.
+    Motion current correction using dipy.
     
     Args:
         input_filepath (str): Path to input NIfTI file.
