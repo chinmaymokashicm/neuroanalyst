@@ -104,22 +104,22 @@ def autorecon3(input_filepath: str):
     ]
     
     # Step 3: Run the FreeSurfer command
-    # print(f"Running command: {cmd}")
-    # try:
-    #     result = subprocess.run(cmd, check=True, capture_output=True, text=True)
-    #     print(f"FreeSurfer Autorecon1 command finished with return code {result.returncode}")
-    #     if result.stdout:
-    #         print(result.stdout)
-    #     if result.stderr:
-    #         print(result.stderr)
-    # except subprocess.CalledProcessError as e:
-    #     print(f"Error running FreeSurfer Autorecon1 command: {e}")
-    #     if getattr(e, "stdout", None):
-    #         print("Stdout:", e.stdout)
-    #     if getattr(e, "stderr", None):
-    #         print("Stderr:", e.stderr)
-    #     traceback.print_exc()
-    #     raise e
+    print(f"Running command: {cmd}")
+    try:
+        result = subprocess.run(cmd, check=True, capture_output=True, text=True)
+        print(f"FreeSurfer Autorecon1 command finished with return code {result.returncode}")
+        if result.stdout:
+            print(result.stdout)
+        if result.stderr:
+            print(result.stderr)
+    except subprocess.CalledProcessError as e:
+        print(f"Error running FreeSurfer Autorecon1 command: {e}")
+        if getattr(e, "stdout", None):
+            print("Stdout:", e.stdout)
+        if getattr(e, "stderr", None):
+            print("Stderr:", e.stderr)
+        traceback.print_exc()
+        raise e
     
     # Step 4: Prepare outputs
     all_metrics: dict = extract_all_freesurfer_metrics(os.path.join(fs_subjects_dir, subject_id))
