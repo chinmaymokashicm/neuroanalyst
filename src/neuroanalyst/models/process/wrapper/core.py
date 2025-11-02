@@ -312,8 +312,6 @@ Error message: {str(func_error)}
                             return obj.tolist()
                         elif isinstance(obj, np.nan):
                             return None
-                        elif isinstance(obj, np.ndarray):
-                            return obj.tolist()
                         elif isinstance(obj, Path):
                             return str(obj)
                         elif isinstance(obj, (list, dict)):
