@@ -577,7 +577,7 @@ class PipelineConstructorConfig(BaseModel):
                 continue
             desc_config.subject_session_pairs = subject_session_pairs
     
-    def to_pipeline(self, bids_root: str | Path, save_fig: bool = True) -> NeuPipeline:
+    def to_pipeline(self, bids_root: str | Path, save_fig: bool = True, starting_bids_scope: str = "raw") -> NeuPipeline:
         """Construct a NeuPipeline instance from the configuration."""
         if not self.graph:
             self.construct_graph()
@@ -627,6 +627,7 @@ class PipelineConstructorConfig(BaseModel):
             steps=steps,
             scheduler=self.scheduler,
         )
+        pipeline.starting_bids_scope = starting_bids_scope
         pipeline.apply_standard_exec_params()
         
         for process_exec in pipeline.process_execs:
