@@ -125,8 +125,22 @@ def dipy_motion_correction(input_filepath: str):
             return None, {}, {}, []
     gtab = gradient_table(bvals=bvals, bvecs=bvecs)
     dwi_data, affine = load_nifti(input_filepath)
-    output_data, reg_affines = motion_correction(dwi_data, gtab, affine=affine)
     
+    # Generate brain mask from b0 image
+    b0_indices = np.where(bvals < 50)[0]
+    b0_ref = int(b0_indices[0])
+    b0_data = dwi_data[..., b0_indices]
+    b0_mean = np.mean(b0_data, axis=3)
+    b0_mask, _ = median_otsu(b0_mean, median_radius=2, numpass=1)
+    b0_mask = b0_mask.astype(np.uint8)
+    b0_mask = np.where(b0_mask > 0, 1, 0)
+    if np.sum(b0_mask) == 0:
+        print("Warning: Generated brain mask is empty.")
+        b0_mask = None  # Fallback to no mask if empty
+    
+    # Perform motion correction
+    output_data, reg_affines = motion_correction(dwi_data, gtab, affine=affine, b0_ref=b0_ref, static_mask=b0_mask)
+
     # Extract rotation matrices and compute their inverses
     rot_mats = np.array([reg_aff[:3, :3] for reg_aff in reg_affines])
     
@@ -150,17 +164,6 @@ def dipy_motion_correction(input_filepath: str):
     except Exception as e:
         warn(f"Error during bvec rotation: {e}. Using original bvecs.")
         rotated_bvecs = bvecs
-
-    # Generate brain mask from b0 image
-    b0_indices = np.where(bvals == 0)[0]
-    b0_data = dwi_data[..., b0_indices]
-    b0_mean = np.mean(b0_data, axis=3)
-    b0_mask, _ = median_otsu(b0_mean, median_radius=2, numpass=1)
-    b0_mask = b0_mask.astype(np.uint8)
-    b0_mask = np.where(b0_mask > 0, 1, 0)
-    if np.sum(b0_mask) == 0:
-        print("Warning: Generated brain mask is empty.")
-        b0_mask = None  # Fallback to no mask if empty
     
     # Prepare metrics and output entities
     translations_mm, rotations_deg, fd_mm = extract_motion_metrics(reg_affines)
@@ -185,6 +188,7 @@ def dipy_motion_correction(input_filepath: str):
         "avg_framewise_displacement_mm": float(avg_framewise_displacement),
         "snr_before": float(snr_before),
         "snr_after": float(snr_after),
+        "reg_affines_shape": reg_affines.shape,
         "reg_affines": reg_affines.tolist(),
         "translations_mm": translations_mm.tolist(),
         "rotations_deg": rotations_deg.tolist(),
