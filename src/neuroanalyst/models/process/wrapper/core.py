@@ -122,10 +122,44 @@ class NeuProcessDecoratorConfig(BaseModel):
             #     derivatives=True,
             #     config=["bids", absolute_config_path]
             # )
-            with tempfile.NamedTemporaryFile(mode='w+', suffix='.json', delete=False) as temp_config_file:
-                try:
+            # with tempfile.NamedTemporaryFile(mode='w+', suffix='.json', delete=False) as temp_config_file:
+            #     try:
+            #         json.dump(custom_config, temp_config_file, indent=2)
+            #         temp_config_file_path = temp_config_file.name
+            #         self.bids_layout = BIDSLayout(
+            #             root=str(self.bids_root),
+            #             validate=self.bids_validate,
+            #             derivatives=True,
+            #             config=["bids", temp_config_file_path]
+            #         )
+            #     except Exception as e:
+            #         warn(f"Failed to create temporary BIDS config file: {e}")
+            #         self.bids_layout = BIDSLayout(
+            #             root=str(self.bids_root),
+            #             validate=self.bids_validate,
+            #             derivatives=True
+            #         )
+            #     finally:
+            #         try:
+            #             os.remove(temp_config_file_path)
+            #         except Exception:
+            #             pass
+            try:
+                with tempfile.NamedTemporaryFile(mode='w+', suffix='.json', delete=False) as temp_config_file:
                     json.dump(custom_config, temp_config_file, indent=2)
                     temp_config_file_path = temp_config_file.name
+                self.bids_layout = BIDSLayout(
+                    root=str(self.bids_root),
+                    validate=self.bids_validate,
+                    derivatives=True,
+                    config=["bids", temp_config_file_path]
+                )
+            except Exception as e:
+                warn(f"Failed to create temporary BIDS config file: {e}. Creating temp file without tempfile module.")
+                temp_config_file_path = "bids_config_temp.json"
+                try:
+                    with open(temp_config_file_path, "w") as f:
+                        json.dump(custom_config, f, indent=2)
                     self.bids_layout = BIDSLayout(
                         root=str(self.bids_root),
                         validate=self.bids_validate,
@@ -133,17 +167,18 @@ class NeuProcessDecoratorConfig(BaseModel):
                         config=["bids", temp_config_file_path]
                     )
                 except Exception as e:
-                    warn(f"Failed to create temporary BIDS config file: {e}")
+                    warn(f"Failed to create BIDSLayout with custom config: {e}. Falling back to default BIDSLayout.")
                     self.bids_layout = BIDSLayout(
                         root=str(self.bids_root),
                         validate=self.bids_validate,
                         derivatives=True
                     )
-                finally:
-                    try:
-                        os.remove(temp_config_file_path)
-                    except Exception:
-                        pass
+            finally:
+                try:
+                    os.remove(temp_config_file_path)
+                except Exception:
+                    pass
+
 
 
 class NeuProcessResult(BaseModel):
