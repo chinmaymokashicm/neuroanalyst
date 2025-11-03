@@ -140,6 +140,11 @@ def dipy_motion_correction(input_filepath: str):
     
     # Perform motion correction
     output_data, reg_affines = motion_correction(dwi_data, gtab, affine=affine, b0_ref=b0_ref, static_mask=b0_mask)
+    
+    print(f"Motion correction completed. Output data shape: {output_data.shape}, reg_affines shape: {reg_affines.shape}")
+    if reg_affines.ndim == 3 and reg_affines.shape[:2] == (4, 4):
+        reg_affines = np.transpose(reg_affines, (2, 0, 1))  # -> (N,4,4)
+        print(f"Transposed reg_affines to shape: {reg_affines.shape}")
 
     # Extract rotation matrices and compute their inverses
     rot_mats = np.array([reg_aff[:3, :3] for reg_aff in reg_affines])
