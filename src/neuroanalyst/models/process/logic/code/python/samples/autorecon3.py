@@ -31,7 +31,7 @@ def autorecon3(input_filepath: str):
     Notes for future implementations and error handling:
     - If a subject directory has been created previously, re-running with -i flag will error out. Remove the flag or delete the subject directory beforehand.
     - If a process is already running for the same subject, it will error out. Run this command to check and remove the lock:
-        rm /data/tmp/freesurfer_subjects/{subject_id}/scripts/IsRunning.lh+rh
+        rm /data/tmp/freesurfer_subjects/{subject_dirname}/scripts/IsRunning.lh+rh
     
     !NOT IMPLEMENTED FOR DEBUGGING - Cleans out temporary files after processing to save space.
     
@@ -89,7 +89,18 @@ def autorecon3(input_filepath: str):
 
     # Step 2: Prepare FreeSurfer command
     input_entities: dict = parse_file_entities(input_filepath)
-    subject_id: str = f"{input_entities.get('subject', 'unknown')}_{input_entities.get('session', 'ses-unknown')}"
+    entities: dict = parse_file_entities(input_filepath)
+    subject_dirname: str = ""
+    subject_id, session_id = None, None
+    if "subject" in entities:
+        subject_id = entities["subject"]
+    if "session" in entities:
+        session_id = entities["session"]
+    subject_dirname = f"{subject_id}"
+    if session_id:
+        subject_dirname += f"_{session_id}"
+    if subject_dirname == "":
+        subject_dirname = "unknown_subject"
     fs_subjects_dir: str = os.path.join(tmp_dir, "freesurfer_subjects")
     os.makedirs(fs_subjects_dir, exist_ok=True)
     
@@ -99,7 +110,7 @@ def autorecon3(input_filepath: str):
         source {FREESURFER_HOME}/SetUpFreeSurfer.sh && \\
         export OMP_NUM_THREADS=4 && \\
         export ITK_GLOBAL_DEFAULT_NUMBER_OF_THREADS=4 && \\
-        recon-all -s {subject_id} -sd {fs_subjects_dir} -autorecon3
+        recon-all -s {subject_dirname} -sd {fs_subjects_dir} -autorecon3
         """
     ]
     
@@ -126,7 +137,7 @@ def autorecon3(input_filepath: str):
             raise e
     
     # Step 4: Prepare outputs
-    all_metrics: dict = extract_all_freesurfer_metrics(os.path.join(fs_subjects_dir, subject_id))
+    all_metrics: dict = extract_all_freesurfer_metrics(os.path.join(fs_subjects_dir, subject_dirname))
     # Separate values that are dicts and those that are pd.DataFrames
     # The dictionary metrics will go into sidecar, while DataFrames will be saved as CSV outputs.
     dict_metrics: dict = {}
@@ -181,7 +192,7 @@ def autorecon3(input_filepath: str):
     # Step 5: Prepare metrics and output entities
     try:
         # QC metrics
-        qc_results = qc_autorecon3(os.path.join(fs_subjects_dir, subject_id, "stats"))
+        qc_results = qc_autorecon3(os.path.join(fs_subjects_dir, subject_dirname, "stats"))
         if qc_pass_autorecon2 is None:
             qc_pass_autorecon2 = qc_results["qc_pass"]
     except Exception as e:

@@ -18,7 +18,7 @@ def autorecon1(input_filepath: str):
     Notes for future implementations and error handling:
     - If a subject directory has been created previously, re-running with -i flag will error out. Remove the flag or delete the subject directory beforehand.
     - If a process is already running for the same subject, it will error out. Run this command to check and remove the lock:
-        rm /data/tmp/freesurfer_subjects/{subject_id}/scripts/IsRunning.lh+rh
+        rm /data/tmp/freesurfer_subjects/{subject_dirname}/scripts/IsRunning.lh+rh
     - Add -qcache flag
     
     Args:
@@ -42,7 +42,17 @@ def autorecon1(input_filepath: str):
     
     # Step 2: Prepare FreeSurfer command
     entities: dict = parse_file_entities(input_filepath)
-    subject_id: str = f"{entities.get('subject', 'unknown')}_{entities.get('session', 'ses-unknown')}"
+    subject_dirname: str = ""
+    subject_id, session_id = None, None
+    if "subject" in entities:
+        subject_id = entities["subject"]
+    if "session" in entities:
+        session_id = entities["session"]
+    subject_dirname = f"{subject_id}"
+    if session_id:
+        subject_dirname += f"_{session_id}"
+    if subject_dirname == "":
+        subject_dirname = "unknown_subject"
     fs_subjects_dir: str = os.path.join(freesurfer_outputs_dir, "freesurfer_subjects")
     os.makedirs(fs_subjects_dir, exist_ok=True)
     
@@ -52,13 +62,13 @@ def autorecon1(input_filepath: str):
         source {FREESURFER_HOME}/SetUpFreeSurfer.sh && \\
         export OMP_NUM_THREADS=4 && \\
         export ITK_GLOBAL_DEFAULT_NUMBER_OF_THREADS=4 && \\
-        recon-all -i '{input_filepath}' -s '{subject_id}' -sd {fs_subjects_dir} -autorecon1
+        recon-all -i '{input_filepath}' -s '{subject_dirname}' -sd {fs_subjects_dir} -autorecon1
         """
     ]
     
     # Step 3: Prepare outputs
-    skull_stripped_filepath: str = os.path.join(fs_subjects_dir, subject_id, "mri", "brainmask.mgz")
-    t1_filepath: str = os.path.join(fs_subjects_dir, subject_id, "mri", "T1.mgz")
+    skull_stripped_filepath: str = os.path.join(fs_subjects_dir, subject_dirname, "mri", "brainmask.mgz")
+    t1_filepath: str = os.path.join(fs_subjects_dir, subject_dirname, "mri", "T1.mgz")
 
     if not os.path.exists(skull_stripped_filepath) or not os.path.exists(t1_filepath):
         # Step 4: Run the FreeSurfer command if the outputs do not already exist
@@ -132,6 +142,6 @@ def autorecon1(input_filepath: str):
     forced_outputs = []
     
     # Save supplementary outputs by BIDS compliance
-    # talairach_filepath: str = os.path.join(fs_subjects_dir, subject_id, "mri", "talairach.mgz")
+    # talairach_filepath: str = os.path.join(fs_subjects_dir, subject_dirname, "mri", "talairach.mgz")
 
     return t1_data, metrics, output_entities, forced_outputs
