@@ -13,6 +13,59 @@ import nibabel.freesurfer.io as fsio
 # SUBCORTICAL VOLUMETRIC METRICS (aseg.stats)
 # ============================================================================
 
+def load_freesurfer_color_lut(lut_path: Optional[str] = None) -> pd.DataFrame:
+    """
+    Load FreeSurferColorLUT.txt file.
+
+    Parameters:
+    -----------
+    lut_path : Optional[str]
+        Path to FreeSurferColorLUT.txt file. If None, uses default path.
+
+    Returns:
+    --------
+    pd.DataFrame
+        DataFrame with columns: Index, StructName, R, G, B, A
+
+    Example:
+    --------
+    >>> lut_df = load_freesurfer_color_lut()
+    >>> print(lut_df.head())
+    """
+    if lut_path is None:
+        if "FREESURFER_HOME" in os.environ:
+            freesurfer_home = os.environ["FREESURFER_HOME"]
+        else:
+            freesurfer_home = None
+        if not freesurfer_home:
+            project_root = Path(__file__).resolve().parents[3]
+            lut_path = os.path.join(project_root, "src", "neuroanalyst", "analysis", "FreeSurferColorLUT.txt")
+        else:
+            lut_path = os.path.join(freesurfer_home, "FreeSurferColorLUT.txt")
+
+    lut_data = []
+    with open(lut_path, 'r') as f:
+        for line in f:
+            # Skip comments and empty lines
+            if line.startswith('#') or line.strip() == '':
+                continue
+            parts = line.strip().split()
+            if len(parts) >= 6:
+                try:
+                    lut_dict = {
+                        'Index': int(parts[0]),
+                        'StructName': parts[1],
+                        'R': int(parts[2]),
+                        'G': int(parts[3]),
+                        'B': int(parts[4]),
+                        'A': int(parts[5]),
+                    }
+                    lut_data.append(lut_dict)
+                except (ValueError, IndexError):
+                    continue
+
+    return pd.DataFrame(lut_data)
+
 def load_aseg_stats(aseg_stats_path: str) -> tuple[dict, pd.DataFrame]:
     """
     Load subcortical segmentation statistics from aseg.stats file.
