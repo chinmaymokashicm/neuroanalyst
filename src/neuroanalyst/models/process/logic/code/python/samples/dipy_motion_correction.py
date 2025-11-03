@@ -185,6 +185,10 @@ def dipy_motion_correction(input_filepath: str):
         "avg_framewise_displacement_mm": float(avg_framewise_displacement),
         "snr_before": float(snr_before),
         "snr_after": float(snr_after),
+        "reg_affines": reg_affines.tolist(),
+        "translations_mm": translations_mm.tolist(),
+        "rotations_deg": rotations_deg.tolist(),
+        "framewise_displacement_mm": fd_mm.tolist()
     }
 
     output_entities = {
