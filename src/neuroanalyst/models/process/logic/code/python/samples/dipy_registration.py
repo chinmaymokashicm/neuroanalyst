@@ -217,7 +217,19 @@ def dipy_registration(input_filepath: str):
     freesurfer_subjects_dir: str = os.path.join(t1w_pipeline_dir, "tmp", "freesurfer_subjects", subject_dirname)
     skull_stripped_t1w_path: str = os.path.join(freesurfer_subjects_dir, "mri", "brain.mgz")
     if not os.path.exists(skull_stripped_t1w_path):
-        raise FileNotFoundError(f"Skull-stripped T1w image not found at expected path: {skull_stripped_t1w_path}")
+        # raise FileNotFoundError(f"Skull-stripped T1w image not found at expected path: {skull_stripped_t1w_path}")
+        warn(f"Skull-stripped T1w image not found at expected path: {skull_stripped_t1w_path}. Attempting to find any other T1w image of the subject...")
+        same_subject_id_dirnames = [dir_name for dir_name in os.listdir(os.path.join(t1w_pipeline_dir, "tmp", "freesurfer_subjects")) if dir_name.startswith(f"{subject_id}")]
+        if len(same_subject_id_dirnames) == 0:
+            raise FileNotFoundError(f"No FreeSurfer subject directories found for subject {subject_id} in {os.path.join(t1w_pipeline_dir, 'tmp', 'freesurfer_subjects')}")
+        subject_dirname = same_subject_id_dirnames[0]
+        freesurfer_subjects_dir = os.path.join(t1w_pipeline_dir, "tmp", "freesurfer_subjects", subject_dirname)
+        skull_stripped_t1w_path = os.path.join(freesurfer_subjects_dir, "mri", "brain.mgz")
+        if not os.path.exists(skull_stripped_t1w_path):
+            raise FileNotFoundError(f"Skull-stripped T1w image still not found at path: {skull_stripped_t1w_path}")
+        else:
+            print(f"Found skull-stripped T1w image at alternative path: {skull_stripped_t1w_path}")
+
     t1w_data, t1w_affine = load_nifti(skull_stripped_t1w_path)
     
     # Get reg_affines from previous step's sidecar (if available - should be there if motion correction was done)

@@ -88,7 +88,18 @@ def dwi_regionwise_analysis(input_filepath: str):
     freesurfer_subjects_dir: str = os.path.join(t1w_pipeline_dir, "tmp", "freesurfer_subjects", subject_dirname)
     aparc_aseg_filepath: str = os.path.join(freesurfer_subjects_dir, "mri", "aparc+aseg.mgz")
     if not os.path.exists(aparc_aseg_filepath):
-        raise FileNotFoundError(f"aparc+aseg file not found at expected location: {aparc_aseg_filepath}")
+        # raise FileNotFoundError(f"aparc+aseg file not found at expected location: {aparc_aseg_filepath}")
+        warn(f"Aparc+Aseg T1w image not found at expected path: {aparc_aseg_filepath}. Attempting to find any other T1w image of the subject...")
+        same_subject_id_dirnames = [dir_name for dir_name in os.listdir(os.path.join(t1w_pipeline_dir, "tmp", "freesurfer_subjects")) if dir_name.startswith(f"{subject_id}")]
+        if len(same_subject_id_dirnames) == 0:
+            raise FileNotFoundError(f"No FreeSurfer subject directories found for subject {subject_id} in {os.path.join(t1w_pipeline_dir, 'tmp', 'freesurfer_subjects')}")
+        subject_dirname = same_subject_id_dirnames[0]
+        freesurfer_subjects_dir = os.path.join(t1w_pipeline_dir, "tmp", "freesurfer_subjects", subject_dirname)
+        aparc_aseg_filepath = os.path.join(freesurfer_subjects_dir, "mri", "aparc+aseg.mgz")
+        if not os.path.exists(aparc_aseg_filepath):
+            raise FileNotFoundError(f"Aparc+Aseg T1w image still not found at path: {aparc_aseg_filepath}")
+        else:
+            print(f"Found Aparc+Aseg T1w image at alternative path: {aparc_aseg_filepath}")
     aparc_aseg_img = nib.load(aparc_aseg_filepath)
     print(f"Loaded aparc+aseg image from {aparc_aseg_filepath}. Shape: {aparc_aseg_img.shape}")
     
