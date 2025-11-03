@@ -1,6 +1,9 @@
+from neuroanalyst.analysis.provenance import trace_root_sidecar
+
 import os, subprocess, json
 from pathlib import Path
 import traceback
+from warnings import warn
 from typing import Optional
 
 import nibabel as nib
@@ -31,8 +34,17 @@ def dipy_tensor_modeling(input_filepath: str):
     try:
         bvals, bvecs = read_bvals_bvecs(bval_file, bvec_file)
     except Exception as e:
-        print(f"BVAL or BVECS file not found for the given input NIfTI file.: {e}")
-        return None, {}, {}, []
+        warn(f"BVAL or BVECS file not found for the given input NIfTI file.: {e}")
+        print("Attempting to find root file via sidecar tracing...")
+        root_sidecar_path = trace_root_sidecar(os.path.join(input_dir, f"{input_file_stem}.json"))
+        root_bval_file = str(Path(root_sidecar_path).parent / (Path(root_sidecar_path).stem.split(".")[0] + ".bval"))
+        root_bvec_file = str(Path(root_sidecar_path).parent / (Path(root_sidecar_path).stem.split(".")[0] + ".bvec"))
+        try:
+            bvals, bvecs = read_bvals_bvecs(root_bval_file, root_bvec_file)
+            print(f"Successfully read BVAL and BVECS from root sidecar files: {root_bval_file}, {root_bvec_file}")
+        except Exception as e:
+            warn(f"Failed to read BVAL or BVECS from root sidecar files as well: {e}")
+            return None, {}, {}, []
     gtab = gradient_table(bvals=bvals, bvecs=bvecs)
     dwi_data, affine = load_nifti(input_filepath)
     

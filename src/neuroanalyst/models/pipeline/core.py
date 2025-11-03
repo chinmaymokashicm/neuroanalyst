@@ -1263,7 +1263,7 @@ class NeuPipeline(BaseModel):
             pipeline_id=self.pipeline_id,
             created_at=current_time,
             last_updated=current_time,
-            status=ProcessStatus.NOT_STARTED.value,
+            status=ProcessStatus.NOT_STARTED,  # Use enum instance directly instead of .value
             scheduler=self.scheduler.value,
             steps=[]
         )
@@ -1271,7 +1271,7 @@ class NeuPipeline(BaseModel):
             step_status = NeuPipelineStepStatus(
                 step_id=i,
                 name=step.name,
-                status=ProcessStatus.NOT_STARTED.value,
+                status=ProcessStatus.NOT_STARTED,  # Use enum instance directly instead of .value
                 started_at=None,
                 completed_at=None,
                 last_updated=current_time,
@@ -1283,7 +1283,7 @@ class NeuPipeline(BaseModel):
                     process_id=proc_exec.process.process_id if hasattr(proc_exec, 'process') else proc_exec.exec_id,
                     exec_id=proc_exec.exec_id,
                     name=proc_exec.process.process_id if hasattr(proc_exec, 'process') else proc_exec.exec_id,
-                    status=ProcessStatus.NOT_STARTED.value,
+                    status=ProcessStatus.NOT_STARTED,  # Use enum instance directly instead of .value
                     started_at=None,
                     completed_at=None,
                     last_updated=current_time,
@@ -1405,7 +1405,7 @@ class NeuPipeline(BaseModel):
         if not proc_status:
             raise ValueError(f"Process exec ID {exec_id} not found in step {step_idx}")
         
-        proc_status.status = new_status.value
+        proc_status.status = new_status  # Use enum instance directly instead of new_status.value
         proc_status.last_updated = current_time
         
         if new_status == ProcessStatus.RUNNING:
@@ -1418,29 +1418,29 @@ class NeuPipeline(BaseModel):
                 proc_status.error = error_msg
         
         # Update step status based on process statuses
-        if all(p.status == ProcessStatus.COMPLETE.value for p in step_status.processes):
-            step_status.status = ProcessStatus.COMPLETE.value
+        if all(p.status == ProcessStatus.COMPLETE for p in step_status.processes):  # Compare with enum directly
+            step_status.status = ProcessStatus.COMPLETE  # Use enum instance directly
             step_status.completed_at = current_time
-        elif any(p.status == ProcessStatus.FAILED.value for p in step_status.processes):
-            step_status.status = ProcessStatus.FAILED.value
+        elif any(p.status == ProcessStatus.FAILED for p in step_status.processes):  # Compare with enum directly
+            step_status.status = ProcessStatus.FAILED  # Use enum instance directly
             step_status.completed_at = current_time
             step_status.error = "One or more processes failed"
-        elif any(p.status == ProcessStatus.RUNNING.value for p in step_status.processes):
-            step_status.status = ProcessStatus.RUNNING.value
+        elif any(p.status == ProcessStatus.RUNNING for p in step_status.processes):  # Compare with enum directly
+            step_status.status = ProcessStatus.RUNNING  # Use enum instance directly
             if not step_status.started_at:
                 step_status.started_at = current_time
         else:
-            step_status.status = ProcessStatus.NOT_STARTED.value
+            step_status.status = ProcessStatus.NOT_STARTED  # Use enum instance directly
             
         # Update overall pipeline status based on step statuses
-        if all(s.status == ProcessStatus.COMPLETE.value for s in status.steps):
-            status.status = ProcessStatus.COMPLETE.value
-        elif any(s.status == ProcessStatus.FAILED.value for s in status.steps):
-            status.status = ProcessStatus.FAILED.value
-        elif any(s.status == ProcessStatus.RUNNING.value for s in status.steps):
-            status.status = ProcessStatus.RUNNING.value
+        if all(s.status == ProcessStatus.COMPLETE for s in status.steps):  # Compare with enum directly
+            status.status = ProcessStatus.COMPLETE  # Use enum instance directly
+        elif any(s.status == ProcessStatus.FAILED for s in status.steps):  # Compare with enum directly
+            status.status = ProcessStatus.FAILED  # Use enum instance directly
+        elif any(s.status == ProcessStatus.RUNNING for s in status.steps):  # Compare with enum directly
+            status.status = ProcessStatus.RUNNING  # Use enum instance directly
         else:
-            status.status = ProcessStatus.NOT_STARTED.value
+            status.status = ProcessStatus.NOT_STARTED  # Use enum instance directly
             
         # Save the updated status back to the file
         status_path = self.pipeline_dir_path / "status.json"

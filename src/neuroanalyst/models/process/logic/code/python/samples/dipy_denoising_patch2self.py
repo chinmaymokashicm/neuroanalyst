@@ -1,3 +1,5 @@
+from neuroanalyst.analysis.provenance import trace_root_sidecar
+
 import os, subprocess, json
 from pathlib import Path
 import traceback
@@ -10,6 +12,7 @@ from dipy.io.gradients import read_bvals_bvecs
 from dipy.denoise.patch2self import patch2self
 import nibabel as nib
 import numpy as np
+from bids.layout import BIDSLayout
 
 def dipy_denoising_patch2self(input_filepath: str):
     """
@@ -52,7 +55,16 @@ def dipy_denoising_patch2self(input_filepath: str):
         bvals, bvecs = read_bvals_bvecs(bval_file, bvec_file)
     except Exception as e:
         warn(f"BVAL or BVECS file not found for the given input NIfTI file.: {e}")
-        return None, {}, {}, []
+        print("Attempting to find root file via sidecar tracing...")
+        root_sidecar_path = trace_root_sidecar(os.path.join(input_dir, f"{input_file_stem}.json"))
+        root_bval_file = str(Path(root_sidecar_path).parent / (Path(root_sidecar_path).stem.split(".")[0] + ".bval"))
+        root_bvec_file = str(Path(root_sidecar_path).parent / (Path(root_sidecar_path).stem.split(".")[0] + ".bvec"))
+        try:
+            bvals, bvecs = read_bvals_bvecs(root_bval_file, root_bvec_file)
+            print(f"Successfully read BVAL and BVECS from root sidecar files: {root_bval_file}, {root_bvec_file}")
+        except Exception as e:
+            warn(f"Failed to read BVAL or BVECS from root sidecar files as well: {e}")
+            return None, {}, {}, []
     gtab = gradient_table(bvals=bvals, bvecs=bvecs)
     dwi_data, affine = load_nifti(input_filepath)
     
@@ -81,6 +93,7 @@ def dipy_denoising_patch2self(input_filepath: str):
         "suffix": "dwi",
         "extension": ".nii.gz"
     }
+    
 
     forced_outputs: list = []
 
