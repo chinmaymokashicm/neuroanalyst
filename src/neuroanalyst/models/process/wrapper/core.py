@@ -6,12 +6,8 @@ functions with BIDS-compliant output path construction, metadata generation,
 and enhanced neuroimaging data handling capabilities using PyBIDS.
 """
 
-import json
-import time
-import pickle
-import warnings
-import platform
-import traceback
+import json, time, pickle, platform, traceback, os, tempfile
+from warnings import warn
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union, Callable
@@ -116,16 +112,38 @@ class NeuProcessDecoratorConfig(BaseModel):
                 ]
                 }
             # Save custom config to a temporary JSON file and use the path
-            with open("bids_config_temp.json", "w") as f:
-                json.dump(custom_config, f, indent=2)
+            # with open("bids_config_temp.json", "w") as f:
+            #     json.dump(custom_config, f, indent=2)
 
-            absolute_config_path = str(Path.cwd() / "bids_config_temp.json")
-            self.bids_layout = BIDSLayout(
-                root=str(self.bids_root),
-                validate=self.bids_validate,
-                derivatives=True,
-                config=["bids", absolute_config_path]
-            )
+            # absolute_config_path = str(Path.cwd() / "bids_config_temp.json")
+            # self.bids_layout = BIDSLayout(
+            #     root=str(self.bids_root),
+            #     validate=self.bids_validate,
+            #     derivatives=True,
+            #     config=["bids", absolute_config_path]
+            # )
+            with tempfile.NamedTemporaryFile(mode='w+', suffix='.json', delete=False) as temp_config_file:
+                try:
+                    json.dump(custom_config, temp_config_file, indent=2)
+                    temp_config_file_path = temp_config_file.name
+                    self.bids_layout = BIDSLayout(
+                        root=str(self.bids_root),
+                        validate=self.bids_validate,
+                        derivatives=True,
+                        config=["bids", temp_config_file_path]
+                    )
+                except Exception as e:
+                    warn(f"Failed to create temporary BIDS config file: {e}")
+                    self.bids_layout = BIDSLayout(
+                        root=str(self.bids_root),
+                        validate=self.bids_validate,
+                        derivatives=True
+                    )
+                finally:
+                    try:
+                        os.remove(temp_config_file_path)
+                    except Exception:
+                        pass
 
 
 class NeuProcessResult(BaseModel):
