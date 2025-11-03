@@ -34,8 +34,7 @@ def dipy_tensor_modeling(input_filepath: str):
     try:
         bvals, bvecs = read_bvals_bvecs(bval_file, bvec_file)
     except Exception as e:
-        warn(f"BVAL or BVECS file not found for the given input NIfTI file.: {e}")
-        print("Attempting to find root file via sidecar tracing...")
+        warn(f"BVAL or BVECS file not found for the given input NIfTI file.: {e}. Attempting to find root file via sidecar tracing...")
         root_sidecar_path = trace_root_sidecar(os.path.join(input_dir, f"{input_file_stem}.json"))
         root_bval_file = str(Path(root_sidecar_path).parent / (Path(root_sidecar_path).stem.split(".")[0] + ".bval"))
         root_bvec_file = str(Path(root_sidecar_path).parent / (Path(root_sidecar_path).stem.split(".")[0] + ".bvec"))
@@ -73,6 +72,14 @@ def dipy_tensor_modeling(input_filepath: str):
         "std_rd": float(np.std(rd)),
         "mean_trace": float(np.mean(trace)),
         "std_trace": float(np.std(trace)),
+        "output_channels": [
+            {"name": "FA", "description": "Fractional Anisotropy"},
+            {"name": "MD", "description": "Mean Diffusivity"},
+            {"name": "AD", "description": "Axial Diffusivity"},
+            {"name": "RD", "description": "Radial Diffusivity"},
+            {"name": "ColorFA", "description": "Color-coded FA"},
+            {"name": "Trace", "description": "Trace of the diffusion tensor"}
+        ]
     }
 
     output_entities = {

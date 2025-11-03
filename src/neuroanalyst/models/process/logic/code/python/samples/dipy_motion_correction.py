@@ -1,3 +1,4 @@
+import shutil
 from neuroanalyst.analysis.provenance import trace_root_sidecar
 
 import os, subprocess, json
@@ -10,10 +11,11 @@ import nibabel as nib
 import numpy as np
 import pandas as pd
 from dipy.align import motion_correction
-from dipy.core.gradients import gradient_table
+from dipy.core.gradients import gradient_table, reorient_bvecs
 from dipy.io.gradients import read_bvals_bvecs
 from dipy.io.image import load_nifti
 from dipy.segment.mask import median_otsu
+from bids.layout.writing import build_path
 
 def dipy_motion_correction(input_filepath: str):
     """
@@ -104,11 +106,14 @@ def dipy_motion_correction(input_filepath: str):
     input_dir: str = Path(input_filepath).parent
     input_file_stem: str = Path(input_filepath).stem.split(".")[0]
     bval_file, bvec_file, json_file = [os.path.join(input_dir, f"{input_file_stem}{extension}") for extension in [".bval", ".bvec", ".json"]]
+    pipeline_name: str = os.getenv("PIPELINE_NAME", None)
+    if not pipeline_name:
+        raise EnvironmentError("PIPELINE_NAME environment variable is not set.")
+    pipeline_dir: str = os.path.join("/data", "derivatives", pipeline_name)
     try:
         bvals, bvecs = read_bvals_bvecs(bval_file, bvec_file)
     except Exception as e:
-        warn(f"BVAL or BVECS file not found for the given input NIfTI file.: {e}")
-        print("Attempting to find root file via sidecar tracing...")
+        warn(f"BVAL or BVECS file not found for the given input NIfTI file.: {e}. Attempting to find root file via sidecar tracing...")
         root_sidecar_path = trace_root_sidecar(os.path.join(input_dir, f"{input_file_stem}.json"))
         root_bval_file = str(Path(root_sidecar_path).parent / (Path(root_sidecar_path).stem.split(".")[0] + ".bval"))
         root_bvec_file = str(Path(root_sidecar_path).parent / (Path(root_sidecar_path).stem.split(".")[0] + ".bvec"))
@@ -122,6 +127,30 @@ def dipy_motion_correction(input_filepath: str):
     dwi_data, affine = load_nifti(input_filepath)
     output_data, reg_affines = motion_correction(dwi_data, gtab, affine=affine)
     
+    # Extract rotation matrices and compute their inverses
+    rot_mats = np.array([reg_aff[:3, :3] for reg_aff in reg_affines])
+    
+    # Only rotate non-zero bvecs (b > threshold, typically 50)
+    b_threshold = 50
+    non_zero_mask = bvals > b_threshold
+    
+    rotated_bvecs = bvecs.copy()
+    try:
+        if np.any(non_zero_mask):
+            # Use rotation matrices directly (NOT inverse)
+            R = rot_mats[non_zero_mask]
+
+            rotated_bvecs[non_zero_mask] = np.einsum(
+                "nij,nj->ni", R, bvecs[non_zero_mask]
+            )
+
+            # Normalize only the non-zero bvecs
+            norms = np.linalg.norm(rotated_bvecs[non_zero_mask], axis=1, keepdims=True)
+            rotated_bvecs[non_zero_mask] /= norms
+    except Exception as e:
+        warn(f"Error during bvec rotation: {e}. Using original bvecs.")
+        rotated_bvecs = bvecs
+
     # Generate brain mask from b0 image
     b0_indices = np.where(bvals == 0)[0]
     b0_data = dwi_data[..., b0_indices]
@@ -163,6 +192,32 @@ def dipy_motion_correction(input_filepath: str):
         "suffix": "dwi",
         "extension": ".nii.gz"
         }
+    
+    # Save bval and bvec files for the motion-corrected data
+    custom_path_patterns = [
+        "[sub-{subject}/][ses-{session}/]{datatype}/sub-{subject}_[ses-{session}_][acq-{acquisition}_][run-{run}_][desc-{desc}_]{suffix}{extension}",
+        "[sub-{subject}/][ses-{session}/]{datatype}/sub-{subject}_[ses-{session}_][task-{task}_][acq-{acquisition}_][ce-{ce}_][dir-{dir}_][rec-{rec}_][run-{run}_][echo-{echo}_][desc-{desc}_]{suffix}{extension}",
+        "[sub-{subject}/][ses-{session}/]{datatype}/sub-{subject}_[ses-{session}_][task-{task}_][acq-{acquisition}_][run-{run}_][desc-{desc}_]{suffix}{extension}",
+        "[sub-{subject}/][ses-{session}/]{datatype}/sub-{subject}_[ses-{session}_][space-{space}_][hemi-{hemi}_][model-{model}_][desc-{desc}_]{suffix}{extension}",
+        "[sub-{subject}/][ses-{session}/][sample-{sample}/]{datatype}/sub-{subject}_[ses-{session}_][sample-{sample}_][desc-{desc}_]{suffix}{extension}",
+        "[sub-{subject}/][ses-{session}/][sample-{sample}/][modality-{modality}_]{datatype}/sub-{subject}_[ses-{session}_][sample-{sample}_][modality-{modality}_][desc-{desc}_]{suffix}{extension}"
+        ]
+
+    bval_entities = output_entities.copy()
+    bval_entities["extension"] = ".bval"
+
+    bvec_entities = output_entities.copy()
+    bvec_entities["extension"] = ".bvec"
+    
+    try:
+        bval_filepath = os.path.join(pipeline_dir, build_path(custom_path_patterns, bval_entities))
+        bvec_filepath = os.path.join(pipeline_dir, build_path(custom_path_patterns, bvec_entities))
+
+        shutil.copyfile(bval_file, bval_filepath)
+        np.savetxt(bvec_filepath, rotated_bvecs.T, fmt="%.8f")
+        print(f"Saved motion-corrected BVAL and BVECS to: {bval_filepath}, {bvec_filepath}")
+    except Exception as e:
+        warn(f"Failed to save motion-corrected BVAL or BVECS files: {e}")
 
     forced_outputs = []
 
