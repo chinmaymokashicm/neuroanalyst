@@ -33,15 +33,19 @@ def load_freesurfer_color_lut(lut_path: Optional[str] = None) -> pd.DataFrame:
     >>> print(lut_df.head())
     """
     if lut_path is None:
+        project_root = Path(__file__).resolve().parents[3]
         if "FREESURFER_HOME" in os.environ:
             freesurfer_home = os.environ["FREESURFER_HOME"]
         else:
             freesurfer_home = None
         if not freesurfer_home:
-            project_root = Path(__file__).resolve().parents[3]
             lut_path = os.path.join(project_root, "src", "neuroanalyst", "analysis", "FreeSurferColorLUT.txt")
         else:
             lut_path = os.path.join(freesurfer_home, "FreeSurferColorLUT.txt")
+            
+        if not os.path.exists(lut_path):
+            # Get the saved file from the same level as this module
+            lut_path = os.path.join(project_root, "src", "neuroanalyst", "analysis", "FreeSurferColorLUT.txt")
 
     lut_data = []
     with open(lut_path, 'r') as f:

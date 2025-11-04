@@ -125,7 +125,7 @@ def dwi_regionwise_analysis(input_filepath: str):
     print(f"Resampled aparc+aseg image to DWI space. Shape: {resampled_aparc_aseg_data.shape}")
     
     # Perform region-wise analysis
-    df_lut: pd.DataFrame = load_freesurfer_color_lut(f"{FREESURFER_HOME}/FreeSurferColorLUT.txt")
+    df_lut: pd.DataFrame = load_freesurfer_color_lut()
     output_data: pd.DataFrame = summarize_regionwise_metrics(
         label_map=resampled_aparc_aseg_data,
         metrics_dict={
