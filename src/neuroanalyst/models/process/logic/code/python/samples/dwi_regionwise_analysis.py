@@ -63,7 +63,12 @@ def dwi_regionwise_analysis(input_filepath: str):
     map_file_entities.update({"suffix": "dwi", "desc": "tensor", "extension": ".nii.gz"})
     dwi_tensor_filepath: str = os.path.join(dwi_pipeline_dir, build_path(map_file_entities, custom_path_patterns))
     if not os.path.exists(dwi_tensor_filepath):
-        raise FileNotFoundError(f"DWI tensor file not found at expected location: {dwi_tensor_filepath}")
+        warn(f"DWI tensor file not found at expected location: {dwi_tensor_filepath}. Attempting to find any other tensor file of the subject and session...")
+        same_subject_session_files = [f for f in os.listdir(dwi_pipeline_dir) if input_entities["subject"] in f and (("session" not in input_entities) or (input_entities["session"] in f)) and "desc-tensor" in f and f.endswith(".nii.gz") and "tensor" in f]
+        if len(same_subject_session_files) == 0:
+            raise FileNotFoundError(f"No DWI tensor files found for subject {subject_id} in {dwi_pipeline_dir}")
+        dwi_tensor_filepath = os.path.join(dwi_pipeline_dir, same_subject_session_files[0])
+        print(f"Found DWI tensor file at alternative path: {dwi_tensor_filepath}")
     print(f"Loading DWI tensor data from {dwi_tensor_filepath}...")
     dwi_tensor_img = nib.load(dwi_tensor_filepath)
     dwi_tensor_data = dwi_tensor_img.get_fdata()
