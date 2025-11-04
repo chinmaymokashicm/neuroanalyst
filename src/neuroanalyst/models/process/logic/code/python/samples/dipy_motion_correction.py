@@ -116,11 +116,11 @@ def dipy_motion_correction(input_filepath: str):
     except Exception as e:
         warn(f"BVAL or BVECS file not found for the given input NIfTI file.: {e}. Attempting to find root file via sidecar tracing...")
         root_sidecar_path = trace_root_sidecar(os.path.join(input_dir, f"{input_file_stem}.json"))
-        root_bval_file = str(Path(root_sidecar_path).parent / (Path(root_sidecar_path).stem.split(".")[0] + ".bval"))
-        root_bvec_file = str(Path(root_sidecar_path).parent / (Path(root_sidecar_path).stem.split(".")[0] + ".bvec"))
+        bval_file = str(Path(root_sidecar_path).parent / (Path(root_sidecar_path).stem.split(".")[0] + ".bval"))
+        bvec_file = str(Path(root_sidecar_path).parent / (Path(root_sidecar_path).stem.split(".")[0] + ".bvec"))
         try:
-            bvals, bvecs = read_bvals_bvecs(root_bval_file, root_bvec_file)
-            print(f"Successfully read BVAL and BVECS from root sidecar files: {root_bval_file}, {root_bvec_file}")
+            bvals, bvecs = read_bvals_bvecs(bval_file, bvec_file)
+            print(f"Successfully read BVAL and BVECS from root sidecar files: {bval_file}, {bvec_file}")
         except Exception as e:
             warn(f"Failed to read BVAL or BVECS from root sidecar files as well: {e}")
             return None, {}, {}, []
