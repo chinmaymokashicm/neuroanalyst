@@ -1,4 +1,5 @@
 from neuroanalyst.analysis.dwi import summarize_regionwise_metrics
+from neuroanalyst.analysis.freesurfer import load_freesurfer_color_lut
 
 from pathlib import Path
 import os, json, shutil
@@ -11,6 +12,7 @@ from nilearn.image import resample_to_img
 from dipy.io.image import load_nifti
 from bids.layout import parse_file_entities
 from bids.layout.writing import build_path
+from bids.layout import BIDSLayout
 from nilearn.image import resample_to_img
 
 def dwi_regionwise_analysis(input_filepath: str):
@@ -30,6 +32,9 @@ def dwi_regionwise_analysis(input_filepath: str):
     input_dir: str = Path(input_filepath).parent
     input_file_stem: str = Path(input_filepath).stem.split(".")[0]
     bval_file, bvec_file, json_file = [os.path.join(input_dir, f"{input_file_stem}{extension}") for extension in [".bval", ".bvec", ".json"]]
+    FREESURFER_HOME: str = os.getenv("FREESURFER_HOME", None)
+    if not FREESURFER_HOME:
+        raise EnvironmentError("FREESURFER_HOME environment variable is not set.")
     pipeline_name: str = os.getenv("PIPELINE_NAME", None)
     pipeline_dir: str = os.path.join("/data", "derivatives", pipeline_name)
     if not pipeline_name:
@@ -49,13 +54,14 @@ def dwi_regionwise_analysis(input_filepath: str):
         session_id = input_entities["session"]
 
     # Get FA, MD, AD, RD maps filepath
+    # sub-M2014_ses-1959_acq-epb0p2_dir-PA_run-12_desc-denoised_dwi.json
     custom_path_patterns = [
         "[sub-{subject}/][ses-{session}/]{datatype}/sub-{subject}_[ses-{session}_][acq-{acquisition}_][run-{run}_][desc-{desc}_]{suffix}{extension}",
         "[sub-{subject}/][ses-{session}/]{datatype}/sub-{subject}_[ses-{session}_][task-{task}_][acq-{acquisition}_][ce-{ce}_][dir-{dir}_][rec-{rec}_][run-{run}_][echo-{echo}_][desc-{desc}_]{suffix}{extension}",
         "[sub-{subject}/][ses-{session}/]{datatype}/sub-{subject}_[ses-{session}_][task-{task}_][acq-{acquisition}_][run-{run}_][desc-{desc}_]{suffix}{extension}",
         "[sub-{subject}/][ses-{session}/]{datatype}/sub-{subject}_[ses-{session}_][space-{space}_][hemi-{hemi}_][model-{model}_][desc-{desc}_]{suffix}{extension}",
         "[sub-{subject}/][ses-{session}/][sample-{sample}/]{datatype}/sub-{subject}_[ses-{session}_][sample-{sample}_][desc-{desc}_]{suffix}{extension}",
-        "[sub-{subject}/][ses-{session}/][sample-{sample}/][modality-{modality}_]{datatype}/sub-{subject}_[ses-{session}_][sample-{sample}_][modality-{modality}_][desc-{desc}_]{suffix}{extension}"
+        "[sub-{subject}/][ses-{session}/][sample-{sample}/][modality-{modality}_]{datatype}/sub-{subject}_[ses-{session}_][sample-{sample}_][modality-{modality}_][acq-{acquisition}_][desc-{desc}_]{suffix}{extension}"
         ]
     
     dwi_pipeline_dir: str = os.path.join("/data", "derivatives", dwi_pipeline_name)
@@ -64,10 +70,15 @@ def dwi_regionwise_analysis(input_filepath: str):
     dwi_tensor_filepath: str = os.path.join(dwi_pipeline_dir, build_path(map_file_entities, custom_path_patterns))
     if not os.path.exists(dwi_tensor_filepath):
         warn(f"DWI tensor file not found at expected location: {dwi_tensor_filepath}. Attempting to find any other tensor file of the subject and session...")
-        same_subject_session_files = [f for f in os.listdir(dwi_pipeline_dir) if input_entities["subject"] in f and (("session" not in input_entities) or (input_entities["session"] in f)) and "desc-tensor" in f and f.endswith(".nii.gz")]
-        if len(same_subject_session_files) == 0:
-            raise FileNotFoundError(f"No DWI tensor files found for subject {subject_id} in {dwi_pipeline_dir}")
-        dwi_tensor_filepath = os.path.join(dwi_pipeline_dir, same_subject_session_files[0])
+        # map_file_entities = {"subject": subject_id, "desc": "tensor", "extension": ".nii.gz", "suffix": "dwi"}
+        # if session_id:
+        #     map_file_entities["session"] = session_id
+        bids_layout: BIDSLayout = BIDSLayout("/data", derivatives=True, validate=False)
+        # same_subject_session_files = bids_layout.get(**map_file_entities, return_type="file", scope=dwi_pipeline_name)
+        # if len(same_subject_session_files) == 0:
+        #     raise FileNotFoundError(f"No DWI tensor files found for subject {subject_id} in {dwi_pipeline_dir}")
+        # dwi_tensor_filepath = os.path.join(dwi_pipeline_dir, same_subject_session_files[0])
+        dwi_tensor_filepath = bids_layout.build_path(map_file_entities, scope=dwi_pipeline_name)
         print(f"Found DWI tensor file at alternative path: {dwi_tensor_filepath}")
     print(f"Loading DWI tensor data from {dwi_tensor_filepath}...")
     dwi_tensor_img = nib.load(dwi_tensor_filepath)
@@ -114,14 +125,16 @@ def dwi_regionwise_analysis(input_filepath: str):
     print(f"Resampled aparc+aseg image to DWI space. Shape: {resampled_aparc_aseg_data.shape}")
     
     # Perform region-wise analysis
+    df_lut: pd.DataFrame = load_freesurfer_color_lut(f"{FREESURFER_HOME}/FreeSurferColorLUT.txt")
     output_data: pd.DataFrame = summarize_regionwise_metrics(
-        label_data=resampled_aparc_aseg_data,
-        metric_data_dict={
+        label_map=resampled_aparc_aseg_data,
+        metrics_dict={
             "FA": fa_data,
             "MD": md_data,
             "AD": ad_data,
             "RD": rd_data
-        }
+        },
+        df_lut=df_lut,
     )
     print("Computed region-wise DWI metrics.")
     
