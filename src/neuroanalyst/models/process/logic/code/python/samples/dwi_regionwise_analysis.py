@@ -128,7 +128,11 @@ def dwi_regionwise_analysis(input_filepath: str):
     # Prepare metrics
     metrics: dict = {
         "num_regions": int(output_data.shape[0]),
-        "metrics_computed": ["FA", "MD", "AD", "RD"]
+        "metrics_computed": ["FA", "MD", "AD", "RD"],
+        "dwi_tensor_filepath": dwi_tensor_filepath,
+        "aparc_aseg_filepath": aparc_aseg_filepath,
+        "t1w_pipeline_name": t1w_pipeline_name,
+        "dwi_pipeline_name": dwi_pipeline_name
     }
     
     output_entities: dict = {
