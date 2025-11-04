@@ -1695,8 +1695,8 @@ def load_freesurfer_color_lut(lut_path: Optional[str] = None) -> pd.DataFrame:
         else:
             lut_path = os.path.join(freesurfer_home, "FreeSurferColorLUT.txt")
             
+    lut_data = []
     if os.path.exists(lut_path):
-        lut_data = []
         with open(lut_path, 'r') as f:
             lines = [fline for fline in f.readlines() if fline.strip() != '']
     else:
