@@ -234,26 +234,34 @@ def dipy_registration(input_filepath: str):
     
     # Get reg_affines from previous step's sidecar (if available - should be there if motion correction was done)
     input_sidecar_path: str = input_filepath.replace(".nii.gz", ".nii").replace(".nii", ".json") # Works for both .nii and .nii.gz
-    reg_affines: np.ndarray = None
-    if os.path.exists(input_sidecar_path):
-        try:
-            with open(input_sidecar_path, 'r') as f:
-                input_sidecar = json.load(f)
-            reg_affines_shape: list = input_sidecar.get("metrics", {}).get("reg_affines_shape", None)
-            reg_affines_dict: dict = input_sidecar.get("metrics", {}).get("reg_affines", None)
-            if reg_affines_dict is not None:
-                reg_affines = np.zeros(reg_affines_shape)
+    reg_affines_path: str = input_filepath.replace(".nii.gz", ".nii").replace(".nii", ".npy")
+    # if os.path.exists(input_sidecar_path):
+    #     try:
+    #         with open(input_sidecar_path, 'r') as f:
+    #             input_sidecar = json.load(f)
+    #         reg_affines_shape: list = input_sidecar.get("metrics", {}).get("reg_affines_shape", None)
+    #         reg_affines_dict: dict = input_sidecar.get("metrics", {}).get("reg_affines", None)
+    #         if reg_affines_dict is not None:
+    #             reg_affines = np.zeros(reg_affines_shape)
 
-                for i in range(reg_affines_shape[0]):
-                    for j in range(reg_affines_shape[1]):
-                        for k in range(reg_affines_shape[2]):
-                            reg_affines[i, j, k] = reg_affines_dict[str(i)][str(j)][str(k)]
+    #             for i in range(reg_affines_shape[0]):
+    #                 for j in range(reg_affines_shape[1]):
+    #                     for k in range(reg_affines_shape[2]):
+    #                         reg_affines[i, j, k] = reg_affines_dict[str(i)][str(j)][str(k)]
                             
-                reg_affines = np.transpose(reg_affines, (0, 1, 2))  # Ensure shape is (N,4,4)
-                print(f"Loaded reg_affines from sidecar with shape: {reg_affines.shape}")
+    #             reg_affines = np.transpose(reg_affines, (0, 1, 2))  # Ensure shape is (N,4,4)
+    #             print(f"Loaded reg_affines from sidecar with shape: {reg_affines.shape}")
+    #     except Exception as e:
+    #         print(f"Error reading sidecar JSON file for reg_affines: {e}")
+    if os.path.exists(reg_affines_path):
+        try:
+            reg_affines = np.load(reg_affines_path)
+            print(f"Loaded reg_affines from .npy file with shape: {reg_affines.shape}")
+            reg_affines = np.transpose(reg_affines, (0, 1, 2))  # Ensure shape is (N,4,4)
+            print(f"Transposed reg_affines to shape: {reg_affines.shape}")
         except Exception as e:
-            print(f"Error reading sidecar JSON file for reg_affines: {e}")
-            
+            print(f"Error reading reg_affines .npy file: {e}")
+
     # Get registered DWI, rotated bvecs
     output_data, rotated_bvecs, bvals, affine_registration, R_coreg = register_dwi_to_t1(
         dwi_data,
@@ -294,9 +302,9 @@ def dipy_registration(input_filepath: str):
     bvec_entities["extension"] = ".bvec"
     
     try:
-        bval_filepath = os.path.join(pipeline_dir, build_path(custom_path_patterns, bval_entities))
-        bvec_filepath = os.path.join(pipeline_dir, build_path(custom_path_patterns, bvec_entities))
-        
+        bval_filepath = os.path.join(pipeline_dir, build_path(bval_entities, custom_path_patterns))
+        bvec_filepath = os.path.join(pipeline_dir, build_path(bvec_entities, custom_path_patterns))
+
         shutil.copyfile(bval_file, bval_filepath)
         print(f"Saved registered BVAL to: {bval_filepath}")
         

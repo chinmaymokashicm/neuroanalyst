@@ -194,7 +194,7 @@ def dipy_motion_correction(input_filepath: str):
         "snr_before": float(snr_before),
         "snr_after": float(snr_after),
         "reg_affines_shape": reg_affines.shape,
-        "reg_affines": reg_affines.tolist(),
+        # "reg_affines": reg_affines.tolist(),
         "translations_mm": translations_mm.tolist(),
         "rotations_deg": rotations_deg.tolist(),
         "framewise_displacement_mm": fd_mm.tolist()
@@ -222,13 +222,20 @@ def dipy_motion_correction(input_filepath: str):
     bvec_entities = output_entities.copy()
     bvec_entities["extension"] = ".bvec"
     
+    reg_affine_entities = output_entities.copy()
+    reg_affine_entities["extension"] = ".npy"
+    
     try:
-        bval_filepath = os.path.join(pipeline_dir, build_path(custom_path_patterns, bval_entities))
-        bvec_filepath = os.path.join(pipeline_dir, build_path(custom_path_patterns, bvec_entities))
+        bval_filepath = os.path.join(pipeline_dir, build_path(bval_entities, custom_path_patterns))
+        bvec_filepath = os.path.join(pipeline_dir, build_path(bvec_entities, custom_path_patterns))
+        reg_affine_filepath = os.path.join(pipeline_dir, build_path(reg_affine_entities, custom_path_patterns))
 
         shutil.copyfile(bval_file, bval_filepath)
         np.savetxt(bvec_filepath, rotated_bvecs.T, fmt="%.8f")
         print(f"Saved motion-corrected BVAL and BVECS to: {bval_filepath}, {bvec_filepath}")
+        
+        np.save(reg_affine_filepath, reg_affines)
+        print(f"Saved registration affines to: {reg_affine_filepath}")
     except Exception as e:
         warn(f"Failed to save motion-corrected BVAL or BVECS files: {e}")
 
