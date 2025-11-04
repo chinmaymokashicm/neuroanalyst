@@ -4,7 +4,7 @@ import os, json, shutil, sys
 import pandas as pd
 from bids.layout import BIDSLayout
 
-data_dir: str = sys.argv[1]  # e.g., "/data/neuroanalysis_test_data"
+data_dir: str = sys.argv[1]  # root directory of BIDS dataset
 scope: str = sys.argv[2]  # e.g., "dwiRegionwiseAnalysis"
 
 layout = BIDSLayout(data_dir, validate=False, derivatives=True)
@@ -34,5 +34,6 @@ for stats_file in stats_files:
     
 # Concatenate all dataframes
 combined_df = pd.concat(dfs, ignore_index=True)
+
 # Save to CSV
-combined_df.to_csv("combined_stats.csv", index=False)
+combined_df.to_csv(os.path.join(data_dir, "derivatives", scope, "combined_stats.csv"), index=False)
