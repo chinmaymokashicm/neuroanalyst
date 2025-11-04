@@ -16,6 +16,7 @@ from dipy.io.gradients import read_bvals_bvecs
 from dipy.io.image import load_nifti
 from dipy.segment.mask import median_otsu
 from bids.layout.writing import build_path
+from bids.layout import parse_file_entities
 
 def dipy_motion_correction(input_filepath: str):
     """
@@ -226,9 +227,22 @@ def dipy_motion_correction(input_filepath: str):
     reg_affine_entities["extension"] = ".npy"
     
     try:
-        bval_filepath = os.path.join(pipeline_dir, build_path(bval_entities, custom_path_patterns))
-        bvec_filepath = os.path.join(pipeline_dir, build_path(bvec_entities, custom_path_patterns))
-        reg_affine_filepath = os.path.join(pipeline_dir, build_path(reg_affine_entities, custom_path_patterns))
+        # bval_filepath = os.path.join(pipeline_dir, build_path(bval_entities, custom_path_patterns))
+        # bvec_filepath = os.path.join(pipeline_dir, build_path(bvec_entities, custom_path_patterns))
+        # reg_affine_filepath = os.path.join(pipeline_dir, build_path(reg_affine_entities, custom_path_patterns))
+        
+        # Create file paths without BIDS - simply replace desc 'denoised' with motionCorrected
+        input_desc = parse_file_entities(input_filepath).get("desc", None)
+        if not input_desc:
+            # Add desc-motionCorrected before suffix.nii.gz
+            bval_filepath = input_filepath.split(".")[0] + "_desc-motionCorrected.bval" + ".".join(input_filepath.split(".")[1:])
+            bvec_filepath = input_filepath.split(".")[0] + "_desc-motionCorrected.bvec" + ".".join(input_filepath.split(".")[1:])
+            reg_affine_filepath = input_filepath.split(".")[0] + "_desc-motionCorrected.npy" + ".".join(input_filepath.split(".")[1:])
+        else:
+            # Replace existing desc with motionCorrected
+            bval_filepath = input_filepath.replace(f"desc-{input_desc}", "desc-motionCorrected").split(".")[0] + ".bval"
+            bvec_filepath = input_filepath.replace(f"desc-{input_desc}", "desc-motionCorrected").split(".")[0] + ".bvec"
+            reg_affine_filepath = input_filepath.replace(f"desc-{input_desc}", "desc-motionCorrected").split(".")[0] + ".npy"
 
         shutil.copyfile(bval_file, bval_filepath)
         np.savetxt(bvec_filepath, rotated_bvecs.T, fmt="%.8f")
