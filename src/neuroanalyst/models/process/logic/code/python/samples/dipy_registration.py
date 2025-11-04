@@ -24,7 +24,7 @@ def dipy_registration(input_filepath: str):
     Perform affine registration of DWI to T1-weighted image using dipy.
     
     Args:
-        input_filepath (str): Path to input DWI NIfTI file.
+        input_filepath (str): Path to input DWI NIfTI file that is motion-corrected.
         
     Returns:
         output_data (nib.Nifti1Image): Registered DWI image in T1 space.
@@ -186,11 +186,11 @@ def dipy_registration(input_filepath: str):
     except Exception as e:
         warn(f"BVAL or BVECS file not found for the given input NIfTI file.: {e}. Attempting to find root file via sidecar tracing...")
         root_sidecar_path = trace_root_sidecar(os.path.join(input_dir, f"{input_file_stem}.json"))
-        root_bval_file = str(Path(root_sidecar_path).parent / (Path(root_sidecar_path).stem.split(".")[0] + ".bval"))
-        root_bvec_file = str(Path(root_sidecar_path).parent / (Path(root_sidecar_path).stem.split(".")[0] + ".bvec"))
+        bval_file = str(Path(root_sidecar_path).parent / (Path(root_sidecar_path).stem.split(".")[0] + ".bval"))
+        bvec_file = str(Path(root_sidecar_path).parent / (Path(root_sidecar_path).stem.split(".")[0] + ".bvec"))
         try:
-            bvals, bvecs = read_bvals_bvecs(root_bval_file, root_bvec_file)
-            print(f"Successfully read BVAL and BVECS from root sidecar files: {root_bval_file}, {root_bvec_file}")
+            bvals, bvecs = read_bvals_bvecs(bval_file, bvec_file)
+            print(f"Successfully read BVAL and BVECS from root sidecar files: {bval_file}, {bvec_file}")
         except Exception as e:
             warn(f"Failed to read BVAL or BVECS from root sidecar files as well: {e}")
             return None, {}, {}, []
@@ -302,8 +302,19 @@ def dipy_registration(input_filepath: str):
     bvec_entities["extension"] = ".bvec"
     
     try:
-        bval_filepath = os.path.join(pipeline_dir, build_path(bval_entities, custom_path_patterns))
-        bvec_filepath = os.path.join(pipeline_dir, build_path(bvec_entities, custom_path_patterns))
+        # bval_filepath = os.path.join(pipeline_dir, build_path(bval_entities, custom_path_patterns))
+        # bvec_filepath = os.path.join(pipeline_dir, build_path(bvec_entities, custom_path_patterns))
+
+        # Create file paths without BIDS - simply replace desc 'motionCorrected' with registered
+        input_desc = parse_file_entities(input_filepath).get("desc", None)
+        if not input_desc:
+            # Add desc-registered before suffix.nii.gz
+            bval_filepath = input_filepath.split(".")[0] + "_desc-registered.bval" + ".".join(input_filepath.split(".")[1:])
+            bvec_filepath = input_filepath.split(".")[0] + "_desc-registered.bvec" + ".".join(input_filepath.split(".")[1:])
+        else:
+            # Replace existing desc with registered
+            bval_filepath = input_filepath.replace(f"desc-{input_desc}", "desc-registered").split(".")[0] + ".bval"
+            bvec_filepath = input_filepath.replace(f"desc-{input_desc}", "desc-registered").split(".")[0] + ".bvec"
 
         shutil.copyfile(bval_file, bval_filepath)
         print(f"Saved registered BVAL to: {bval_filepath}")
