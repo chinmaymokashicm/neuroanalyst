@@ -4,7 +4,7 @@ import sys, yaml
 
 pipeline_name: str = sys.argv[1]  # Name of the pipeline to check status for
 username: str = sys.argv[2]  # Username of the user who ran the pipeline
-pipeline = NeuPipeline(pipeline_name, username)
+pipeline = NeuPipeline.from_pipeline_id(pipeline_name, username)
 
 # Get percentage completion of each process exec in each step
 status: NeuPipelineStatus = pipeline.get_pipeline_status()
