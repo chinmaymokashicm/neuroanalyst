@@ -1,3 +1,4 @@
+from neuroanalyst.models.process.logic.core import Metric
 from neuroanalyst.analysis.freesurfer import extract_all_freesurfer_metrics, export_metrics
 
 import os, subprocess, json
@@ -8,7 +9,7 @@ from typing import Optional
 import nibabel as nib
 import numpy as np
 import pandas as pd
-from bids.layout import parse_file_entities
+from bids.layout import parse_file_entities, BIDSLayout
 from bids.layout.writing import build_path
 
 def autorecon3(input_filepath: str):
@@ -175,17 +176,9 @@ def autorecon3(input_filepath: str):
         "extension": ".csv",
         })
     
-    custom_path_patterns = [
-        "[sub-{subject}/][ses-{session}/]{datatype}/sub-{subject}_[ses-{session}_][acq-{acquisition}_][run-{run}_][desc-{desc}_]{suffix}{extension}",
-        "[sub-{subject}/][ses-{session}/]{datatype}/sub-{subject}_[ses-{session}_][task-{task}_][acq-{acquisition}_][ce-{ce}_][dir-{dir}_][rec-{rec}_][run-{run}_][echo-{echo}_][desc-{desc}_]{suffix}{extension}",
-        "[sub-{subject}/][ses-{session}/]{datatype}/sub-{subject}_[ses-{session}_][task-{task}_][acq-{acquisition}_][run-{run}_][desc-{desc}_]{suffix}{extension}",
-        "[sub-{subject}/][ses-{session}/]{datatype}/sub-{subject}_[ses-{session}_][space-{space}_][hemi-{hemi}_][model-{model}_][desc-{desc}_]{suffix}{extension}",
-        "[sub-{subject}/][ses-{session}/][sample-{sample}/]{datatype}/sub-{subject}_[ses-{session}_][sample-{sample}_][desc-{desc}_]{suffix}{extension}",
-        "[sub-{subject}/][ses-{session}/][sample-{sample}/][modality-{modality}_]{datatype}/sub-{subject}_[ses-{session}_][sample-{sample}_][modality-{modality}_][desc-{desc}_]{suffix}{extension}"
-        ]
+    layout: BIDSLayout = BIDSLayout("/data", derivatives=True, validate=False)
+    cortical_output_filepath: str = layout.build_path(cortical_file_entities, scope=PIPELINE_NAME)
     
-    cortical_output_filename: str = Path(build_path(cortical_file_entities, path_patterns=custom_path_patterns)).name
-    cortical_output_filepath: str = os.path.join(os.path.dirname(input_filepath), cortical_output_filename)
     os.makedirs(os.path.dirname(cortical_output_filepath), exist_ok=True)
     df_cortical_bilateral.to_csv(cortical_output_filepath, index=False)
 
@@ -200,16 +193,30 @@ def autorecon3(input_filepath: str):
         qc_results = {"mean_thickness": None, "surface_area": None, "qc_pass": None}
         
     metrics = {
-        "parameters": {
-            "FreeSurfer_version": os.getenv("FREESURFER_VERSION", "unknown"),
-        },
-        "mean_thickness": qc_results["mean_thickness"],
-        "surface_area": qc_results["surface_area"],
-        "qc_pass": {
-            "autorecon2": qc_pass_autorecon2,
-            "autorecon3": qc_results["qc_pass"]
-        },
-        **dict_metrics
+        "parameters": Metric(
+            value={
+                "FreeSurfer_version": os.getenv("FREESURFER_VERSION", "unknown"),
+            },
+            description="Parameters used in FreeSurfer Autorecon3"
+        ),
+        "mean_thickness": Metric(
+            value=qc_results["mean_thickness"],
+            unit="mm",
+            description="Mean cortical thickness across hemispheres"
+        ),
+        "surface_area": Metric(
+            value=qc_results["surface_area"],
+            unit="mm²",
+            description="Total cortical surface area"
+        ),
+        "qc_pass": Metric(
+            value={
+                "autorecon2": qc_pass_autorecon2,
+                "autorecon3": qc_results["qc_pass"]
+            },
+            description="Quality control pass status for autorecon steps"
+        ),
+        **{k: Metric(value=v, description=f"FreeSurfer metric: {k}") for k, v in dict_metrics.items()}
     }
     
     output_entities = {

@@ -3,6 +3,8 @@
 Constrained Spherical Deconvolution (CSD) Modeling using dipy.
 """
 
+from neuroanalyst.models.process.logic.core import Metric
+
 import os, subprocess, json
 from pathlib import Path
 import traceback
@@ -46,9 +48,27 @@ def dipy_csd_modeling(input_filepath: str):
     output_data = peaks.peak_dirs
 
     metrics = {
-        "mean_peak1": float(np.mean(output_data[..., 0])),
-        "mean_peak2": float(np.mean(output_data[..., 1])),
-        "mean_peak3": float(np.mean(output_data[..., 2])),
+        "mean_peak1": Metric(
+            value=float(np.mean(output_data[..., 0])),
+            description="Mean value of the first peak direction"
+        ),
+        "mean_peak2": Metric(
+            value=float(np.mean(output_data[..., 1])),
+            description="Mean value of the second peak direction"
+        ),
+        "mean_peak3": Metric(
+            value=float(np.mean(output_data[..., 2])),
+            description="Mean value of the third peak direction"
+        ),
+        "csd_parameters": Metric(
+            value={
+                "relative_peak_threshold": 0.5,
+                "min_separation_angle": 25,
+                "roi_radius": 10,
+                "fa_thr": 0.7
+            },
+            description="Parameters used for CSD modeling"
+        )
     }
 
     output_entities = {

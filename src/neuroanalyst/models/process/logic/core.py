@@ -9,7 +9,7 @@ from ...about import About
 from ....utils.constants import NeuroAnalystPaths
 
 from pathlib import Path
-from typing import Self, Optional
+from typing import Self, Optional, Any
 import shutil
 
 from enum import Enum
@@ -67,6 +67,12 @@ for key in forbidden_keys:
         ALLOWED_PYBIDS_ENTITY_KEYS.remove(key)
 
 # ==================================================
+
+class Metric(BaseModel):
+    """Represents a quantitative metric derived from data"""
+    value: Any
+    unit: Optional[str] = None
+    description: str = ""
 
 class ProgrammingLanguage(str, Enum):
     PYTHON = "python"

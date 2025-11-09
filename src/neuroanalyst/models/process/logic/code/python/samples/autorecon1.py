@@ -1,3 +1,5 @@
+from neuroanalyst.models.process.logic.core import Metric
+
 import os, subprocess, traceback
 
 import nibabel as nib
@@ -105,30 +107,46 @@ def autorecon1(input_filepath: str):
     mask_intensity_mean: float = np.mean(t1_img.get_fdata()[skull_stripped_img.get_fdata() > 0])
 
     metrics = {
-        "brain_volume": brain_volume,
-        "brain_dimensions": t1_data.shape[:-1],
-        "qc_pass": 0.25 <= mask_ratio <= 0.6 and 40 <= mask_intensity_mean <= 200,
+        "brain_volume": Metric(brain_volume, unit="mm³", description="Volume of the brain mask"),
+        "brain_dimensions": Metric(t1_data.shape[:-1], unit="voxels", description="Dimensions of the brain image"),
+        "qc_pass": Metric(
+            0.25 <= mask_ratio <= 0.6 and 40 <= mask_intensity_mean <= 200,
+            description="Whether the QC metrics pass the defined thresholds"
+        ),
         "qc_metrics": {
-            "mask_ratio": mask_ratio,
-            "mask_intensity_mean": mask_intensity_mean
+            "mask_ratio": Metric(mask_ratio, description="Ratio of brain mask voxels to total T1 voxels"),
+            "mask_intensity_mean": Metric(mask_intensity_mean, description="Mean intensity within the brain mask")
         },
-        "qc_notes": (
+        "qc_notes": Metric(
             "Mask ratio or intensity mean out of expected range."
             if not (0.25 <= mask_ratio <= 0.6 and 40 <= mask_intensity_mean <= 200)
-            else "QC passed."
+            else "QC passed.",
+            description="Notes regarding the QC evaluation"
         ),
         "qc_criteria": {
-            "mask_ratio_range": [0.25, 0.6],
-            "mask_intensity_mean_range": [40, 200]
+            "mask_ratio_range": Metric([0.25, 0.6], description="Expected range for mask ratio"),
+            "mask_intensity_mean_range": Metric([40, 200], description="Expected range for mask intensity mean")
         },
         "channels": [
-            {"name": "T1", "description": "Intensity-normalized T1-weighted image"},
-            {"name": "brainmask", "description": "Skull-stripped brain mask"}
+            Metric(
+                value="T1",
+                description="Intensity-normalized T1-weighted image"
+            ),
+            Metric(
+                value="brainmask",
+                description="Skull-stripped brain mask"
+            )
         ],
-        "parameters": {
-            "FreeSurfer_version": FREESURFER_HOME.split("/")[-1],
-        },
-        "original_output_path": fs_subjects_dir,
+        "parameters": Metric(
+            value={
+                "FreeSurfer_version": FREESURFER_HOME.split("/")[-1],
+            },
+            description="Parameters used in FreeSurfer Autorecon1"
+        ),
+        "original_output_path": Metric(
+            value=fs_subjects_dir,
+            description="Path to the FreeSurfer subjects directory containing all outputs"
+        ),
     }
     
     output_entities = {

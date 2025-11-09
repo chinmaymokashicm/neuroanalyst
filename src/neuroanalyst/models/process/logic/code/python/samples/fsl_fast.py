@@ -1,3 +1,5 @@
+from neuroanalyst.models.process.logic.core import Metric
+
 import os
 import subprocess
 from pathlib import Path
@@ -127,32 +129,72 @@ fast -t {image_type} -n {n_classes} -H {hyper} -I {iter} -l {lowpass} -B -o {out
         cnr = 0
 
     metrics: dict = {
-        "shape": output_data.shape,
-        "csf_volume": int((output_data[..., 0] > 0).sum()) if n_classes > 0 else 0,
-        "gm_volume": int((output_data[..., 1] > 0).sum()) if n_classes > 1 else 0,
-        "wm_volume": int((output_data[..., 2] > 0).sum()) if n_classes > 2 else 0,
-        "gm_volume_fraction": float((output_data[..., 1] > 0).sum()) / output_data[..., 1].size if n_classes > 1 else 0.0,
-        "wm_volume_fraction": float((output_data[..., 2] > 0).sum()) / output_data[..., 2].size if n_classes > 2 else 0.0,
-        "mixeltype_volume": int((output_data[..., -2] > 0).sum()),
-        "snr": float(snr),
-        "cnr": float(cnr),
-        "tool": "FSL FAST",
-        "version": "6.0.5",  # Ideally, we would extract the actual version from the FSL image.
-        "output_channels": [
+        "shape": Metric(
+            value=output_data.shape,
+            unit="voxels",
+            description="Shape of the output segmentation data"
+        ),
+        "csf_volume": Metric(
+            value=int((output_data[..., 0] > 0).sum()) if n_classes > 0 else 0,
+            unit="voxels",
+            description="Volume of cerebrospinal fluid"
+        ),
+        "gm_volume": Metric(
+            value=int((output_data[..., 1] > 0).sum()) if n_classes > 1 else 0,
+            unit="voxels",
+            description="Volume of gray matter"
+        ),
+        "wm_volume": Metric(
+            value=int((output_data[..., 2] > 0).sum()) if n_classes > 2 else 0,
+            unit="voxels",
+            description="Volume of white matter"
+        ),
+        "gm_volume_fraction": Metric(
+            value=float((output_data[..., 1] > 0).sum()) / output_data[..., 1].size if n_classes > 1 else 0.0,
+            description="Gray matter volume fraction"
+        ),
+        "wm_volume_fraction": Metric(
+            value=float((output_data[..., 2] > 0).sum()) / output_data[..., 2].size if n_classes > 2 else 0.0,
+            description="White matter volume fraction"
+        ),
+        "mixeltype_volume": Metric(
+            value=int((output_data[..., -2] > 0).sum()),
+            unit="voxels",
+            description="Volume of mixed tissue types"
+        ),
+        "snr": Metric(
+            value=float(snr),
+            description="Signal-to-noise ratio of the segmentation"
+        ),
+        "cnr": Metric(
+            value=float(cnr),
+            description="Contrast-to-noise ratio between gray and white matter"
+        ),
+        "tool_info": Metric(
+            value={
+                "tool": "FSL FAST",
+                "version": "6.0.5"
+            },
+            description="Information about the tool used"
+        ),
+        "channels": [
             *(["CSF"] if n_classes > 0 else []),
             *(["GM"] if n_classes > 1 else []),
             *(["WM"] if n_classes > 2 else []),
             "HMRF_segmentation",
-            "mixeltype",
+            "mixeltype", 
             "restored_image"
         ],
-        "parameters": {
-            "image_type": image_type,
-            "n_classes": n_classes,
-            "hyper": hyper,
-            "iter": iter,
-            "lowpass": lowpass
-        }
+        "parameters": Metric(
+            value={
+                "image_type": image_type,
+                "n_classes": n_classes,
+                "hyper": hyper,
+                "iter": iter,
+                "lowpass": lowpass
+            },
+            description="Parameters used for FAST processing"
+        )
     }
     
     output_entities: dict = {

@@ -1,3 +1,5 @@
+from neuroanalyst.models.process.logic.core import Metric
+
 import os
 import subprocess
 from pathlib import Path
@@ -108,17 +110,39 @@ fslmaths {wm_temp_path} -thr {threshold} -bin {wm_output_path}
     
     # Compute relevant metrics
     metrics: dict = {
-        "shape": output_data.shape,
-        "csf_volume": int((output_data[..., 0] > 0).sum()),
-        "gm_volume": int((output_data[..., 1] > 0).sum()),
-        "wm_volume": int((output_data[..., 2] > 0).sum()),
-        "tool": "FSL fslmaths",
-        "output_channels": [
-            "CSF",
-            "GM",
-            "WM"
+        "shape": Metric(
+            value=output_data.shape,
+            unit="voxels",
+            description="Shape of the thresholded output data"
+        ),
+        "csf_volume": Metric(
+            value=int((output_data[..., 0] > 0).sum()),
+            unit="voxels",
+            description="Volume of thresholded CSF mask"
+        ),
+        "gm_volume": Metric(
+            value=int((output_data[..., 1] > 0).sum()),
+            unit="voxels",
+            description="Volume of thresholded gray matter mask"
+        ),
+        "wm_volume": Metric(
+            value=int((output_data[..., 2] > 0).sum()),
+            unit="voxels",
+            description="Volume of thresholded white matter mask"
+        ),
+        "tool_info": Metric(
+            value="FSL fslmaths",
+            description="Tool used for thresholding"
+        ),
+        "channels": [
+            Metric(value="CSF", description="Cerebrospinal fluid mask"),
+            Metric(value="GM", description="Gray matter mask"),
+            Metric(value="WM", description="White matter mask")
         ],
-        "threshold": threshold
+        "parameters": Metric(
+            value={"threshold": threshold},
+            description="Threshold value used for segmentation"
+        )
     }
     
     output_entities: dict = {

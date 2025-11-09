@@ -1,3 +1,4 @@
+from neuroanalyst.models.process.logic.core import Metric
 from neuroanalyst.analysis.provenance import trace_root_sidecar
 
 import os, subprocess, json
@@ -84,8 +85,23 @@ def dipy_denoising_patch2self(input_filepath: str):
         warn(f"Could not calculate SNR after denoising: {e}")
 
     metrics: dict = {
-        "snr_before": float(snr_before) if snr_before is not None else None,
-        "snr_after": float(snr_after) if snr_after is not None else None,
+        "snr_before": Metric(
+            value=float(snr_before) if snr_before is not None else None,
+            description="Signal-to-noise ratio before denoising"
+        ),
+        "snr_after": Metric(
+            value=float(snr_after) if snr_after is not None else None,
+            description="Signal-to-noise ratio after denoising"
+        ),
+        "denoising_parameters": Metric(
+            value={"model": "ols"},
+            description="Parameters used for patch2self denoising"
+        ),
+        "data_shape": Metric(
+            value=dwi_data.shape,
+            unit="voxels",
+            description="Shape of the input DWI data"
+        ),
     }
 
     output_entities: dict = {

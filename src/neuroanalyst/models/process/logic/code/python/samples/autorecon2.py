@@ -1,3 +1,5 @@
+from neuroanalyst.models.process.logic.core import Metric
+
 import os, subprocess, json, traceback
 from pathlib import Path
 from typing import Optional
@@ -5,7 +7,7 @@ from typing import Optional
 import nibabel as nib
 from nibabel import gifti
 import numpy as np
-from bids.layout import parse_file_entities
+from bids.layout import parse_file_entities, BIDSLayout
 from bids.layout.writing import build_path
 
 
@@ -168,23 +170,56 @@ def autorecon2(input_filepath: str):
     #     qc_results = {}
     
     metrics = {
-        "total_brain_volume": int(np.sum(aseg_data > 0)),
-        "white_matter_volume": int(np.sum(wm_data > 0)),
-        "num_labels": int(len(np.unique(aseg_data))),
-        "segmentation_dimensions": aseg_data.shape,
-        "segmentation_classes": int(np.max(aseg_data)),
-        "output_channels": [
-            {"name": "segmentation", "description": "Automated segmentation (aseg.presurf.mgz)"},
-            {"name": "white_matter", "description": "White matter segmentation (wm.mgz)"}
+        "total_brain_volume": Metric(
+            value=int(np.sum(aseg_data > 0)),
+            unit="voxels",
+            description="Total number of brain voxels in the segmentation"
+        ),
+        "white_matter_volume": Metric(
+            value=int(np.sum(wm_data > 0)),
+            unit="voxels",
+            description="Volume of white matter segmentation"
+        ),
+        "num_labels": Metric(
+            value=int(len(np.unique(aseg_data))),
+            description="Number of unique segmentation labels"
+        ),
+        "segmentation_dimensions": Metric(
+            value=aseg_data.shape,
+            unit="voxels",
+            description="Dimensions of the segmentation image"
+        ),
+        "segmentation_classes": Metric(
+            value=int(np.max(aseg_data)),
+            description="Maximum segmentation label value"
+        ),
+        "channels": [
+            Metric(
+                value="segmentation",
+                description="Automated segmentation (aseg.presurf.mgz)"
+            ),
+            Metric(
+                value="white_matter",
+                description="White matter segmentation (wm.mgz)"
+            )
         ],
-        "qc_pass": {
-            "autorecon1": qc_pass_autorecon1,
-            # "autorecon2": qc_results.get("qc_pass", None)
-        },
-        "parameters": {
-            "FreeSurfer_version": FREESURFER_HOME.split("/")[-1],
-        },
-        "original_output_path": fs_subjects_dir,
+        "qc_pass": Metric(
+            value={
+                "autorecon1": qc_pass_autorecon1,
+                # "autorecon2": qc_results.get("qc_pass", None)
+            },
+            description="Quality control pass status for previous steps"
+        ),
+        "parameters": Metric(
+            value={
+                "FreeSurfer_version": FREESURFER_HOME.split("/")[-1],
+            },
+            description="Parameters used in FreeSurfer Autorecon2"
+        ),
+        "original_output_path": Metric(
+            value=fs_subjects_dir,
+            description="Path to the FreeSurfer subjects directory containing all outputs"
+        ),
     }
     
     output_entities = {
@@ -212,17 +247,11 @@ def autorecon2(input_filepath: str):
             "suffix": "smoothwm",
             "extension": ".surf.gii",
         }}
-        custom_path_patterns = [
-            "[sub-{subject}/][ses-{session}/]{datatype}/sub-{subject}_[ses-{session}_][acq-{acquisition}_][run-{run}_][desc-{desc}_]{suffix}{extension}",
-            "[sub-{subject}/][ses-{session}/]{datatype}/sub-{subject}_[ses-{session}_][task-{task}_][acq-{acquisition}_][ce-{ce}_][dir-{dir}_][rec-{rec}_][run-{run}_][echo-{echo}_][desc-{desc}_]{suffix}{extension}",
-            "[sub-{subject}/][ses-{session}/]{datatype}/sub-{subject}_[ses-{session}_][task-{task}_][acq-{acquisition}_][run-{run}_][desc-{desc}_]{suffix}{extension}",
-            "[sub-{subject}/][ses-{session}/]{datatype}/sub-{subject}_[ses-{session}_][space-{space}_][hemi-{hemi}_][model-{model}_][desc-{desc}_]{suffix}{extension}",
-            "[sub-{subject}/][ses-{session}/][sample-{sample}/]{datatype}/sub-{subject}_[ses-{session}_][sample-{sample}_][desc-{desc}_]{suffix}{extension}",
-            "[sub-{subject}/][ses-{session}/][sample-{sample}/][modality-{modality}_]{datatype}/sub-{subject}_[ses-{session}_][sample-{sample}_][modality-{modality}_][desc-{desc}_]{suffix}{extension}"
-            ]
         
-        lh_surface_bids_filename: str = build_path(lh_surface_bids_entities, path_patterns=custom_path_patterns)
-        rh_surface_bids_filename: str = build_path(rh_surface_bids_entities, path_patterns=custom_path_patterns)
+        layout: BIDSLayout = BIDSLayout(DATA_DIR, derivatives=True, validate=False)
+        lh_surface_bids_filename: str = layout.build_path(lh_surface_bids_entities, scope=PIPELINE_NAME)
+        rh_surface_bids_filename: str = layout.build_path(rh_surface_bids_entities, scope=PIPELINE_NAME)
+        
         input_dir: str = os.path.dirname(input_filepath)
         lh_surface_bids_filepath: str = os.path.join(input_dir, lh_surface_bids_filename)
         rh_surface_bids_filepath: str = os.path.join(input_dir, rh_surface_bids_filename)

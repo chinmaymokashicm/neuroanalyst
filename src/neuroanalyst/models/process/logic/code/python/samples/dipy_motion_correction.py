@@ -1,3 +1,4 @@
+from neuroanalyst.models.process.logic.core import Metric
 import shutil
 from neuroanalyst.analysis.provenance import trace_root_sidecar
 
@@ -183,22 +184,79 @@ def dipy_motion_correction(input_filepath: str):
     snr_after = calculate_snr(output_data.get_fdata())
     
     metrics: dict = {
-        "mask_shape": b0_mask.shape if b0_mask is not None else None,
-        "mask_sum": int(np.sum(b0_mask)) if b0_mask is not None else None,
-        "num_volumes": dwi_data.shape[-1],
-        "max_translation_mm": float(max_translation),
-        "avg_translation_mm": float(avg_translation),
-        "max_rotation_deg": float(max_rotation),
-        "avg_rotation_deg": float(avg_rotation),
-        "max_framewise_displacement_mm": float(max_framewise_displacement),
-        "avg_framewise_displacement_mm": float(avg_framewise_displacement),
-        "snr_before": float(snr_before),
-        "snr_after": float(snr_after),
-        "reg_affines_shape": reg_affines.shape,
-        # "reg_affines": reg_affines.tolist(),
-        "translations_mm": translations_mm.tolist(),
-        "rotations_deg": rotations_deg.tolist(),
-        "framewise_displacement_mm": fd_mm.tolist()
+        "mask_shape": Metric(
+            value=b0_mask.shape if b0_mask is not None else None,
+            unit="voxels",
+            description="Shape of the brain mask"
+        ),
+        "mask_sum": Metric(
+            value=int(np.sum(b0_mask)) if b0_mask is not None else None,
+            unit="voxels", 
+            description="Number of voxels in the brain mask"
+        ),
+        "num_volumes": Metric(
+            value=dwi_data.shape[-1],
+            description="Number of DWI volumes"
+        ),
+        "max_translation_mm": Metric(
+            value=float(max_translation),
+            unit="mm",
+            description="Maximum translation across all volumes"
+        ),
+        "avg_translation_mm": Metric(
+            value=float(avg_translation),
+            unit="mm", 
+            description="Average translation across all volumes"
+        ),
+        "max_rotation_deg": Metric(
+            value=float(max_rotation),
+            unit="degrees",
+            description="Maximum rotation across all volumes"
+        ),
+        "avg_rotation_deg": Metric(
+            value=float(avg_rotation),
+            unit="degrees",
+            description="Average rotation across all volumes"
+        ),
+        "max_framewise_displacement_mm": Metric(
+            value=float(max_framewise_displacement),
+            unit="mm",
+            description="Maximum framewise displacement"
+        ),
+        "avg_framewise_displacement_mm": Metric(
+            value=float(avg_framewise_displacement),
+            unit="mm",
+            description="Average framewise displacement"
+        ),
+        "snr_before": Metric(
+            value=float(snr_before),
+            description="Signal-to-noise ratio before motion correction"
+        ),
+        "snr_after": Metric(
+            value=float(snr_after),
+            description="Signal-to-noise ratio after motion correction"
+        ),
+        "reg_affines_shape": Metric(
+            value=reg_affines.shape,
+            description="Shape of the registration affines array"
+        ),
+        "motion_parameters": {
+            "translations_mm": Metric(
+                value=translations_mm.tolist(),
+                unit="mm",
+                description="Translation parameters for each volume"
+            ),
+            "rotations_deg": Metric(
+                value=rotations_deg.tolist(),
+                unit="degrees",
+                description="Rotation parameters for each volume"
+            ),
+            "framewise_displacement_mm": Metric(
+                value=fd_mm.tolist(),
+                unit="mm",
+                description="Framewise displacement for each volume"
+            )
+        }
     }
 
     output_entities = {

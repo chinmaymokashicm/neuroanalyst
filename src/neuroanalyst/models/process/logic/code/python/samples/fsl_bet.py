@@ -1,3 +1,5 @@
+from neuroanalyst.models.process.logic.core import Metric
+
 import os
 import subprocess
 from pathlib import Path
@@ -74,18 +76,37 @@ bet {input_filepath} {output_filepath} -m
     print(f"Loaded brain data shape: {brain_data.shape}")
     
     metrics: dict = {
-        "brain_volume": int((brain_data > 0).sum()),
-        "mask_volume": int((mask_data > 0).sum()),
-        "mask_coverage": float((mask_data > 0).sum()) / mask_data.size,
-        "tool": "FSL BET",
-        "version": "6.0.5",
-        "output_channels": [
-            "brain",
-            "brain_mask"
+        "brain_volume": Metric(
+            value=int((brain_data > 0).sum()),
+            unit="voxels",
+            description="Volume of extracted brain tissue"
+        ),
+        "mask_volume": Metric(
+            value=int((mask_data > 0).sum()),
+            unit="voxels",
+            description="Volume of brain mask"
+        ),
+        "mask_coverage": Metric(
+            value=float((mask_data > 0).sum()) / mask_data.size,
+            description="Proportion of total volume covered by brain mask"
+        ),
+        "tool_info": Metric(
+            value={
+                "tool": "FSL BET",
+                "version": "6.0.5"
+            },
+            description="Information about the tool used"
+        ),
+        "channels": [
+            Metric(value="brain", description="Brain-extracted image"),
+            Metric(value="brain_mask", description="Binary brain mask")
         ],
-        "parameters": {
-            "options": "-m"
-        }
+        "parameters": Metric(
+            value={
+                "options": "-m"
+            },
+            description="Parameters used for BET processing"
+        )
     }
     
     output_entities: dict = {

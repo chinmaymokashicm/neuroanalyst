@@ -1,3 +1,4 @@
+from neuroanalyst.models.process.logic.core import Metric
 from neuroanalyst.analysis.provenance import trace_root_sidecar
 
 import os, subprocess, json
@@ -62,24 +63,66 @@ def dipy_tensor_modeling(input_filepath: str):
     output_data = np.stack([fa, md, ad, rd, color_fa[..., 0], trace], axis=-1)
 
     metrics = {
-        "mean_fa": float(np.mean(fa)),
-        "std_fa": float(np.std(fa)),
-        "mean_md": float(np.mean(md)),
-        "std_md": float(np.std(md)),
-        "mean_ad": float(np.mean(ad)),
-        "std_ad": float(np.std(ad)),
-        "mean_rd": float(np.mean(rd)),
-        "std_rd": float(np.std(rd)),
-        "mean_trace": float(np.mean(trace)),
-        "std_trace": float(np.std(trace)),
-        "output_channels": [
-            {"name": "FA", "description": "Fractional Anisotropy"},
-            {"name": "MD", "description": "Mean Diffusivity"},
-            {"name": "AD", "description": "Axial Diffusivity"},
-            {"name": "RD", "description": "Radial Diffusivity"},
-            {"name": "ColorFA", "description": "Color-coded FA"},
-            {"name": "Trace", "description": "Trace of the diffusion tensor"}
-        ]
+        "mean_fa": Metric(
+            value=float(np.mean(fa)),
+            description="Mean fractional anisotropy across the brain"
+        ),
+        "std_fa": Metric(
+            value=float(np.std(fa)),
+            description="Standard deviation of fractional anisotropy"
+        ),
+        "mean_md": Metric(
+            value=float(np.mean(md)),
+            unit="mm²/s",
+            description="Mean diffusivity across the brain"
+        ),
+        "std_md": Metric(
+            value=float(np.std(md)),
+            unit="mm²/s",
+            description="Standard deviation of mean diffusivity"
+        ),
+        "mean_ad": Metric(
+            value=float(np.mean(ad)),
+            unit="mm²/s",
+            description="Mean axial diffusivity across the brain"
+        ),
+        "std_ad": Metric(
+            value=float(np.std(ad)),
+            unit="mm²/s",
+            description="Standard deviation of axial diffusivity"
+        ),
+        "mean_rd": Metric(
+            value=float(np.mean(rd)),
+            unit="mm²/s",
+            description="Mean radial diffusivity across the brain"
+        ),
+        "std_rd": Metric(
+            value=float(np.std(rd)),
+            unit="mm²/s",
+            description="Standard deviation of radial diffusivity"
+        ),
+        "mean_trace": Metric(
+            value=float(np.mean(trace)),
+            unit="mm²/s",
+            description="Mean trace of the diffusion tensor"
+        ),
+        "std_trace": Metric(
+            value=float(np.std(trace)),
+            unit="mm²/s",
+            description="Standard deviation of trace"
+        ),
+        "channels": [
+            Metric(value="FA", description="Fractional Anisotropy"),
+            Metric(value="MD", description="Mean Diffusivity"),
+            Metric(value="AD", description="Axial Diffusivity"),
+            Metric(value="RD", description="Radial Diffusivity"),
+            Metric(value="ColorFA", description="Color-coded FA"),
+            Metric(value="Trace", description="Trace of the diffusion tensor")
+        ],
+        "fit_parameters": Metric(
+            value={"method": "WLS"},
+            description="Parameters used for tensor fitting"
+        )
     }
 
     output_entities = {

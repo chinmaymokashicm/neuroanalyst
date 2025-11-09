@@ -1,3 +1,4 @@
+from neuroanalyst.models.process.logic.core import Metric
 from neuroanalyst.analysis.dwi import summarize_regionwise_metrics
 from neuroanalyst.analysis.freesurfer import load_freesurfer_color_lut
 
@@ -64,26 +65,17 @@ def dwi_regionwise_analysis(input_filepath: str):
         "[sub-{subject}/][ses-{session}/][sample-{sample}/][modality-{modality}_]{datatype}/sub-{subject}_[ses-{session}_][sample-{sample}_][modality-{modality}_][acq-{acquisition}_][desc-{desc}_]{suffix}{extension}"
         ]
     
-    dwi_pipeline_dir: str = os.path.join("/data", "derivatives", dwi_pipeline_name)
+    bids_layout: BIDSLayout = BIDSLayout("/data", derivatives=True, validate=False)
     map_file_entities = input_entities.copy()
     map_file_entities.update({"suffix": "dwi", "desc": "tensor", "extension": ".nii.gz"})
-    dwi_tensor_filepath: str = os.path.join(dwi_pipeline_dir, build_path(map_file_entities, custom_path_patterns))
+    dwi_tensor_filepath: str = bids_layout.build_path(map_file_entities, scope=dwi_pipeline_name)
     if not os.path.exists(dwi_tensor_filepath):
-        warn(f"DWI tensor file not found at expected location: {dwi_tensor_filepath}. Attempting to find any other tensor file of the subject and session...")
-        # map_file_entities = {"subject": subject_id, "desc": "tensor", "extension": ".nii.gz", "suffix": "dwi"}
-        # if session_id:
-        #     map_file_entities["session"] = session_id
-        bids_layout: BIDSLayout = BIDSLayout("/data", derivatives=True, validate=False)
-        # same_subject_session_files = bids_layout.get(**map_file_entities, return_type="file", scope=dwi_pipeline_name)
-        # if len(same_subject_session_files) == 0:
-        #     raise FileNotFoundError(f"No DWI tensor files found for subject {subject_id} in {dwi_pipeline_dir}")
-        # dwi_tensor_filepath = os.path.join(dwi_pipeline_dir, same_subject_session_files[0])
-        dwi_tensor_filepath = bids_layout.build_path(map_file_entities, scope=dwi_pipeline_name)
-        print(f"Found DWI tensor file at alternative path: {dwi_tensor_filepath}")
+        raise FileNotFoundError(f"DWI tensor file not found at expected location: {dwi_tensor_filepath}")
     print(f"Loading DWI tensor data from {dwi_tensor_filepath}...")
     dwi_tensor_img = nib.load(dwi_tensor_filepath)
     dwi_tensor_data = dwi_tensor_img.get_fdata()
     print(f"DWI tensor data shape: {dwi_tensor_data.shape}")
+    
     try:
         fa_data = dwi_tensor_data[..., 0]
         md_data = dwi_tensor_data[..., 1]
@@ -140,12 +132,29 @@ def dwi_regionwise_analysis(input_filepath: str):
     
     # Prepare metrics
     metrics: dict = {
-        "num_regions": int(output_data.shape[0]),
-        "metrics_computed": ["FA", "MD", "AD", "RD"],
-        "dwi_tensor_filepath": dwi_tensor_filepath,
-        "aparc_aseg_filepath": aparc_aseg_filepath,
-        "t1w_pipeline_name": t1w_pipeline_name,
-        "dwi_pipeline_name": dwi_pipeline_name
+        "num_regions": Metric(
+            value=int(output_data.shape[0]),
+            description="Number of anatomical regions analyzed"
+        ),
+        "metrics_computed": Metric(
+            value=["FA", "MD", "AD", "RD"],
+            description="DWI-derived metrics computed for each region"
+        ),
+        "dwi_tensor_filepath": Metric(
+            value=dwi_tensor_filepath,
+            description="Path to the tensor-derived metrics file"
+        ),
+        "aparc_aseg_filepath": Metric(
+            value=aparc_aseg_filepath,
+            description="Path to the anatomical segmentation file"
+        ),
+        "pipeline_configuration": Metric(
+            value={
+                "t1w_pipeline_name": t1w_pipeline_name,
+                "dwi_pipeline_name": dwi_pipeline_name
+            },
+            description="Pipeline names used for T1w and DWI processing"
+        )
     }
     
     output_entities: dict = {

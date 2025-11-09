@@ -1,3 +1,4 @@
+from neuroanalyst.models.process.logic.core import Metric
 from neuroanalyst.analysis.provenance import trace_root_sidecar
 
 from pathlib import Path
@@ -16,7 +17,7 @@ from nilearn.plotting import plot_img
 import nibabel as nib
 import matplotlib.pyplot as plt
 import numpy as np
-from bids.layout import parse_file_entities
+from bids.layout import parse_file_entities, BIDSLayout
 from bids.layout.writing import build_path
 
 def dipy_registration(input_filepath: str):
@@ -235,24 +236,6 @@ def dipy_registration(input_filepath: str):
     # Get reg_affines from previous step's sidecar (if available - should be there if motion correction was done)
     input_sidecar_path: str = input_filepath.replace(".nii.gz", ".nii").replace(".nii", ".json") # Works for both .nii and .nii.gz
     reg_affines_path: str = input_filepath.replace(".nii.gz", ".nii").replace(".nii", ".npy")
-    # if os.path.exists(input_sidecar_path):
-    #     try:
-    #         with open(input_sidecar_path, 'r') as f:
-    #             input_sidecar = json.load(f)
-    #         reg_affines_shape: list = input_sidecar.get("metrics", {}).get("reg_affines_shape", None)
-    #         reg_affines_dict: dict = input_sidecar.get("metrics", {}).get("reg_affines", None)
-    #         if reg_affines_dict is not None:
-    #             reg_affines = np.zeros(reg_affines_shape)
-
-    #             for i in range(reg_affines_shape[0]):
-    #                 for j in range(reg_affines_shape[1]):
-    #                     for k in range(reg_affines_shape[2]):
-    #                         reg_affines[i, j, k] = reg_affines_dict[str(i)][str(j)][str(k)]
-                            
-    #             reg_affines = np.transpose(reg_affines, (0, 1, 2))  # Ensure shape is (N,4,4)
-    #             print(f"Loaded reg_affines from sidecar with shape: {reg_affines.shape}")
-    #     except Exception as e:
-    #         print(f"Error reading sidecar JSON file for reg_affines: {e}")
     if os.path.exists(reg_affines_path):
         try:
             reg_affines = np.load(reg_affines_path)
@@ -274,9 +257,22 @@ def dipy_registration(input_filepath: str):
     )
     
     metrics = {
-        "R_coreg": R_coreg.tolist(),
-        "affine_registration_matrix": affine_registration.affine.tolist(),
-        "registration_method": "Affine",
+        "R_coreg": Metric(
+            value=R_coreg.tolist(),
+            description="Rotation matrix from motion correction"
+        ),
+        "affine_registration_matrix": Metric(
+            value=affine_registration.affine.tolist(),
+            description="4x4 affine transformation matrix for DWI to T1 registration"
+        ),
+        "registration_method": Metric(
+            value="Affine",
+            description="Type of registration performed"
+        ),
+        "registration_algorithm": Metric(
+            value="Mutual Information",
+            description="Optimization metric used for registration"
+        )
     }
     
     output_entities = {
@@ -302,25 +298,16 @@ def dipy_registration(input_filepath: str):
     bvec_entities["extension"] = ".bvec"
     
     try:
-        # bval_filepath = os.path.join(pipeline_dir, build_path(bval_entities, custom_path_patterns))
-        # bvec_filepath = os.path.join(pipeline_dir, build_path(bvec_entities, custom_path_patterns))
-
-        # Create file paths without BIDS - simply replace desc 'motionCorrected' with registered
-        input_desc = parse_file_entities(input_filepath).get("desc", None)
-        if not input_desc:
-            # Add desc-registered before suffix.nii.gz
-            bval_filepath = input_filepath.split(".")[0] + "_desc-registered.bval" + ".".join(input_filepath.split(".")[1:])
-            bvec_filepath = input_filepath.split(".")[0] + "_desc-registered.bvec" + ".".join(input_filepath.split(".")[1:])
-        else:
-            # Replace existing desc with registered
-            bval_filepath = input_filepath.replace(f"desc-{input_desc}", "desc-registered").split(".")[0] + ".bval"
-            bvec_filepath = input_filepath.replace(f"desc-{input_desc}", "desc-registered").split(".")[0] + ".bvec"
-
+        layout: BIDSLayout = BIDSLayout("/data", derivatives=True, validate=False)
+        bval_filepath = layout.build_path(bval_entities, scope=pipeline_name)
+        bvec_filepath = layout.build_path(bvec_entities, scope=pipeline_name)
+        
         shutil.copyfile(bval_file, bval_filepath)
         print(f"Saved registered BVAL to: {bval_filepath}")
         
         np.savetxt(bvec_filepath, rotated_bvecs, fmt="%.8f")
         print(f"Saved registered BVECS to: {bvec_filepath}")
+
     except Exception as e:
         warn(f"Failed to save registered BVAL/BVECS files: {e}")
         

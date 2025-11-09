@@ -5,6 +5,8 @@ This module provides a comprehensive decorator system for wrapping NeuProcessLog
 functions with BIDS-compliant output path construction, metadata generation,
 and enhanced neuroimaging data handling capabilities using PyBIDS.
 """
+from ....utils import CONFIG
+from ..logic.core import Metric
 
 import json, time, pickle, platform, traceback, os, tempfile
 from warnings import warn
@@ -23,7 +25,6 @@ import numpy as np
 import pandas as pd
 import nibabel as nib
 
-from ....utils import CONFIG
 
 # PyBIDS imports
 from bids import BIDSLayout
@@ -369,6 +370,12 @@ Error message: {str(func_error)}
                             return str(obj)
                         elif isinstance(obj, (list, dict)):
                             return {k: make_json_serializable(v) for k, v in (obj.items() if isinstance(obj, dict) else enumerate(obj))}
+                        elif isinstance(obj, Metric):
+                            return {
+                                "value": make_json_serializable(obj.value),
+                                "unit": obj.unit,
+                                "description": obj.description
+                            }
                         else:
                             try:
                                 json.dumps(obj)
