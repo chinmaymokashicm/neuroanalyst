@@ -230,10 +230,10 @@ class NeuProcessLogic(BaseModel):
         if function_dir.exists() and not overwrite:
            raise FileExistsError(f"Function directory already exists: {function_dir} . Use a different function name or delete the existing directory, or set overwrite=True to overwrite.") 
 
-        if function_dir.exists() and overwrite:
-            shutil.rmtree(function_dir)
+        # if function_dir.exists() and overwrite:
+        #     shutil.rmtree(function_dir)
 
-        function_dir.mkdir(parents=True, exist_ok=False)
+        function_dir.mkdir(parents=True, exist_ok=True)
         
         # Save the entire function (include imports) to a .py file
         function_file = function_dir / f"{self.about.name}.py"

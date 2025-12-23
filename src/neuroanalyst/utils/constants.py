@@ -199,6 +199,7 @@ class NeuroAnalystPaths:
     def recipes(self) -> Path:
         """Directory for recipe files."""
         dir_path: Path = Path(self._recipes)
+        dir_path.mkdir(parents=True, exist_ok=True)
         return dir_path
     
     def create_directories(self) -> None:
@@ -336,7 +337,9 @@ class NeuroAnalystPaths:
         Returns:
             Path to the recipes directory
         """
-        return self.recipes / (component if component else "")
+        dir_path: Path = self.recipes / (component if component else "")
+        dir_path.mkdir(parents=True, exist_ok=True)
+        return dir_path
 
 
 # Global instance for easy access throughout the framework

@@ -1,3 +1,4 @@
+from ...utils.constants import NeuroAnalystPaths
 from ..process.logic.code.python.decoder import PythonDecoder
 from ..about import About
 from ..process.logic.core import NeuProcessLogic
@@ -35,7 +36,7 @@ class ProcessDirRecipe(BaseModel):
     config: Optional[NeuProcessDirConfig] = Field(None, description="Configuration for the process directory.")
     
 class ProcessExecInStepRecipe(BaseModel):
-    id: str = Field(..., description="ID of the process execution.")
+    process_id: str = Field(..., description="Process ID.")
     input_bids_filters: dict = Field(..., description="BIDS filters for selecting input files.", default_factory=dict)
     extra_bind_paths: dict = Field(..., description="Extra bind paths for the process execution.", default_factory=dict)
     extra_environment_variables: dict = Field(..., description="Extra environment variables for the process execution.", default_factory=dict)
@@ -58,6 +59,37 @@ class PipelineRecipe(BaseModel):
     
     def __iter__(self):
         return iter(self.steps)
+    
+def save_recipe_to_yaml(recipe: BaseModel, recipe_name: str, username: Optional[str] = None) -> str:
+    if not isinstance(recipe, BaseModel):
+        raise ValueError("Recipe must be a Pydantic BaseModel instance.")
+    paths = NeuroAnalystPaths(username=username)
+    if isinstance(recipe, LogicRecipe):
+        output_path: str = paths.get_recipes_dir("logic") / f"{recipe_name}.yaml"
+    elif isinstance(recipe, ProcessDirRecipe):
+        output_path: str = paths.get_recipes_dir("process") / f"{recipe_name}.yaml"
+    elif isinstance(recipe, PipelineRecipe):
+        output_path: str = paths.get_recipes_dir("pipeline") / f"{recipe_name}.yaml"
+    else:
+        raise ValueError("Unsupported recipe type.")
+    with open(output_path, "w") as f:
+        yaml.dump(recipe.model_dump(), f)
+        
+    return output_path
+        
+def get_recipe_yaml_path(recipe_name: str, recipe_type: str, username: Optional[str] = None) -> Path:
+    paths = NeuroAnalystPaths(username=username)
+    if recipe_type == "logic":
+        recipe_path: Path = paths.get_recipes_dir("logic") / f"{recipe_name}.yaml"
+    elif recipe_type == "process":
+        recipe_path: Path = paths.get_recipes_dir("process") / f"{recipe_name}.yaml"
+    elif recipe_type == "pipeline":
+        recipe_path: Path = paths.get_recipes_dir("pipeline") / f"{recipe_name}.yaml"
+    else:
+        raise ValueError("recipe_type must be one of 'logic', 'process', or 'pipeline'.")
+    if not recipe_path.exists():
+        raise FileNotFoundError(f"Recipe file does not exist: {recipe_path}")
+    return recipe_path
 
 def create_logic_from_recipe(recipe_path: str | Path) -> NeuProcessLogic:
     """
@@ -100,9 +132,9 @@ def create_logic_from_recipe(recipe_path: str | Path) -> NeuProcessLogic:
             raise ValueError(f"Error decoding logic from code file with function '{logic_recipe.function}': {e2}")
     # Update metadata if provided
     logic.username = logic_recipe.username or logic.username
-    logic.version = logic_recipe.version or logic.about.version
-    logic.tag = logic_recipe.tag or logic.about.tag
-    logic.author = logic_recipe.author or logic.about.author
+    logic.about.version = logic_recipe.version or logic.about.version
+    logic.about.tag = logic_recipe.tag or logic.about.tag
+    logic.about.author = logic_recipe.author or logic.about.author
 
     return logic
 
@@ -121,8 +153,8 @@ def create_process_dir_from_recipe(recipe_path: str | Path) -> NeuProcessDir:
         recipe: dict = yaml.safe_load(f)
         
     process_dir_recipe: ProcessDirRecipe = ProcessDirRecipe.model_validate(recipe)
-    logic_name: str = process_dir_recipe.logic["name"]
-    logic_username: Optional[str] = process_dir_recipe.logic.get("username", None)
+    logic_name: str = process_dir_recipe.logic.name
+    logic_username: Optional[str] = process_dir_recipe.logic.username
     logic: NeuProcessLogic = NeuProcessLogic.from_func_name(logic_name, logic_username)
     if not logic:
         raise ValueError(f"Could not find NeuProcessLogic with name '{logic_name}' and username '{logic_username}'")
@@ -153,7 +185,8 @@ def construct_pipeline_from_recipe(recipe_path: str | Path) -> NeuPipeline:
         process_configs: list[ProcessConstructorConfig] = []
         for process_exec_recipe in step_recipe.processes:
             process_config = ProcessConstructorConfig(
-                id=process_exec_recipe.id,
+                username=pipeline_recipe.username,
+                process_id=process_exec_recipe.process_id,
                 input_bids_filters=current_input_bids_filters or process_exec_recipe.input_bids_filters,
                 extra_bind_paths=process_exec_recipe.extra_bind_paths,
                 extra_environment_variables=process_exec_recipe.extra_environment_variables
@@ -168,7 +201,7 @@ def construct_pipeline_from_recipe(recipe_path: str | Path) -> NeuPipeline:
         step_config = PipelineStepConstructorConfig(
             name=step_recipe.name,
             description=step_recipe.description,
-            processes=process_configs
+            process_configs=process_configs
         )
         pipeline_step_configs.append(step_config)
         
@@ -178,7 +211,8 @@ def construct_pipeline_from_recipe(recipe_path: str | Path) -> NeuPipeline:
             "description": pipeline_recipe.description,
             "username": pipeline_recipe.username
         },
-        steps=pipeline_step_configs
+        steps=pipeline_step_configs,
+        scheduler="lsf"
     )
     pipeline: NeuPipeline = pipeline_config.to_pipeline(
         bids_root=pipeline_recipe.data
