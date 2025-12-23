@@ -1,6 +1,6 @@
 from typing import Any, List, Optional, Dict
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 
 class BIDSGeneratedByToolInfo(BaseModel):
     """Tool information for BIDS dataset_description.json GeneratedBy field."""
@@ -9,12 +9,16 @@ class BIDSGeneratedByToolInfo(BaseModel):
     CodeURL: Optional[str] = Field(default=None, description="URL where the code for the tool can be found")
     Container: Optional[Dict[str, str]] = Field(default=None, description="Container information")
     
+    model_config = ConfigDict(extra="allow")  # Allow additional fields for forward compatibility
+    
 class PipelineDescriptionSpec(BaseModel):
     """Description of the processing pipeline applied to the dataset."""
     Name: str = Field(..., description="Name of the processing pipeline")
     Version: Optional[str] = Field(default=None, description="Version of the processing pipeline")
     CodeURL: Optional[str] = Field(default=None, description="URL where the code for the pipeline can be found")
     Description: Optional[str] = Field(default=None, description="Description of the processing pipeline")
+    
+    model_config = ConfigDict(extra="allow")  # Allow additional fields for forward compatibility
 
 
 class BIDSDatasetDescription(BaseModel):

@@ -1903,88 +1903,94 @@ def load_aparc_stats(aparc_stats_path: str) -> pd.DataFrame:
     return pd.DataFrame(stats_data)
 
 
-def extract_cortical_regional_metrics(lh_aparc: pd.DataFrame, 
-                                      rh_aparc: pd.DataFrame) -> dict[str, pd.DataFrame]:
+def extract_cortical_regional_metrics(lh_aparc: Optional[pd.DataFrame], 
+                                      rh_aparc: Optional[pd.DataFrame]) -> dict[str, pd.DataFrame]:
     """
     Extract and combine cortical regional metrics from both hemispheres.
-
-    Parameters:
-    -----------
-    lh_aparc : pd.DataFrame
-        Left hemisphere aparc.stats DataFrame
-    rh_aparc : pd.DataFrame
-        Right hemisphere aparc.stats DataFrame
-
-    Returns:
-    --------
-    dict[str, pd.DataFrame]
-        dictionary with 'lh', 'rh', and 'bilateral' keys containing regional metrics
-
-    Example:
-    --------
-    >>> cortical_metrics = extract_cortical_regional_metrics(lh_aparc, rh_aparc)
-    >>> print(cortical_metrics['bilateral'][['StructName', 'ThickAvg_mm']])
+    Handles cases where one hemisphere might be None or empty.
     """
-    results = {
-        'lh': lh_aparc.copy(),
-        'rh': rh_aparc.copy(),
-    }
+    results = {'lh': None, 'rh': None, 'bilateral': pd.DataFrame()}
+    to_concat = []
 
-    # Merge hemispheres and compute bilateral statistics
-    lh_aparc['Hemisphere'] = 'LH'
-    rh_aparc['Hemisphere'] = 'RH'
+    # Process Left Hemisphere
+    if lh_aparc is not None and not lh_aparc.empty:
+        lh = lh_aparc.copy()
+        lh['Hemisphere'] = 'LH'
+        results['lh'] = lh
+        to_concat.append(lh)
 
-    bilateral = pd.concat([lh_aparc, rh_aparc], ignore_index=True)
+    # Process Right Hemisphere
+    if rh_aparc is not None and not rh_aparc.empty:
+        rh = rh_aparc.copy()
+        rh['Hemisphere'] = 'RH'
+        results['rh'] = rh
+        to_concat.append(rh)
 
-    # Group by structure name (removing hemisphere prefix) and compute means
-    bilateral['StructName_base'] = bilateral['StructName'].str.replace('lh_|rh_', '', regex=True)
-    bilateral_summary = bilateral.groupby('StructName_base')[
-        ['SurfaceArea_mm2', 'GrayVolume_mm3', 'ThickAvg_mm', 'MeanCurv', 'GausCurv']
-    ].mean()
+    # Handle the bilateral merge
+    if not to_concat:
+        return results  # Return early if both are empty
 
-    results['bilateral'] = bilateral_summary
+    bilateral = pd.concat(to_concat, ignore_index=True)
+
+    # Clean structure names and aggregate
+    # Using 'base_name' to avoid confusion with the original 'StructName'
+    bilateral['StructName_base'] = bilateral['StructName'].str.replace(r'^(lh_|rh_)', '', regex=True)
+    
+    metrics = ['SurfaceArea_mm2', 'GrayVolume_mm3', 'ThickAvg_mm', 'MeanCurv', 'GausCurv']
+    
+    # Check which metrics actually exist in the dataframe to avoid KeyErrors
+    available_metrics = [m for m in metrics if m in bilateral.columns]
+
+    results['bilateral'] = (
+        bilateral.groupby('StructName_base')[available_metrics]
+        .mean()
+        .reset_index()
+    )
 
     return results
 
-
-def extract_total_cortical_metrics(lh_aparc: pd.DataFrame, 
-                                    rh_aparc: pd.DataFrame) -> dict[str, float]:
+def extract_total_cortical_metrics(lh_aparc: Optional[pd.DataFrame], 
+                                  rh_aparc: Optional[pd.DataFrame]) -> dict[str, float]:
     """
-    Extract total cortical surface area, volume, and thickness from both hemispheres.
-
-    Parameters:
-    -----------
-    lh_aparc : pd.DataFrame
-        Left hemisphere aparc.stats DataFrame
-    rh_aparc : pd.DataFrame
-        Right hemisphere aparc.stats DataFrame
-
-    Returns:
-    --------
-    dict[str, float]
-        dictionary with total cortical metrics (excluding corpus callosum)
-
-    Example:
-    --------
-    >>> total_metrics = extract_total_cortical_metrics(lh_aparc, rh_aparc)
-    >>> print(f"Total cortical thickness: {total_metrics['TotalThickAvg_mm']:.2f} mm")
+    Extract total cortical metrics. Handles None or empty DataFrames by 
+    treating them as zero-sum contributors.
     """
-    # Filter out corpus callosum (not cortical tissue)
-    lh_filtered = lh_aparc[~lh_aparc['StructName'].str.contains('corpus', case=False)]
-    rh_filtered = rh_aparc[~rh_aparc['StructName'].str.contains('corpus', case=False)]
+    
+    # 1. Initialize as empty DataFrames if None to prevent Subscriptable error
+    lh = lh_aparc if lh_aparc is not None else pd.DataFrame(columns=['StructName', 'SurfaceArea_mm2', 'GrayVolume_mm3', 'ThickAvg_mm'])
+    rh = rh_aparc if rh_aparc is not None else pd.DataFrame(columns=['StructName', 'SurfaceArea_mm2', 'GrayVolume_mm3', 'ThickAvg_mm'])
+
+    # 2. Filter out corpus callosum (safe even on empty DFs)
+    lh_f = lh[~lh['StructName'].str.contains('corpus', case=False, na=False)]
+    rh_f = rh[~rh['StructName'].str.contains('corpus', case=False, na=False)]
+
+    # 3. Calculate Hemisphere-specific metrics
+    lh_area = float(lh_f['SurfaceArea_mm2'].sum())
+    rh_area = float(rh_f['SurfaceArea_mm2'].sum())
+    
+    lh_vol = float(lh_f['GrayVolume_mm3'].sum())
+    rh_vol = float(rh_f['GrayVolume_mm3'].sum())
+
+    # Mean thickness returns NaN if the DF is empty
+    lh_thick = float(lh_f['ThickAvg_mm'].mean())
+    rh_thick = float(rh_f['ThickAvg_mm'].mean())
+
+    # 4. Calculate Bilateral metrics logic
+    # Use pd.Series.mean() logic to handle cases where one side is NaN
+    bilateral_thick = pd.Series([lh_thick, rh_thick]).mean()
 
     metrics = {
-        'LH_TotalSurfaceArea_mm2': float(lh_filtered['SurfaceArea_mm2'].sum()),
-        'RH_TotalSurfaceArea_mm2': float(rh_filtered['SurfaceArea_mm2'].sum()),
-        'Bilateral_TotalSurfaceArea_mm2': float(lh_filtered['SurfaceArea_mm2'].sum() + rh_filtered['SurfaceArea_mm2'].sum()),
+        'LH_TotalSurfaceArea_mm2': lh_area,
+        'RH_TotalSurfaceArea_mm2': rh_area,
+        'Bilateral_TotalSurfaceArea_mm2': lh_area + rh_area,
 
-        'LH_TotalGrayVolume_mm3': float(lh_filtered['GrayVolume_mm3'].sum()),
-        'RH_TotalGrayVolume_mm3': float(rh_filtered['GrayVolume_mm3'].sum()),
-        'Bilateral_TotalGrayVolume_mm3': float(lh_filtered['GrayVolume_mm3'].sum() + rh_filtered['GrayVolume_mm3'].sum()),
+        'LH_TotalGrayVolume_mm3': lh_vol,
+        'RH_TotalGrayVolume_mm3': rh_vol,
+        'Bilateral_TotalGrayVolume_mm3': lh_vol + rh_vol,
 
-        'LH_AvgThickness_mm': float(lh_filtered['ThickAvg_mm'].mean()),
-        'RH_AvgThickness_mm': float(rh_filtered['ThickAvg_mm'].mean()),
-        'Bilateral_AvgThickness_mm': float((lh_filtered['ThickAvg_mm'].mean() + rh_filtered['ThickAvg_mm'].mean()) / 2),
+        'LH_AvgThickness_mm': lh_thick,
+        'RH_AvgThickness_mm': rh_thick,
+        'Bilateral_AvgThickness_mm': float(bilateral_thick),
     }
 
     return metrics
@@ -2430,9 +2436,9 @@ def extract_all_freesurfer_metrics(subject_dir: str) -> dict[str, Union[float, d
     lh_aparc_path = os.path.join(subject_dir, 'stats', 'lh.aparc.stats')
     rh_aparc_path = os.path.join(subject_dir, 'stats', 'rh.aparc.stats')
 
-    if os.path.exists(lh_aparc_path) and os.path.exists(rh_aparc_path):
-        lh_aparc = load_aparc_stats(lh_aparc_path)
-        rh_aparc = load_aparc_stats(rh_aparc_path)
+    if os.path.exists(lh_aparc_path) or os.path.exists(rh_aparc_path):
+        lh_aparc = load_aparc_stats(lh_aparc_path) if os.path.exists(lh_aparc_path) else None
+        rh_aparc = load_aparc_stats(rh_aparc_path) if os.path.exists(rh_aparc_path) else None
         all_metrics['cortical_regional_metrics'] = extract_cortical_regional_metrics(lh_aparc, rh_aparc)
         all_metrics['total_cortical_metrics'] = extract_total_cortical_metrics(lh_aparc, rh_aparc)
     else:

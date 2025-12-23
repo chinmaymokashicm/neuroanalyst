@@ -1,4 +1,7 @@
 .venv/
+.*/
+*.gz
+*.stats
 outputs/
 processes/
 PR-*/

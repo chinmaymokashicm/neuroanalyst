@@ -11,6 +11,16 @@ NeuPipeline is responsible for:
 4. Tracking status of each process and enabling resumable execution
 """
 
+from ...utils.constants import NeuroAnalystPaths
+from ...utils.id_generators import generate_id
+from ...utils.data import flatten_dict
+from ..about import About
+from ..bids import BIDSDatasetDescription, BIDSGeneratedByToolInfo, PipelineDescriptionSpec
+from ..process.exec.core import NeuProcessExec, HPCScheduler, ExecutionMode
+from ..process.process.core import NeuProcess, NeuProcessDir
+from ..process.logic.core import NeuProcessLogic
+from .executor import ProcessStatus, LSFExecutor, SLURMExecutor, PBSExecutor, LocalExecutor
+
 import os
 import json
 import shutil
@@ -28,16 +38,6 @@ from typing import Optional, List, Dict, Any, Union, Set, ClassVar, Literal
 from pydantic import BaseModel, Field, model_validator, field_validator
 import pandas as pd
 from bids import BIDSLayout
-
-from ...utils.constants import NeuroAnalystPaths
-from ...utils.id_generators import generate_id
-from ...utils.data import flatten_dict
-from ..about import About
-from ..bids import BIDSDatasetDescription, BIDSGeneratedByToolInfo, PipelineDescriptionSpec
-from ..process.exec.core import NeuProcessExec, HPCScheduler, ExecutionMode
-from ..process.process.core import NeuProcess, NeuProcessDir
-from ..process.logic.core import NeuProcessLogic
-from .executor import ProcessStatus, LSFExecutor, SLURMExecutor, PBSExecutor, LocalExecutor
 
 DEFAULT_SCHEDULER_FLAGS = {
     HPCScheduler.LSF : {"-n": 2, "-q": "medium", "-M": "20GB", "-W": "12:00"},
@@ -93,6 +93,28 @@ class NeuPipelineStepStatus(BaseModel):
         """Allow iteration over the processes in the step."""
         return iter(self.processes)
 
+class ProcessExecSummary(BaseModel):
+    exec_id: str
+    process_id: str
+    step_id: str
+    status: ProcessStatus
+    error_message: Optional[str] = None
+    error_files: Dict[str, str] = Field(default_factory=dict)
+
+class StepSummary(BaseModel):
+    step_id: str
+    status: ProcessStatus
+    processes: List[ProcessExecSummary] = Field(default_factory=list)
+
+class PipelineSummary(BaseModel):
+    pipeline_id: str
+    status: ProcessStatus
+    created_at: str
+    last_updated: str
+    scheduler: str
+    completion_percentage: float
+    steps: List[StepSummary]
+
 class NeuPipelineStatus(BaseModel):
     """
     NeuPipelineStatus - Class representing the status of a pipeline execution.
@@ -101,6 +123,7 @@ class NeuPipelineStatus(BaseModel):
     individual step and process execution within the pipeline.
     """
     
+    username: str = Field(description="Username of the pipeline owner")
     # Pipeline-level status
     pipeline_id: str = Field(description="Unique identifier for the pipeline")
     created_at: str = Field(description="Timestamp when the pipeline was created")
@@ -203,6 +226,146 @@ class NeuPipelineStatus(BaseModel):
         else:
             raise ValueError("Invalid 'by' parameter. Must be 'process', 'step', or 'all'.")
         return stats
+    
+    def get_erring_logs(self, step_idx: Optional[int] = None) -> dict[str, list[dict]]:
+        """Retrieve error logs for failed processes in the pipeline or a specific step."""
+
+        error_logs: dict[str, list[dict]] = {}
+
+        if step_idx is not None:
+            if step_idx < 0 or step_idx >= len(self.steps):
+                return error_logs
+            steps_to_check = [self.steps[step_idx]]
+        else:
+            steps_to_check = self.steps
+
+        paths = NeuroAnalystPaths(username=self.pipe)
+
+        for step_status in steps_to_check:
+            for proc_status in step_status.processes:
+
+                # Only inspect failed processes
+                if proc_status.status != ProcessStatus.FAILED:
+                    continue
+
+                process_id = proc_status.process_id
+                error_logs.setdefault(process_id, [])
+
+                log_file_path = paths.get_log_file_path(
+                    "process_execs", proc_status.exec_id
+                )
+                err_file_path = log_file_path.with_suffix(".err")
+
+                error_files: dict[str, str] = {}
+
+                # Prioritize .err over .log
+                for file_path in (err_file_path, log_file_path):
+                    if not file_path.exists():
+                        continue
+
+                    matches = self._scan_file_for_errors(
+                        file_path=file_path,
+                        keywords=("ERROR", "Error", "Traceback"),
+                        max_matches=10,
+                    )
+
+                    if matches:
+                        error_files[file_path.name] = "\n".join(matches)
+
+                error_logs[process_id].append(
+                    {
+                        "exec_id": proc_status.exec_id,
+                        "step_id": step_status.step_id,
+                        "error_message": proc_status.error,
+                        "error_files": error_files,
+                    }
+                )
+
+        return error_logs
+    
+    def get_pipeline_summary(self) -> PipelineSummary:
+        """Return a comprehensive in-memory summary of the pipeline."""
+
+        erring_logs = self.get_erring_logs()
+
+        steps_summary: List[StepSummary] = []
+
+        for step in self.steps:
+            step_summary = StepSummary(
+                step_id=step.step_id,
+                status=step.status,
+                processes=[]
+            )
+
+            for proc in step.processes:
+                proc_summary = ProcessExecSummary(
+                    exec_id=proc.exec_id,
+                    process_id=proc.process_id,
+                    step_id=step.step_id,
+                    status=proc.status,
+                    error_message=proc.error,
+                    error_files={}
+                )
+
+                # Attach parsed error snippets if available
+                if proc.process_id in erring_logs:
+                    for entry in erring_logs[proc.process_id]:
+                        if entry["exec_id"] == proc.exec_id:
+                            proc_summary.error_files = entry.get("error_files", {})
+
+                step_summary.processes.append(proc_summary)
+
+            steps_summary.append(step_summary)
+
+        return PipelineSummary(
+            pipeline_id=self.pipeline_id,
+            status=self.status,
+            created_at=self.created_at,
+            last_updated=self.last_updated,
+            scheduler=self.scheduler,
+            completion_percentage=self.get_completion_percentage(),
+            steps=steps_summary
+        )
+    
+    def print_pipeline_summary(self) -> None:
+        """Print a human-readable ASCII summary of the pipeline."""
+
+        summary = self.get_pipeline_summary()
+
+        status_icon = {
+            ProcessStatus.PENDING: "⏳",
+            ProcessStatus.RUNNING: "▶",
+            ProcessStatus.COMPLETE: "✔",
+            ProcessStatus.FAILED: "✖",
+        }
+
+        print("=" * 80)
+        print(f"Pipeline: {summary.pipeline_id}")
+        print(f"Status  : {summary.status.value}")
+        print(f"Scheduler: {summary.scheduler}")
+        print(f"Progress : {summary.completion_percentage:.1f}%")
+        print(f"Updated  : {summary.last_updated}")
+        print("=" * 80)
+
+        for step_idx, step in enumerate(summary.steps):
+            print(f"\n[Step {step_idx}] {step.step_id} {status_icon.get(step.status, '')}")
+
+            for proc in step.processes:
+                icon = status_icon.get(proc.status, "")
+                print(f"  ├─ {proc.process_id} :: {proc.exec_id} {icon}")
+
+                if proc.status == ProcessStatus.FAILED:
+                    if proc.error_message:
+                        print(f"  │   Error: {proc.error_message}")
+
+                    for fname, snippet in proc.error_files.items():
+                        print(f"  │   File: {fname}")
+                        for line in snippet.splitlines():
+                            print(f"  │     {line}")
+
+        print("\n" + "=" * 80)
+
+
 
 class NeuPipelineStep(BaseModel):
     """
@@ -1260,6 +1423,7 @@ class NeuPipeline(BaseModel):
         current_time = datetime.now().isoformat()
         
         pipeline_status = NeuPipelineStatus(
+            username=self.username,
             pipeline_id=self.pipeline_id,
             created_at=current_time,
             last_updated=current_time,
@@ -1551,6 +1715,8 @@ class NeuPipeline(BaseModel):
                         Version=self.about.version if self.about.version else "0.1.0",
                         Description=self.about.description if self.about.description else "Neuroimaging pipeline",
                         Author=self.about.author if self.about.author else "Unknown",
+                        ID=self.pipeline_id,
+                        UserName=self.username,
                     ),
                     BIDSGeneratedByToolInfo(
                         Name="NeuroAnalyst",

@@ -72,8 +72,8 @@ def autorecon1(input_filepath: str):
     skull_stripped_filepath: str = os.path.join(fs_subjects_dir, subject_dirname, "mri", "brainmask.mgz")
     t1_filepath: str = os.path.join(fs_subjects_dir, subject_dirname, "mri", "T1.mgz")
 
+    # Step 4: Run the FreeSurfer command if the outputs do not already exist
     if not os.path.exists(skull_stripped_filepath) or not os.path.exists(t1_filepath):
-        # Step 4: Run the FreeSurfer command if the outputs do not already exist
         print(f"Running command: {cmd}")
         try:
             result = subprocess.run(cmd, check=True, capture_output=True, text=True)
@@ -106,47 +106,46 @@ def autorecon1(input_filepath: str):
     mask_ratio: float = np.sum(skull_stripped_img.get_fdata() > 0) / np.sum(t1_img.get_fdata() > 0)
     mask_intensity_mean: float = np.mean(t1_img.get_fdata()[skull_stripped_img.get_fdata() > 0])
 
+    CATEGORY: str = "anatomical"
     metrics = {
-        "brain_volume": Metric(value=brain_volume, unit="mm³", description="Volume of the brain mask"),
-        "brain_dimensions": Metric(value=t1_data.shape[:-1], unit="voxels", description="Dimensions of the brain image"),
+        "brain_volume": Metric(
+            name="brain_volume",
+            value=brain_volume,
+            unit="mm3",
+            description="Volume of the brain mask",
+            category=CATEGORY,
+            labels=["brain", "volume"]
+        ),
+        "brain_dimensions": t1_data.shape[:-1],
+        "mask_ratio": Metric(
+            name="mask_ratio",
+            value=mask_ratio,
+            description="Ratio of brain mask voxels to total T1 voxels",
+            category=CATEGORY,
+            labels=["qc", "mask"]
+        ),
+        "mask_intensity_mean": Metric(
+            name="mask_intensity_mean",
+            value=mask_intensity_mean,
+            description="Mean intensity within the brain mask",
+            category=CATEGORY,
+            labels=["qc", "intensity"]
+        ),
         "qc_pass": Metric(
+            name="qc_pass",
             value=0.25 <= mask_ratio <= 0.6 and 40 <= mask_intensity_mean <= 200,
-            description="Whether the QC metrics pass the defined thresholds"
+            description="Whether the QC metrics pass the defined thresholds",
+            category=CATEGORY,
+            labels=["qc"]
         ),
-        "qc_metrics": {
-            "mask_ratio": Metric(value=mask_ratio, description="Ratio of brain mask voxels to total T1 voxels"),
-            "mask_intensity_mean": Metric(value=mask_intensity_mean, description="Mean intensity within the brain mask")
-        },
-        "qc_notes": Metric(
-            value="Mask ratio or intensity mean out of expected range."
-            if not (0.25 <= mask_ratio <= 0.6 and 40 <= mask_intensity_mean <= 200)
-            else "QC passed.",
-            description="Notes regarding the QC evaluation"
-        ),
+        "qc_notes": "Mask ratio or intensity mean out of expected range." if not (0.25 <= mask_ratio <= 0.6 and 40 <= mask_intensity_mean <= 200) else "QC passed.",
         "qc_criteria": {
-            "mask_ratio_range": Metric(value=[0.25, 0.6], description="Expected range for mask ratio"),
-            "mask_intensity_mean_range": Metric(value=[40, 200], description="Expected range for mask intensity mean")
+            "mask_ratio_range": [0.25, 0.6],
+            "mask_intensity_mean_range": [40, 200]
         },
-        "channels": [
-            Metric(
-                value="T1",
-                description="Intensity-normalized T1-weighted image"
-            ),
-            Metric(
-                value="brainmask",
-                description="Skull-stripped brain mask"
-            )
-        ],
-        "parameters": Metric(
-            value={
-                "FreeSurfer_version": FREESURFER_HOME.split("/")[-1],
-            },
-            description="Parameters used in FreeSurfer Autorecon1"
-        ),
-        "original_output_path": Metric(
-            value=fs_subjects_dir,
-            description="Path to the FreeSurfer subjects directory containing all outputs"
-        ),
+        "channels": ["T1", "brainmask"],
+        "freesurfer_version": FREESURFER_HOME.split("/")[-1],
+        "original_output_path": fs_subjects_dir,
     }
     
     output_entities = {

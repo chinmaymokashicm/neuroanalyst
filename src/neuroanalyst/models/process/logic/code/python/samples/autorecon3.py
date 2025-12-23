@@ -39,8 +39,7 @@ def autorecon3(input_filepath: str):
     Args:
         input_filepath (str): Path to input NIfTI file.
     Returns:
-        output_data (np.ndarray): Array of cortical surface data. 
-            Shape will be (X, Y, Z, 1) where the last dimension corresponds to [cortical_surface].
+        output_data (pd.DataFrame): DataFrame of cortical surface statistics from "surface_statistics.csv".
         metrics (dict): Dictionary of relevant metrics.
         output_entities (dict): Dictionary of BIDS entities for the output file.
         forced_outputs (list): List of file paths that are saved as outputs but not BIDS-compliant.
@@ -138,24 +137,24 @@ def autorecon3(input_filepath: str):
             raise e
     
     # Step 4: Prepare outputs
-    all_metrics: dict = extract_all_freesurfer_metrics(os.path.join(fs_subjects_dir, subject_dirname))
+    # all_metrics: dict = extract_all_freesurfer_metrics(os.path.join(fs_subjects_dir, subject_dirname))
     # Separate values that are dicts and those that are pd.DataFrames
     # The dictionary metrics will go into sidecar, while DataFrames will be saved as CSV outputs.
-    dict_metrics: dict = {}
-    for key, value in all_metrics.items():
-        if isinstance(value, dict):
-            # Skip cortical regional metrics as they are saved as CSV
-            if key.startswith("cortical_regional_metrics"):
-                continue
-            dict_metrics[key] = value
-        else:
-            pass
+    # dict_metrics: dict = {}
+    # for key, value in all_metrics.items():
+    #     if isinstance(value, dict):
+    #         # Skip cortical regional metrics as they are saved as CSV
+    #         if key.startswith("cortical_regional_metrics"):
+    #             continue
+    #         dict_metrics[key] = value
+    #     else:
+    #         pass
 
-    try:
-        # Save all metrics to directory
-        export_metrics(all_metrics, output_dir=output_dir)
-    except Exception as e:
-        print(f"Error exporting FreeSurfer metrics: {e}")
+    # try:
+    #     # Save all metrics to directory
+    #     export_metrics(all_metrics, output_dir=output_dir)
+    # except Exception as e:
+    #     print(f"Error exporting FreeSurfer metrics: {e}")
     
     # Return surface stats as output data and save cortical metrics DataFrames as CSV
     try:
@@ -193,12 +192,7 @@ def autorecon3(input_filepath: str):
         qc_results = {"mean_thickness": None, "surface_area": None, "qc_pass": None}
         
     metrics = {
-        "parameters": Metric(
-            value={
-                "FreeSurfer_version": os.getenv("FREESURFER_VERSION", "unknown"),
-            },
-            description="Parameters used in FreeSurfer Autorecon3"
-        ),
+        "freesurfer_version": os.getenv("FREESURFER_VERSION", "unknown"),
         "mean_thickness": Metric(
             value=qc_results["mean_thickness"],
             unit="mm",
@@ -216,7 +210,7 @@ def autorecon3(input_filepath: str):
             },
             description="Quality control pass status for autorecon steps"
         ),
-        **{k: Metric(value=v, description=f"FreeSurfer metric: {k}") for k, v in dict_metrics.items()}
+        # **{k: Metric(value=v, description=f"FreeSurfer metric: {k}") for k, v in dict_metrics.items()}
     }
     
     output_entities = {

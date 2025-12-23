@@ -10,11 +10,10 @@ from ....utils.constants import NeuroAnalystPaths
 
 from pathlib import Path
 from typing import Self, Optional, Any
-import shutil
-
 from enum import Enum
 from importlib.resources import files
-import json
+import shutil
+import json, yaml
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
@@ -71,8 +70,26 @@ for key in forbidden_keys:
 class Metric(BaseModel):
     """Represents a quantitative metric derived from data"""
     value: Any
+    name: str
     unit: Optional[str] = None
     description: str = ""
+    category: Optional[str] = None
+    labels: Optional[list[str]] = None
+    
+    def __eq__(self, other: Any) -> bool:
+        if not isinstance(other, Metric):
+            return False
+        return (
+            self.value == other.value and
+            self.name == other.name and
+            self.unit == other.unit and
+            self.description == other.description and
+            self.category == other.category and 
+            self.labels == other.labels
+        )
+        
+    def __ne__(self, other: Any) -> bool:
+        return not self.__eq__(other)
 
 class ProgrammingLanguage(str, Enum):
     PYTHON = "python"

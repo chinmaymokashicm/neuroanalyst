@@ -170,56 +170,45 @@ def autorecon2(input_filepath: str):
     #     qc_results = {}
     
     metrics = {
-        "total_brain_volume": Metric(
+        "brain_volume": Metric(
+            name="brain_volume",
             value=int(np.sum(aseg_data > 0)),
-            unit="voxels",
-            description="Total number of brain voxels in the segmentation"
+            unit="mm3",
+            description="Total brain volume from segmentation",
+            category="anatomical",
+            labels=["brain", "volume"]
         ),
         "white_matter_volume": Metric(
+            name="white_matter_volume",
             value=int(np.sum(wm_data > 0)),
-            unit="voxels",
-            description="Volume of white matter segmentation"
+            unit="mm3",
+            description="Volume of white matter segmentation",
+            category="anatomical",
+            labels=["white_matter", "volume"]
         ),
-        "num_labels": Metric(
+        "num_segmentation_labels": Metric(
+            name="num_segmentation_labels",
             value=int(len(np.unique(aseg_data))),
-            description="Number of unique segmentation labels"
+            description="Number of unique segmentation labels",
+            category="anatomical",
+            labels=["segmentation", "labels"]
         ),
-        "segmentation_dimensions": Metric(
-            value=aseg_data.shape,
-            unit="voxels",
-            description="Dimensions of the segmentation image"
-        ),
-        "segmentation_classes": Metric(
-            value=int(np.max(aseg_data)),
-            description="Maximum segmentation label value"
-        ),
-        "channels": [
-            Metric(
-                value="segmentation",
-                description="Automated segmentation (aseg.presurf.mgz)"
-            ),
-            Metric(
-                value="white_matter",
-                description="White matter segmentation (wm.mgz)"
-            )
-        ],
+        "segmentation_dimensions": aseg_data.shape,
+        "segmentation_classes": int(np.max(aseg_data)),
         "qc_pass": Metric(
+            name="qc_pass",
             value={
                 "autorecon1": qc_pass_autorecon1,
                 # "autorecon2": qc_results.get("qc_pass", None)
             },
-            description="Quality control pass status for previous steps"
+            description="Quality control pass status for previous steps",
+            category="qc",
+            labels=["qc"]
         ),
-        "parameters": Metric(
-            value={
-                "FreeSurfer_version": FREESURFER_HOME.split("/")[-1],
-            },
-            description="Parameters used in FreeSurfer Autorecon2"
-        ),
-        "original_output_path": Metric(
-            value=fs_subjects_dir,
-            description="Path to the FreeSurfer subjects directory containing all outputs"
-        ),
+        "parameters": {
+            "FreeSurfer_version": FREESURFER_HOME.split("/")[-1],
+        },
+        "original_output_path": fs_subjects_dir,
     }
     
     output_entities = {
@@ -228,49 +217,48 @@ def autorecon2(input_filepath: str):
         "extension": ".nii.gz"
     }
     
-    # forced_outputs = [aseg_filepath, wm_filepath]
     forced_outputs = []
     
-    try:
-        # Save supplementary outputs by BIDS compliance
-        lh_surface_filepath: str = os.path.join(fs_subjects_dir, subject_dirname, "surf", "lh.smoothwm")
-        rh_surface_filepath: str = os.path.join(fs_subjects_dir, subject_dirname, "surf", "rh.smoothwm")
-        lh_surface_bids_entities: dict = {**entities, **{
-            "hemi": "L",
-            "desc": "surf",
-            "suffix": "smoothwm",
-            "extension": ".surf.gii",
-        }}
-        rh_surface_bids_entities: dict = {**entities, **{
-            "hemi": "R",
-            "desc": "surf",
-            "suffix": "smoothwm",
-            "extension": ".surf.gii",
-        }}
+    # try:
+    #     # Save supplementary outputs by BIDS compliance
+    #     lh_surface_filepath: str = os.path.join(fs_subjects_dir, subject_dirname, "surf", "lh.smoothwm")
+    #     rh_surface_filepath: str = os.path.join(fs_subjects_dir, subject_dirname, "surf", "rh.smoothwm")
+    #     lh_surface_bids_entities: dict = {**entities, **{
+    #         "hemi": "L",
+    #         "desc": "surf",
+    #         "suffix": "smoothwm",
+    #         "extension": ".surf.gii",
+    #     }}
+    #     rh_surface_bids_entities: dict = {**entities, **{
+    #         "hemi": "R",
+    #         "desc": "surf",
+    #         "suffix": "smoothwm",
+    #         "extension": ".surf.gii",
+    #     }}
         
-        layout: BIDSLayout = BIDSLayout(DATA_DIR, derivatives=True, validate=False)
-        lh_surface_bids_filename: str = layout.build_path(lh_surface_bids_entities, scope=PIPELINE_NAME)
-        rh_surface_bids_filename: str = layout.build_path(rh_surface_bids_entities, scope=PIPELINE_NAME)
+    #     layout: BIDSLayout = BIDSLayout(DATA_DIR, derivatives=True, validate=False)
+    #     lh_surface_bids_filename: str = layout.build_path(lh_surface_bids_entities, scope=PIPELINE_NAME)
+    #     rh_surface_bids_filename: str = layout.build_path(rh_surface_bids_entities, scope=PIPELINE_NAME)
         
-        input_dir: str = os.path.dirname(input_filepath)
-        lh_surface_bids_filepath: str = os.path.join(input_dir, lh_surface_bids_filename)
-        rh_surface_bids_filepath: str = os.path.join(input_dir, rh_surface_bids_filename)
-        os.makedirs(os.path.dirname(lh_surface_bids_filepath), exist_ok=True)
-        os.makedirs(os.path.dirname(rh_surface_bids_filepath), exist_ok=True)
+    #     input_dir: str = os.path.dirname(input_filepath)
+    #     lh_surface_bids_filepath: str = os.path.join(input_dir, lh_surface_bids_filename)
+    #     rh_surface_bids_filepath: str = os.path.join(input_dir, rh_surface_bids_filename)
+    #     os.makedirs(os.path.dirname(lh_surface_bids_filepath), exist_ok=True)
+    #     os.makedirs(os.path.dirname(rh_surface_bids_filepath), exist_ok=True)
         
-        try:
-            for hemi_surface_filepath, bids_filepath in [
-                (lh_surface_filepath, lh_surface_bids_filepath),
-                (rh_surface_filepath, rh_surface_bids_filepath)
-            ]:
-                vertices, faces = nib.freesurfer.read_geometry(hemi_surface_filepath)
-                gii_data = to_gifti(vertices, faces)
-                nib.save(gii_data, bids_filepath)
-                forced_outputs.append(bids_filepath)
-        except Exception as e:
-            print(f"Warning: Could not save supplementary surface outputs: {e}")
-    except Exception as e:
-        print(f"Warning: Could not save supplementary surface outputs: {e}")
+    #     try:
+    #         for hemi_surface_filepath, bids_filepath in [
+    #             (lh_surface_filepath, lh_surface_bids_filepath),
+    #             (rh_surface_filepath, rh_surface_bids_filepath)
+    #         ]:
+    #             vertices, faces = nib.freesurfer.read_geometry(hemi_surface_filepath)
+    #             gii_data = to_gifti(vertices, faces)
+    #             nib.save(gii_data, bids_filepath)
+    #             forced_outputs.append(bids_filepath)
+    #     except Exception as e:
+    #         print(f"Warning: Could not save supplementary surface outputs: {e}")
+    # except Exception as e:
+    #     print(f"Warning: Could not save supplementary surface outputs: {e}")
     
 
     return output_data, metrics, output_entities, forced_outputs

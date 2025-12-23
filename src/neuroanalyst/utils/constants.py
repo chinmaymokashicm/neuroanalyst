@@ -16,7 +16,7 @@ The environment variables define the directory structure and paths for:
 
 import os
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Literal
 
 
 class NeuroAnalystPaths:
@@ -77,6 +77,7 @@ class NeuroAnalystPaths:
         self._process_execs = os.path.join(self._home, 'process_execs')
         self._config = os.path.join(self._home, 'config')
         self._functions = os.path.join(self._home, 'functions')
+        self._recipes = os.path.join(self._home, 'recipes')
         
         # MongoDB configuration
         self._db_host = 'localhost'
@@ -194,6 +195,12 @@ class NeuroAnalystPaths:
         """MongoDB database name."""
         return self._db_name
     
+    @property
+    def recipes(self) -> Path:
+        """Directory for recipe files."""
+        dir_path: Path = Path(self._recipes)
+        return dir_path
+    
     def create_directories(self) -> None:
         """
         Create all necessary directories if they don't exist.
@@ -214,7 +221,8 @@ class NeuroAnalystPaths:
             self.venvs,
             self.process_execs,
             self.config,
-            self.functions
+            self.functions,
+            self.recipes
         ]
         
         for directory in directories:
@@ -297,22 +305,17 @@ class NeuroAnalystPaths:
         """
         return self.process_execs / exec_id
     
-    def get_log_file_path(self, component: str, process_id: Optional[str] = None) -> Path:
+    def get_log_file_path(self, component: str, id: str) -> Path:
         """
-        Get a log file path for a specific component.
+        Get the path for a log file of a specific component.
         
         Args:
-            component: Component name (e.g., 'neuprocess', 'pipeline', 'wrapper')
-            process_id: Optional process/pipeline ID for specific logs
-            
+            component: Component name (e.g., 'process', 'pipeline')
+            id: Unique identifier for the component
         Returns:
             Path to the log file
         """
-        if process_id:
-            filename = f"{component}_{process_id}.log"
-        else:
-            filename = f"{component}.log"
-        return self.logs / filename
+        return self.logs / component / id / f"{id}.log"
     
     def get_function_workdir(self, function_name: str) -> Path:
         """
@@ -325,6 +328,15 @@ class NeuroAnalystPaths:
             Path to the function's working directory
         """
         return self.functions / function_name
+    
+    def get_recipes_dir(self, component: Literal["process", "logic", "pipeline", None]) -> Path:
+        """
+        Get the directory for recipe files. Optionally specify a component subdirectory.
+        
+        Returns:
+            Path to the recipes directory
+        """
+        return self.recipes / (component if component else "")
 
 
 # Global instance for easy access throughout the framework
