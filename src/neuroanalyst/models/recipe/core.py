@@ -159,7 +159,10 @@ def create_process_dir_from_recipe(recipe_path: str | Path) -> NeuProcessDir:
     if not logic:
         raise ValueError(f"Could not find NeuProcessLogic with name '{logic_name}' and username '{logic_username}'")
     config: Optional[NeuProcessDirConfig] = process_dir_recipe.config
-    process_dir: NeuProcessDir = NeuProcessDir(logic=logic, config=config)
+    process_dir: NeuProcessDir = NeuProcessDir.from_logic(
+        logic=logic,
+        config=config
+    )
     return process_dir
 
 def construct_pipeline_from_recipe(recipe_path: str | Path) -> NeuPipeline:
