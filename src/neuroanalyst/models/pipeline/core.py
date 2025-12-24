@@ -604,6 +604,11 @@ class NeuPipeline(BaseModel):
         """Check if the pipeline is ready for execution."""
         return all(proc_exec.is_fully_configured for proc_exec in self.process_execs)
     
+    @property
+    def all_process_ids(self) -> Set[str]:
+        """Get a set of all unique process IDs in the pipeline."""
+        return set(proc_exec.process.process_id for proc_exec in self.process_execs)
+    
     @classmethod
     def constructor_v2(
         cls,
