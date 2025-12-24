@@ -102,7 +102,7 @@ class ProcessExecSummary(BaseModel):
     error_files: Dict[str, str] = Field(default_factory=dict)
 
 class StepSummary(BaseModel):
-    step_id: str
+    step_id: int
     status: ProcessStatus
     processes: List[ProcessExecSummary] = Field(default_factory=list)
 
