@@ -137,6 +137,29 @@ class NeuPipelineStatus(BaseModel):
     def __iter__(self):
         """Allow iteration over the steps in the pipeline."""
         return iter(self.steps)
+    
+    def _scan_file_for_errors(self, file_path: Path, keywords: tuple[str, ...], max_matches: int = 10) -> list[str]:
+        """Scan a log file for lines containing specified error keywords.
+        
+        Args:
+            file_path: Path to the log file to scan
+            keywords: Tuple of keywords to search for in the log file
+            max_matches: Maximum number of matching lines to return
+            
+        Returns:
+            list[str]: List of lines containing the error keywords
+        """
+        matches: list[str] = []
+        try:
+            with file_path.open('r') as f:
+                for line in f:
+                    if any(keyword in line for keyword in keywords):
+                        matches.append(line.strip())
+                        if len(matches) >= max_matches:
+                            break
+        except Exception as e:
+            logging.warning(f"Could not read log file {file_path}: {e}")
+        return matches
 
     def get_status(self, step_idx: int, exec_id: Optional[str] = None) -> dict:
         """Retrieve the status of a pipeline step or a specific process execution.
@@ -239,7 +262,7 @@ class NeuPipelineStatus(BaseModel):
         else:
             steps_to_check = self.steps
 
-        paths = NeuroAnalystPaths(username=self.pipe)
+        paths = NeuroAnalystPaths(username=self.username)
 
         for step_status in steps_to_check:
             for proc_status in step_status.processes:
