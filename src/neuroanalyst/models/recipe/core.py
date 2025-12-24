@@ -8,10 +8,12 @@ from ..pipeline.core import NeuPipeline
 from ..pipeline.constructor import PipelineConstructorConfig, PipelineStepConstructorConfig, ProcessConstructorConfig
 
 import yaml
-from typing import Optional
+from typing import Optional, Literal
 from pathlib import Path
 
 from pydantic import Field, BaseModel, field_validator
+from polyfactory.factories.pydantic_factory import ModelFactory
+from ruamel.yaml import YAML
 
 class LogicRecipe(BaseModel):
     """
@@ -50,7 +52,8 @@ class PipelineStepRecipe(BaseModel):
         return iter(self.processes)
 
 class PipelineRecipe(BaseModel):
-    username: Optional[str] = Field(None, description="Username of the pipeline author.")
+    username: Optional[str] = Field(None, description="Namespace within the installation.")
+    author: str = Field(..., description="Author of the pipeline.")
     data: str = Field(..., description="Path to the data directory.")
     name: str = Field(..., description="Name of the pipeline.", pattern=r"^\S+$")
     description: Optional[str] = Field(None, description="Description of the pipeline.")
@@ -59,6 +62,27 @@ class PipelineRecipe(BaseModel):
     
     def __iter__(self):
         return iter(self.steps)
+
+RECIPE_FACTORIES: dict[str, BaseModel] = {
+    "logic": LogicRecipe,
+    "process": ProcessDirRecipe,
+    "pipeline": PipelineRecipe,
+}
+
+def create_mock_recipe(
+    recipe_type: Literal["logic", "process", "pipeline"],
+    name: str,
+    username: Optional[str] = None,
+    save: bool = False
+    ) -> Optional[Path]:
+    try:
+        class Factory(ModelFactory[RECIPE_FACTORIES[recipe_type]]): ...
+        mock_recipe: LogicRecipe | ProcessDirRecipe | PipelineRecipe = Factory.build()
+        if save:
+            return save_recipe_to_yaml(mock_recipe, name, username)
+        return mock_recipe
+    except KeyError:
+        raise ValueError(f"Invalid recipe type: {recipe_type}")
     
 def save_recipe_to_yaml(recipe: BaseModel, recipe_name: str, username: Optional[str] = None) -> str:
     if not isinstance(recipe, BaseModel):
@@ -72,8 +96,14 @@ def save_recipe_to_yaml(recipe: BaseModel, recipe_name: str, username: Optional[
         output_path: str = paths.get_recipes_dir("pipeline") / f"{recipe_name}.yaml"
     else:
         raise ValueError("Unsupported recipe type.")
+    
+    ruayaml = YAML()
+    ruayaml.indent(mapping=2, sequence=4, offset=2)
     with open(output_path, "w") as f:
-        yaml.dump(recipe.model_dump(), f)
+        try:
+            ruayaml.dump(recipe.model_dump(), f)
+        except Exception:
+            yaml.dump(recipe.model_dump(), f)
         
     return output_path
         
@@ -212,7 +242,8 @@ def construct_pipeline_from_recipe(recipe_path: str | Path) -> NeuPipeline:
         about={
             "name": pipeline_recipe.name,
             "description": pipeline_recipe.description,
-            "username": pipeline_recipe.username
+            "username": pipeline_recipe.username,
+            "author": pipeline_recipe.author
         },
         steps=pipeline_step_configs,
         scheduler="lsf"
