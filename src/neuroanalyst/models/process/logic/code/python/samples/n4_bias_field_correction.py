@@ -1,4 +1,4 @@
-from src.neuroanalyst.models.process.logic.core import Metric
+from neuroanalyst.models.process.logic.core import Metric
 
 import os
 from pathlib import Path

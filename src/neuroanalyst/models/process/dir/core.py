@@ -1641,7 +1641,7 @@ echo "Virtual environment created and requirements installed successfully at: ${
             default_flags = {
                 "-J": job_name,
                 "-M": "8G",
-                "-W": "12:00",
+                "-W": "24:00",
                 "-q": "medium"
             }
             

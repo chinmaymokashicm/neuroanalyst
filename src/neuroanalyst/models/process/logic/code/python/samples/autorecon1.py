@@ -62,8 +62,8 @@ def autorecon1(input_filepath: str):
         "bash", "-c",
         f"""
         source {FREESURFER_HOME}/SetUpFreeSurfer.sh && \\
-        export OMP_NUM_THREADS=4 && \\
-        export ITK_GLOBAL_DEFAULT_NUMBER_OF_THREADS=4 && \\
+        export OMP_NUM_THREADS=2 && \\
+        export ITK_GLOBAL_DEFAULT_NUMBER_OF_THREADS=2 && \\
         recon-all -i '{input_filepath}' -s '{subject_dirname}' -sd {fs_subjects_dir} -autorecon1
         """
     ]
