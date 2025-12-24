@@ -96,7 +96,7 @@ class NeuPipelineStepStatus(BaseModel):
 class ProcessExecSummary(BaseModel):
     exec_id: str
     process_id: str
-    step_id: str
+    step_id: int
     status: ProcessStatus
     error_message: Optional[str] = None
     error_files: Dict[str, str] = Field(default_factory=dict)
