@@ -22,8 +22,8 @@ def dipy_denoise_mppca(input_filepath: str):
         output_entities (dict): Dictionary of BIDS entities for the output file.
         forced_outputs (list): List of file paths that are saved as outputs but not BIDS-compliant. These will be deleted.
     """
-    def get_input_bval_bvec_paths(sidecar_path: str) -> tuple[Optional[str], Optional[str]]:
-        """Retrieve bval and bvec file paths from the sidecar JSON.
+    def get_input_bval_bvec_paths(sidecar_path: str, input_filepath: str) -> tuple[Optional[str], Optional[str]]:
+        """Retrieve bval and bvec file paths from the sidecar JSON. If not found, infer from input filepath.
 
         Args:
             sidecar_path (str): Path to the sidecar JSON file.
@@ -31,15 +31,33 @@ def dipy_denoise_mppca(input_filepath: str):
         Returns:
             A tuple containing paths to the bval and bvec files, or None if not found.
         """
-        with open(sidecar_path, 'r') as f:
-            sidecar_data = json.load(f)
-            bval_path = sidecar_data.get("metrics", {}).get("bval_filepath", None)
-            bvec_path = sidecar_data.get("metrics", {}).get("bvec_filepath", None)
-        if bval_path is not None:
-            bval_path = str(Path(sidecar_path).parent / bval_path)
-        if bvec_path is not None:
-            bvec_path = str(Path(sidecar_path).parent / bvec_path)
-        return bval_path, bvec_path
+        bval_filepath, bvec_filepath = None, None
+        try:
+            with open(sidecar_path, 'r') as f:
+                sidecar_data = json.load(f)
+                bval_info = sidecar_data.get("DWI", {}).get("bval", None)
+                bvec_info = sidecar_data.get("DWI", {}).get("bvec", None)
+                if bval_info and "value" in bval_info:
+                    bval_filepath = bval_info["value"]
+                if bvec_info and "value" in bvec_info:
+                    bvec_filepath = bvec_info["value"]
+        except Exception as e:
+            print(f"Error reading sidecar JSON: {e}. Attempting to infer from input filepath.")
+        
+        # If not found in sidecar, infer from input filepath
+        if bval_filepath is None or bvec_filepath is None:
+            input_dir: str = Path(input_filepath).parent
+            input_file_stem: str = Path(input_filepath).stem.split(".")[0]
+            if bval_filepath is None:
+                inferred_bval = os.path.join(input_dir, f"{input_file_stem}.bval")
+                if os.path.exists(inferred_bval):
+                    bval_filepath = inferred_bval
+            if bvec_filepath is None:
+                inferred_bvec = os.path.join(input_dir, f"{input_file_stem}.bvec")
+                if os.path.exists(inferred_bvec):
+                    bvec_filepath = inferred_bvec
+        
+        return bval_filepath, bvec_filepath
     
     def save_bval_bvec_files(bval: np.ndarray, bvec: np.ndarray, output_dir: str, file_stem: str) -> tuple[str, str]:
         """Save bval and bvec files to the specified output directory.
@@ -76,11 +94,10 @@ def dipy_denoise_mppca(input_filepath: str):
         raise ValueError("Input image must be a 4D DWI image.")
     
     input_sidecar_path: str = input_filepath.split(".")[0] + ".json"
-    input_bval_filepath, input_bvec_filepath = get_input_bval_bvec_paths(input_sidecar_path)
+    input_bval_filepath, input_bvec_filepath = get_input_bval_bvec_paths(input_sidecar_path, input_filepath)
     if input_bval_filepath is None or input_bvec_filepath is None:
-        raise ValueError("BVAL or BVECS file paths not found in sidecar JSON.")
+        print("Bval or Bvec file paths not found in sidecar JSON or inferred from input filepath.")
     
-    bval, bvec = read_bvals_bvecs(input_bval_filepath, input_bvec_filepath)
     
     # ============================
     # Step 2: Apply MP-PCA Denoising
@@ -93,10 +110,15 @@ def dipy_denoise_mppca(input_filepath: str):
     # Step 3: Prepare Outputs
     # ============================
     # Save bvals and bvecs for reference in downstream processing if needed
-    output_dir: str = os.path.join(DATA_DIR, "derivatives", PIPELINE_NAME, "tmp")
-    os.makedirs(output_dir, exist_ok=True)
-    input_file_stem: str = "denoised_mppca_" + input_filepath.split("/")[-1].split(".")[0]
-    bval_filepath, bvec_filepath = save_bval_bvec_files(bval, bvec, output_dir, input_file_stem)
+    try:
+        bval, bvec = read_bvals_bvecs(input_bval_filepath, input_bvec_filepath)
+        output_dir: str = os.path.join(DATA_DIR, "derivatives", PIPELINE_NAME, "tmp")
+        os.makedirs(output_dir, exist_ok=True)
+        input_file_stem: str = "denoised_mppca_" + input_filepath.split("/")[-1].split(".")[0]
+        bval_filepath, bvec_filepath = save_bval_bvec_files(bval, bvec, output_dir, input_file_stem)
+    except Exception as e:
+        print(f"Error saving bval and bvec files: {e}")
+        bval_filepath, bvec_filepath = None, None
     
     metrics: dict = {
         "denoising_method": "MP-PCA",
