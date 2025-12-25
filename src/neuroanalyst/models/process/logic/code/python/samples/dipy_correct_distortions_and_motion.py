@@ -46,8 +46,8 @@ def dipy_correct_distortions_and_motion(input_filepath: str):
         
         # If not found in sidecar, infer from input filepath
         if bval_filepath is None or bvec_filepath is None:
-            input_dir: str = Path(input_filepath).parent
-            input_file_stem: str = Path(input_filepath).stem.split(".")[0]
+            input_dir: str = os.path.dirname(input_filepath)
+            input_file_stem: str = os.path.basename(input_filepath).split(".")[0]
             if bval_filepath is None:
                 inferred_bval = os.path.join(input_dir, f"{input_file_stem}.bval")
                 if os.path.exists(inferred_bval):
@@ -56,6 +56,9 @@ def dipy_correct_distortions_and_motion(input_filepath: str):
                 inferred_bvec = os.path.join(input_dir, f"{input_file_stem}.bvec")
                 if os.path.exists(inferred_bvec):
                     bvec_filepath = inferred_bvec
+                    
+        print(f"Using BVAL file: {bval_filepath}")
+        print(f"Using BVECS file: {bvec_filepath}")
         
         return bval_filepath, bvec_filepath
     
