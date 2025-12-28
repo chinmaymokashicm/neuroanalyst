@@ -3,7 +3,7 @@ from src.neuroanalyst.models.pipeline import NeuPipeline
 from src.neuroanalyst.models.process.exec.core import NeuProcessExec
 
 from datetime import datetime
-import sys, os
+import sys, os, argparse
 import time
 
 from rich.progress import Progress, BarColumn, TextColumn
@@ -49,6 +49,12 @@ def prettify_duration(duration: datetime) -> str:
 
 
 def render_step(step: NeuPipelineStepStatus) -> Panel:
+    show_all = os.environ.get("VERBOSE", "false").lower() == "true"
+    show_details = show_all or step.status in {
+        ProcessStatus.RUNNING,
+        ProcessStatus.FAILED,
+    }
+    
     total = len(step.processes)
     completed = count_completed(step.processes)
     percent = (completed / total * 100) if total else 0
@@ -110,7 +116,9 @@ def render_step(step: NeuPipelineStepStatus) -> Panel:
     content_grid = Table.grid()
     content_grid.add_row(table)
     content_grid.add_row(bar)
-    content_grid.add_row(proc_table)
+    
+    if show_details:
+        content_grid.add_row(proc_table)
 
     return Panel(
         content_grid,
@@ -174,11 +182,40 @@ def live_pipeline_view(fetch_status_fn, refresh_sec: float = 2.0):
 
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(
+        description="Live pipeline progress viewer"
+    )
 
-    pipeline_id: str = str(sys.argv[1])
-    username: str = str(sys.argv[2])
-    os.environ["USERNAME"] = username
-    pipeline: NeuPipeline = NeuPipeline.from_pipeline_id(pipeline_id, username=username)
+    parser.add_argument(
+        "-p",
+        "--pipeline-id",
+        required=True,
+        help="Pipeline ID to monitor",
+    )
+
+    parser.add_argument(
+        "-u",
+        "--username",
+        required=True,
+        help="Username that owns the pipeline",
+    )
+
+    parser.add_argument(
+        "-v",
+        "--verbose",
+        action="store_true",
+        help="Show all process execution details for all steps",
+    )
+
+    args = parser.parse_args()
+
+    os.environ["USERNAME"] = args.username
+    os.environ["VERBOSE"] = str(args.verbose)
+
+    pipeline: NeuPipeline = NeuPipeline.from_pipeline_id(
+        pipeline_id=args.pipeline_id,
+        username=args.username,
+    )
 
     def fetch_status():
         return pipeline.get_pipeline_status()
