@@ -76,10 +76,10 @@ def autorecon2(input_filepath: str):
     fs_subjects_dir: str = os.path.join(freesurfer_outputs_dir, "freesurfer_subjects")
     os.makedirs(fs_subjects_dir, exist_ok=True)
     
-    # Check if mri/brain.mgz exists from autorecon1 step - if not, raise error
-    brain_mgz_path: str = os.path.join(fs_subjects_dir, subject_dirname, "mri", "brain.mgz")
-    if not os.path.exists(brain_mgz_path):
-        raise FileNotFoundError(f"Expected brain.mgz from autorecon1 step not found: {brain_mgz_path}. Please run autorecon1 first.")
+    # Check if mri/brainmask.mgz exists from autorecon1 step - if not, raise error
+    brainmask_mgz_path: str = os.path.join(fs_subjects_dir, subject_dirname, "mri", "brainmask.mgz")
+    if not os.path.exists(brainmask_mgz_path):
+        raise FileNotFoundError(f"Expected brainmask.mgz from autorecon1 step not found: {brainmask_mgz_path}. Please run autorecon1 first.")
     
     cmd: list[str] = [
         "bash", "-c",
