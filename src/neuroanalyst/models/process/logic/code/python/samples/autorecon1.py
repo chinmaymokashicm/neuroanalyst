@@ -64,16 +64,18 @@ def autorecon1(input_filepath: str):
         source {FREESURFER_HOME}/SetUpFreeSurfer.sh && \\
         export OMP_NUM_THREADS=2 && \\
         export ITK_GLOBAL_DEFAULT_NUMBER_OF_THREADS=2 && \\
-        recon-all -i '{input_filepath}' -s '{subject_dirname}' -sd {fs_subjects_dir} -autorecon1
+        export SUBJECTS_DIR={fs_subjects_dir} && \\
+        recon-all -i '{input_filepath}' -s '{subject_dirname}' -autorecon1
         """
     ]
     
     # Step 3: Prepare outputs
+    brain_filepath: str = os.path.join(fs_subjects_dir, subject_dirname, "mri", "brain.mgz")  # Use only as a gate to check if autorecon1 ran successfully  
     skull_stripped_filepath: str = os.path.join(fs_subjects_dir, subject_dirname, "mri", "brainmask.mgz")
     t1_filepath: str = os.path.join(fs_subjects_dir, subject_dirname, "mri", "T1.mgz")
 
     # Step 4: Run the FreeSurfer command if the outputs do not already exist
-    if not os.path.exists(skull_stripped_filepath) or not os.path.exists(t1_filepath):
+    if not os.path.exists(skull_stripped_filepath) or not os.path.exists(t1_filepath) or not os.path.exists(brain_filepath):
         print(f"Running command: {cmd}")
         try:
             result = subprocess.run(cmd, check=True, capture_output=True, text=True)
@@ -93,6 +95,9 @@ def autorecon1(input_filepath: str):
     else:
         print("Outputs already exist. Skipping FreeSurfer command execution.")
 
+    if not os.path.exists(skull_stripped_filepath) or not os.path.exists(t1_filepath) or not os.path.exists(brain_filepath):
+        raise FileNotFoundError(f"Expected outputs from FreeSurfer Autorecon1 not found: {skull_stripped_filepath}, {t1_filepath}, {brain_filepath}.")
+    
     skull_stripped_img: nib.Nifti1Image = nib.load(skull_stripped_filepath)
     t1_img: nib.Nifti1Image = nib.load(t1_filepath)
     t1_data: np.ndarray = t1_img.get_fdata()[..., np.newaxis]
@@ -131,18 +136,6 @@ def autorecon1(input_filepath: str):
             category=CATEGORY,
             labels=["qc", "intensity"]
         ),
-        "qc_pass": Metric(
-            name="qc_pass",
-            value=0.25 <= mask_ratio <= 0.6 and 40 <= mask_intensity_mean <= 200,
-            description="Whether the QC metrics pass the defined thresholds",
-            category=CATEGORY,
-            labels=["qc"]
-        ),
-        "qc_notes": "Mask ratio or intensity mean out of expected range." if not (0.25 <= mask_ratio <= 0.6 and 40 <= mask_intensity_mean <= 200) else "QC passed.",
-        "qc_criteria": {
-            "mask_ratio_range": [0.25, 0.6],
-            "mask_intensity_mean_range": [40, 200]
-        },
         "channels": ["T1", "brainmask"],
         "freesurfer_version": FREESURFER_HOME.split("/")[-1],
         "original_output_path": fs_subjects_dir,
@@ -158,7 +151,4 @@ def autorecon1(input_filepath: str):
     # forced_outputs = [brain_filepath, brain_mask_filepath]
     forced_outputs = []
     
-    # Save supplementary outputs by BIDS compliance
-    # talairach_filepath: str = os.path.join(fs_subjects_dir, subject_dirname, "mri", "talairach.mgz")
-
     return t1_data, metrics, output_entities, forced_outputs

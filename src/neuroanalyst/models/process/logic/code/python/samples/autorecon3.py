@@ -1,5 +1,5 @@
 from neuroanalyst.models.process.logic.core import Metric
-from neuroanalyst.analysis.freesurfer import extract_all_freesurfer_metrics, export_metrics
+from neuroanalyst.analysis.freesurfer import load_aparc_stats, extract_cortical_regional_metrics
 
 import os, subprocess, json
 from pathlib import Path
@@ -75,17 +75,6 @@ def autorecon3(input_filepath: str):
     pipeline_dir: str = os.path.join(DATA_DIR, "derivatives", PIPELINE_NAME)
     tmp_dir: str = os.path.join(pipeline_dir, "tmp")  #! Temporary directory for outputs; which would be usually be cleaned up by NeuroAnalyst wrapper, but here we keep it for FreeSurfer's intermediate files.
     os.makedirs(tmp_dir, exist_ok=True)
-    
-    # Load sidecar of input file to check for QC results
-    input_sidecar_path: str = input_filepath.replace(".nii.gz", ".nii").replace(".nii", ".json") # Works for both .nii and .nii.gz
-    qc_pass_autorecon2: Optional[bool] = None
-    if os.path.exists(input_sidecar_path):
-        try:
-            with open(input_sidecar_path, 'r') as f:
-                input_sidecar = json.load(f)
-            qc_pass_autorecon2 = input_sidecar.get("metrics", {}).get("qc_pass", {}).get("autorecon2", None)
-        except Exception as e:
-            print(f"Error reading sidecar JSON file: {e}")
 
     # Step 2: Prepare FreeSurfer command
     input_entities: dict = parse_file_entities(input_filepath)
@@ -104,111 +93,83 @@ def autorecon3(input_filepath: str):
     fs_subjects_dir: str = os.path.join(tmp_dir, "freesurfer_subjects")
     os.makedirs(fs_subjects_dir, exist_ok=True)
     
+    # Check if surf/lh or surf/rh exists from autorecon2 step - if not, raise error
+    lh_surf_path: str = os.path.join(fs_subjects_dir, subject_dirname, "surf", "lh.white")
+    rh_surf_path: str = os.path.join(fs_subjects_dir, subject_dirname, "surf", "rh.white")
+    if not os.path.exists(lh_surf_path) or not os.path.exists(rh_surf_path):
+        raise FileNotFoundError(f"Expected surface files from autorecon2 step not found: {lh_surf_path}, {rh_surf_path}. Please run autorecon2 first.")
+    
     cmd: list[str] = [
         "bash", "-c",
         f"""
         source {FREESURFER_HOME}/SetUpFreeSurfer.sh && \\
         export OMP_NUM_THREADS=2 && \\
         export ITK_GLOBAL_DEFAULT_NUMBER_OF_THREADS=2 && \\
-        recon-all -s {subject_dirname} -sd {fs_subjects_dir} -autorecon3
+        export SUBJECTS_DIR={fs_subjects_dir} && \\
+        recon-all -s {subject_dirname} -autorecon3
         """
     ]
     
     # Step 3: Run the FreeSurfer command
-    output_dir: str = str(Path(input_filepath).parent / "freesurfer_metrics")
-    output_filepath: str = os.path.join(output_dir, "surface_statistics.csv")
-    
-    if not Path(output_filepath).exists():
+    lh_aparc_path: str = os.path.join(fs_subjects_dir, subject_dirname, "stats", "lh.aparc.stats")
+    rh_aparc_path: str = os.path.join(fs_subjects_dir, subject_dirname, "stats", "rh.aparc.stats")
+    if not os.path.exists(lh_aparc_path) or not os.path.exists(rh_aparc_path):
         print(f"Running command: {cmd}")
         try:
             result = subprocess.run(cmd, check=True, capture_output=True, text=True)
-            print(f"FreeSurfer Autorecon1 command finished with return code {result.returncode}")
+            print(f"FreeSurfer Autorecon3 command finished with return code {result.returncode}")
             if result.stdout:
                 print(result.stdout)
             if result.stderr:
                 print(result.stderr)
         except subprocess.CalledProcessError as e:
-            print(f"Error running FreeSurfer Autorecon1 command: {e}")
+            print(f"Error running FreeSurfer Autorecon3 command: {e}")
             if getattr(e, "stdout", None):
                 print("Stdout:", e.stdout)
             if getattr(e, "stderr", None):
                 print("Stderr:", e.stderr)
             traceback.print_exc()
             raise e
+    else:
+        print("Outputs already exist. Skipping FreeSurfer command execution.")
     
     # Step 4: Prepare outputs
-    # all_metrics: dict = extract_all_freesurfer_metrics(os.path.join(fs_subjects_dir, subject_dirname))
-    # Separate values that are dicts and those that are pd.DataFrames
-    # The dictionary metrics will go into sidecar, while DataFrames will be saved as CSV outputs.
-    # dict_metrics: dict = {}
-    # for key, value in all_metrics.items():
-    #     if isinstance(value, dict):
-    #         # Skip cortical regional metrics as they are saved as CSV
-    #         if key.startswith("cortical_regional_metrics"):
-    #             continue
-    #         dict_metrics[key] = value
-    #     else:
-    #         pass
-
-    # try:
-    #     # Save all metrics to directory
-    #     export_metrics(all_metrics, output_dir=output_dir)
-    # except Exception as e:
-    #     print(f"Error exporting FreeSurfer metrics: {e}")
-    
-    # Return surface stats as output data and save cortical metrics DataFrames as CSV
-    try:
-        output_data: pd.DataFrame = pd.read_csv(output_filepath)
-    except Exception as e:
-        print(f"Error loading surface_statistics.csv: {e}")
-        output_data = pd.DataFrame()
-    try:
-        df_cortical_bilateral: pd.DataFrame = pd.read_csv(os.path.join(output_dir, "cortical_bilateral.csv"))
-    except Exception as e:
-        print(f"Error loading cortical_regional_metrics_bilateral.csv: {e}")
-        df_cortical_bilateral = pd.DataFrame()
-    
-    cortical_file_entities: dict = {**input_entities}
-    cortical_file_entities.update({
-        "desc": "cortical",
-        "suffix": "stats",
-        "extension": ".csv",
-        })
-    
-    layout: BIDSLayout = BIDSLayout("/data", derivatives=True, validate=False)
-    cortical_output_filepath: str = layout.build_path(cortical_file_entities, scope=PIPELINE_NAME)
-    
-    os.makedirs(os.path.dirname(cortical_output_filepath), exist_ok=True)
-    df_cortical_bilateral.to_csv(cortical_output_filepath, index=False)
+    if not os.path.exists(lh_aparc_path) or not os.path.exists(rh_aparc_path):
+        raise FileNotFoundError(f"Expected aparc.stats files not found: {lh_aparc_path}, {rh_aparc_path}.")
+    lh_aparc_annot_path: str = os.path.join(fs_subjects_dir, subject_dirname, "label", "lh.aparc.annot")
+    rh_aparc_annot_path: str = os.path.join(fs_subjects_dir, subject_dirname, "label", "rh.aparc.annot")
+    if not os.path.exists(lh_aparc_annot_path) or not os.path.exists(rh_aparc_annot_path):
+        raise FileNotFoundError(f"Expected aparc.annot files not found: {lh_aparc_annot_path}, {rh_aparc_annot_path}.")
+    lh_aparc = load_aparc_stats(lh_aparc_path)
+    rh_aparc = load_aparc_stats(rh_aparc_path)
+    output_data: pd.DataFrame = extract_cortical_regional_metrics(lh_aparc, rh_aparc)
 
     # Step 5: Prepare metrics and output entities
     try:
         # QC metrics
         qc_results = qc_autorecon3(os.path.join(fs_subjects_dir, subject_dirname, "stats"))
-        if qc_pass_autorecon2 is None:
-            qc_pass_autorecon2 = qc_results["qc_pass"]
     except Exception as e:
         print(f"Error computing QC metrics for Autorecon3: {e}")
         qc_results = {"mean_thickness": None, "surface_area": None, "qc_pass": None}
         
+    CATEGORY: str = "anatomical"
     metrics = {
         "freesurfer_version": os.getenv("FREESURFER_VERSION", "unknown"),
         "mean_thickness": Metric(
+            name="mean_thickness",
             value=qc_results["mean_thickness"],
+            description="Mean cortical thickness across hemispheres",
             unit="mm",
-            description="Mean cortical thickness across hemispheres"
+            category=CATEGORY,
+            labels=["cortical_thickness"],
         ),
         "surface_area": Metric(
+            name="surface_area",
             value=qc_results["surface_area"],
-            unit="mm²",
-            description="Total cortical surface area"
-        ),
-        "qc_pass": Metric(
-            value={
-                "autorecon2": qc_pass_autorecon2,
-                "autorecon3": qc_results["qc_pass"]
-            },
-            description="Quality control pass status for autorecon steps"
+            description="Total cortical surface area",
+            unit="mm2",
+            category=CATEGORY,
+            labels=["surface_area"],
         ),
         # **{k: Metric(value=v, description=f"FreeSurfer metric: {k}") for k, v in dict_metrics.items()}
     }

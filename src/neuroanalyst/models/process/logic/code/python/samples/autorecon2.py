@@ -44,34 +44,12 @@ def autorecon2(input_filepath: str):
     Args:
         input_filepath (str): Path to input NIfTI file. Loads the reference image from the previous autorecon1 step. Has 2 channels - intensity-normalized brain and skull-stripped brain.
     Returns:
-        output_data (np.ndarray): Array of segmentation data ("aseg.presurf.mgz") and white matter separated ("wm.mgz").
-            Shape will be (X, Y, Z, 2) where the last dimension corresponds to [segmentation, white_matter].
+        output_data (nib.Nifti1Image): NIfTI image of the aseg segmentation from FreeSurfer.
             *Note - this output is only as a reference for downstream processing; the actual outputs are saved in FreeSurfer's subject directory structure.
         metrics (dict): Dictionary of relevant metrics.
         output_entities (dict): Dictionary of BIDS entities for the output file.
         forced_outputs (list): List of file paths that are saved as outputs but not BIDS-compliant.
     """
-    def parse_aseg_stats(aseg_stats_path):
-        vols = {}
-        with open(aseg_stats_path) as f:
-            for line in f:
-                if line.startswith('#') or not line.strip():
-                    continue
-                parts = line.split()
-                vols[parts[4]] = float(parts[3])
-        return vols
-    
-    def qc_autorecon2(aseg_stats_path):
-        vols = parse_aseg_stats(aseg_stats_path)
-        wm_ok = 200000 < vols.get("Left-Cerebral-White-Matter", 0) < 400000
-        bs_ok = 15000 < vols.get("Brain-Stem", 0) < 30000
-        return {"qc_pass": wm_ok and bs_ok, "volumes": vols}
-    
-    def to_gifti(vertices: np.ndarray, faces: np.ndarray):
-        gii = gifti.GiftiImage()
-        gii.add_gifti_data_array(gifti.GiftiDataArray(data=vertices, intent='NIFTI_INTENT_POINTSET'))
-        gii.add_gifti_data_array(gifti.GiftiDataArray(data=faces, intent='NIFTI_INTENT_TRIANGLE'))
-        return gii
 
     # Step 1: Prepare environment and paths
     DATA_DIR: str = "/data"  # shared data dir bind
@@ -81,28 +59,6 @@ def autorecon2(input_filepath: str):
         raise EnvironmentError("FREESURFER_HOME environment variable is not set.")
     freesurfer_outputs_dir: str = os.path.join(DATA_DIR, "derivatives", PIPELINE_NAME, "tmp")  #! Temporary directory for outputs; which would be usually be cleaned up by NeuroAnalyst wrapper, but here we keep it for FreeSurfer's intermediate files.
     os.makedirs(freesurfer_outputs_dir, exist_ok=True)
-    
-    # Load sidecar of input file to check for QC results
-    input_sidecar_path: str = input_filepath.replace(".nii.gz", ".nii").replace(".nii", ".json") # Works for both .nii and .nii.gz
-    qc_pass_autorecon1: Optional[bool] = None
-    if os.path.exists(input_sidecar_path):
-        with open(input_sidecar_path, 'r') as f:
-            input_sidecar = json.load(f)
-        qc_pass_autorecon1 = input_sidecar.get("metrics", {}).get("qc_pass", None)
-        
-    if qc_pass_autorecon1 is False:
-        print("Input file failed QC. autorecon2 should be skipped.")
-        # output_data = np.array([])  # Empty array to indicate no processing
-        # metrics = {
-        #     "qc_skipped": True
-        # }
-        # output_entities = {
-        #     "desc": "autorecon2_skipped",
-        #     "suffix": "seg",
-        #     "extension": ".nii.gz"
-        # }
-        # forced_outputs = []
-        # return output_data, metrics, output_entities, forced_outputs
         
     # Step 2: Prepare FreeSurfer command
     entities: dict = parse_file_entities(input_filepath)
@@ -120,20 +76,25 @@ def autorecon2(input_filepath: str):
     fs_subjects_dir: str = os.path.join(freesurfer_outputs_dir, "freesurfer_subjects")
     os.makedirs(fs_subjects_dir, exist_ok=True)
     
+    # Check if mri/brain.mgz exists from autorecon1 step - if not, raise error
+    brain_mgz_path: str = os.path.join(fs_subjects_dir, subject_dirname, "mri", "brain.mgz")
+    if not os.path.exists(brain_mgz_path):
+        raise FileNotFoundError(f"Expected brain.mgz from autorecon1 step not found: {brain_mgz_path}. Please run autorecon1 first.")
+    
     cmd: list[str] = [
         "bash", "-c",
         f"""source {FREESURFER_HOME}/SetUpFreeSurfer.sh && \\
         export OMP_NUM_THREADS=2 && \\
         export ITK_GLOBAL_DEFAULT_NUMBER_OF_THREADS=2 && \\
-        recon-all -s {subject_dirname} -sd {fs_subjects_dir} -autorecon2
+        export SUBJECTS_DIR={fs_subjects_dir} && \\
+        recon-all -s {subject_dirname} -autorecon2
         """
     ]
 
     # Step 3: Prepare outputs
     aseg_filepath: str = os.path.join(fs_subjects_dir, subject_dirname, "mri", "aseg.presurf.mgz")
-    wm_filepath: str = os.path.join(fs_subjects_dir, subject_dirname, "mri", "wm.seg.mgz")
     
-    if not os.path.exists(aseg_filepath) or not os.path.exists(wm_filepath):
+    if not os.path.exists(aseg_filepath):
         # Step 4: Run the FreeSurfer command
         print(f"Running command: {cmd}")
         try:
@@ -154,57 +115,11 @@ def autorecon2(input_filepath: str):
     else:
         print("Outputs already exist. Skipping FreeSurfer command execution.")
     
-    aseg_data = nib.load(aseg_filepath).get_fdata()
-    wm_data = nib.load(wm_filepath).get_fdata()
+    output_data: nib.Nifti1Image = nib.load(aseg_filepath)
     
-    output_data = np.stack([aseg_data, wm_data], axis=-1)
-    
-    # # Step 5: Prepare metrics and output entities
-    # aseg_stats_path: str = os.path.join(fs_subjects_dir, subject_dirname, "stats", "aseg.stats")
-    # try:
-    #     qc_results = qc_autorecon2(aseg_stats_path)
-    #     if qc_pass is None:
-    #         qc_pass = qc_results["qc_pass"]
-    # except Exception as e:
-    #     print(f"Warning: Could not parse aseg stats for QC metrics: {e}")
-    #     qc_results = {}
-    
+    # Step 5: Prepare metrics and output entities
     metrics = {
-        "brain_volume": Metric(
-            name="brain_volume",
-            value=int(np.sum(aseg_data > 0)),
-            unit="mm3",
-            description="Total brain volume from segmentation",
-            category="anatomical",
-            labels=["brain", "volume"]
-        ),
-        "white_matter_volume": Metric(
-            name="white_matter_volume",
-            value=int(np.sum(wm_data > 0)),
-            unit="mm3",
-            description="Volume of white matter segmentation",
-            category="anatomical",
-            labels=["white_matter", "volume"]
-        ),
-        "num_segmentation_labels": Metric(
-            name="num_segmentation_labels",
-            value=int(len(np.unique(aseg_data))),
-            description="Number of unique segmentation labels",
-            category="anatomical",
-            labels=["segmentation", "labels"]
-        ),
-        "segmentation_dimensions": aseg_data.shape,
-        "segmentation_classes": int(np.max(aseg_data)),
-        "qc_pass": Metric(
-            name="qc_pass",
-            value={
-                "autorecon1": qc_pass_autorecon1,
-                # "autorecon2": qc_results.get("qc_pass", None)
-            },
-            description="Quality control pass status for previous steps",
-            category="qc",
-            labels=["qc"]
-        ),
+        "brain_volume": int(np.sum(output_data > 0)),
         "parameters": {
             "FreeSurfer_version": FREESURFER_HOME.split("/")[-1],
         },
@@ -218,47 +133,5 @@ def autorecon2(input_filepath: str):
     }
     
     forced_outputs = []
-    
-    # try:
-    #     # Save supplementary outputs by BIDS compliance
-    #     lh_surface_filepath: str = os.path.join(fs_subjects_dir, subject_dirname, "surf", "lh.smoothwm")
-    #     rh_surface_filepath: str = os.path.join(fs_subjects_dir, subject_dirname, "surf", "rh.smoothwm")
-    #     lh_surface_bids_entities: dict = {**entities, **{
-    #         "hemi": "L",
-    #         "desc": "surf",
-    #         "suffix": "smoothwm",
-    #         "extension": ".surf.gii",
-    #     }}
-    #     rh_surface_bids_entities: dict = {**entities, **{
-    #         "hemi": "R",
-    #         "desc": "surf",
-    #         "suffix": "smoothwm",
-    #         "extension": ".surf.gii",
-    #     }}
-        
-    #     layout: BIDSLayout = BIDSLayout(DATA_DIR, derivatives=True, validate=False)
-    #     lh_surface_bids_filename: str = layout.build_path(lh_surface_bids_entities, scope=PIPELINE_NAME)
-    #     rh_surface_bids_filename: str = layout.build_path(rh_surface_bids_entities, scope=PIPELINE_NAME)
-        
-    #     input_dir: str = os.path.dirname(input_filepath)
-    #     lh_surface_bids_filepath: str = os.path.join(input_dir, lh_surface_bids_filename)
-    #     rh_surface_bids_filepath: str = os.path.join(input_dir, rh_surface_bids_filename)
-    #     os.makedirs(os.path.dirname(lh_surface_bids_filepath), exist_ok=True)
-    #     os.makedirs(os.path.dirname(rh_surface_bids_filepath), exist_ok=True)
-        
-    #     try:
-    #         for hemi_surface_filepath, bids_filepath in [
-    #             (lh_surface_filepath, lh_surface_bids_filepath),
-    #             (rh_surface_filepath, rh_surface_bids_filepath)
-    #         ]:
-    #             vertices, faces = nib.freesurfer.read_geometry(hemi_surface_filepath)
-    #             gii_data = to_gifti(vertices, faces)
-    #             nib.save(gii_data, bids_filepath)
-    #             forced_outputs.append(bids_filepath)
-    #     except Exception as e:
-    #         print(f"Warning: Could not save supplementary surface outputs: {e}")
-    # except Exception as e:
-    #     print(f"Warning: Could not save supplementary surface outputs: {e}")
-    
 
     return output_data, metrics, output_entities, forced_outputs
