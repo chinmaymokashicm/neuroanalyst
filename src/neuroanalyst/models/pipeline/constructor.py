@@ -577,8 +577,25 @@ class PipelineConstructorConfig(BaseModel):
                 continue
             desc_config.subject_session_pairs = subject_session_pairs
     
-    def to_pipeline(self, bids_root: str | Path, save_fig: bool = True, starting_bids_scope: str = "raw") -> NeuPipeline:
-        """Construct a NeuPipeline instance from the configuration."""
+    def to_pipeline(
+        self,
+        bids_root: str | Path,
+        save_fig: bool = True,
+        probable_compute_cost: int = 5,
+        starting_bids_scope: str = "raw"
+        ) -> NeuPipeline:
+        """
+        Construct a NeuPipeline instance from the configuration.
+        
+        Args:
+            bids_root (str | Path): The root directory of the BIDS dataset.
+            save_fig (bool): Whether to save a visualization of the pipeline graph.
+            probable_compute_cost (int): Estimated compute cost scale for chunk size optimization. Higher values lead to smaller chunk sizes. Choose positive integers (e.g., 1-10).
+            starting_bids_scope (str): The starting BIDS scope for the pipeline ("raw" or "derivatives").
+        
+        Returns:
+            NeuPipeline: The constructed NeuPipeline instance.
+        """
         if not self.graph:
             self.construct_graph()
             
@@ -597,10 +614,15 @@ class PipelineConstructorConfig(BaseModel):
             subjects: list[str] = [subj for sublist in subjects for subj in (sublist if isinstance(sublist, list) else [sublist]) if subj is not None]
             sessions: list[str] = [sess for sublist in sessions for sess in (sublist if isinstance(sublist, list) else [sublist]) if sess is not None]
 
+            # Estimate the max chunk size based on probable compute cost - higher the cost, smaller the chunk size
+            # Why? To avoid overloading compute resources with too large chunks for expensive processes.
+            max_chunk_size: int = NeuProcessExec.compute_max_chunk_size(cost_scale=probable_compute_cost)
+            
             _, subject_session_pairs = NeuProcessExec.spawn_optimized_execs(
                 process=process_config.process,
                 bids_filters=process_config.input_bids_filters,
                 bids_layout=bids_layout,
+                max_chunk_size=max_chunk_size,
                 subjects=subjects,
                 sessions=sessions,
             )

@@ -241,6 +241,34 @@ class NeuProcessExec(BaseModel):
             raise ValueError(f"Failed to load NeuProcessExec from disk: {e}")
     
     @staticmethod
+    def compute_max_chunk_size(
+        cost_scale: int = 5,
+        min_chunk_size: int = 1,
+        max_chunk_size: int = 10,
+    ) -> int:
+        """
+        Compute the maximum chunk size based on a cost scale (0-10).
+        
+        Args:
+            cost_scale (int): Cost scale from 0 (low cost) to 10 (high cost)
+            min_chunk_size (int): Minimum chunk size
+            max_chunk_size (int): Maximum chunk size
+        
+        Returns:
+            int: Computed maximum chunk size
+        """
+        cost_scale = max(0, min(10, cost_scale))  # Clamp to [0, 10]
+
+        # Invert scale: higher cost => smaller chunk
+        normalized = 1.0 - (cost_scale / 10.0)
+
+        chunk_size = round(
+            min_chunk_size + normalized * (max_chunk_size - min_chunk_size)
+        )
+
+        return max(min_chunk_size, chunk_size)
+    
+    @staticmethod
     def spawn_optimized_execs(
         process: NeuProcess,
         bids_filters: dict,

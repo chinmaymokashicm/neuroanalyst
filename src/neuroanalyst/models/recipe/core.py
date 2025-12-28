@@ -58,6 +58,12 @@ class PipelineRecipe(BaseModel):
     name: str = Field(..., description="Name of the pipeline.", pattern=r"^\S+$")
     description: Optional[str] = Field(None, description="Description of the pipeline.")
     auto_link: bool = Field(False, description="Whether to auto-link outputs to inputs of subsequent steps.")
+    cost: int = Field(
+        ...,
+        description="Estimated compute cost scale for each process, used for chunk size optimization. Higher values indicate more compute-intensive processes and smaller chunk sizes. Use values between 1 and 10.",
+        ge=1,
+        le=10
+    )
     steps: list[PipelineStepRecipe] = Field(..., description="List of steps in the pipeline.")
     
     def __iter__(self):
