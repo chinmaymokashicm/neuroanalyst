@@ -165,20 +165,36 @@ def render_pipeline(status: NeuPipelineStatus) -> Panel:
 
 
 def live_pipeline_view(fetch_status_fn, refresh_sec: float = 2.0):
-    """
-    fetch_status_fn: () -> NeuPipelineStatus
-    """
     console = Console(force_terminal=True)
+
+    final_status: NeuPipelineStatus | None = None
 
     with Live(console=console, refresh_per_second=4, screen=True) as live:
         while True:
             status = fetch_status_fn()
+            final_status = status
             live.update(render_pipeline(status))
 
-            if status.status in {ProcessStatus.COMPLETE, ProcessStatus.FAILED}:
+            if status.status in {
+                ProcessStatus.COMPLETE,
+                ProcessStatus.FAILED,
+            }:
                 break
 
             time.sleep(refresh_sec)
+
+    # IMPORTANT: after Live exits, explicitly render final state
+    if final_status is not None:
+        console.print(render_pipeline(final_status))
+    
+    console.print(
+    Panel.fit(
+        f"[bold green]Pipeline completed successfully[/bold green]"
+        if final_status.status == ProcessStatus.COMPLETE
+        else "[bold red]Pipeline failed[/bold red]",
+        border_style=status_color(final_status.status),
+        )
+    )
 
 
 if __name__ == "__main__":
