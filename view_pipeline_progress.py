@@ -83,7 +83,7 @@ def render_step(step: NeuPipelineStepStatus) -> Panel:
     proc_table.add_column("Completed At")
     proc_table.add_column("Duration")
 
-    for p in step.process_execs:
+    for p in step.processes:
         process_exec: NeuProcessExec = NeuProcessExec.from_exec_id(p.exec_id, username=os.environ.get("USERNAME", None))
         bids_filters: dict = process_exec.bids_filters
         started_at: datetime = datetime.fromisoformat(p.started_at.replace('Z', '+00:00')) if p.started_at else None
