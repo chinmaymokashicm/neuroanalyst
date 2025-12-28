@@ -140,6 +140,7 @@ def n4_bias_field_correction(input_filepath: str):
     output_entities: dict = {
         "suffix": "dwi",
         "desc": "n4corrected",
+        "extension": ".nii.gz"
     }
 
     forced_outputs: list = [] # Placeholder for forced outputs

@@ -146,6 +146,7 @@ def dipy_brain_mask(input_filepath: str):
     output_entities = {
         "suffix": "dwi",
         "desc": "brainMasked",
+        "extension": ".nii.gz"
     }
 
     forced_outputs = []  # mask could be saved later if desired

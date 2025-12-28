@@ -134,6 +134,7 @@ def dipy_denoise_mppca(input_filepath: str):
     output_entities: dict = {
         "suffix": "dwi",
         "desc": "mppcaDenoised",
+        "extension": ".nii.gz"
     }
 
     forced_outputs: list = [] # No forced outputs in this case

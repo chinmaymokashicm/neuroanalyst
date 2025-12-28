@@ -168,6 +168,7 @@ def dipy_correct_distortions_and_motion(input_filepath: str):
     output_entities: dict = {
         "suffix": "dwi",
         "desc": "motionCorrected",
+        "extension": ".nii.gz"
     }
 
     forced_outputs: list = []  # No extra files generated in this simple implementation

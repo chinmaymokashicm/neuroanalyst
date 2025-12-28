@@ -1,25 +1,30 @@
+from neuroanalyst.models.process.logic.core import Metric
+
+import os, json
 from pathlib import Path
 from typing import Optional
-import os, json
 
 import numpy as np
 import nibabel as nib
-from dipy.denoise.gibbs import gibbs_removal
 from dipy.io.gradients import read_bvals_bvecs
+from dipy.core.gradients import gradient_table
+from dipy.reconst.dti import TensorModel
 
 
-def dipy_remove_gibbs_ringing(input_filepath: str):
-    """
-    Remove Gibbs ringing artifacts from a DWI image using DIPY.
+def dti_tensor_fit(input_filepath: str):
+    """Fit a diffusion tensor model and output scalar maps plus full tensor information.
+
+    The stacked scalar maps are the canonical reference output.
+    The full tensor eigenvalues are saved separately as a forced output.
 
     Args:
-        input_filepath (str): Path to the input DWI NIfTI file.
+        input_filepath (str): Path to the DWI NIfTI file.
 
     Returns:
-        output_data (np.ndarray): Gibbs-corrected image data.
-        metrics (dict): Dictionary of relevant metrics.
-        output_entities (dict): Dictionary of BIDS entities for the output file.
-        forced_outputs (list): List of file paths that are saved as outputs but not BIDS-compliant. These will be deleted.
+        output_data (nib.Nifti1Image): Stacked scalar maps (FA, MD, RD, AD).
+        metrics (dict): Summary metrics.
+        output_entities (dict): BIDS entities.
+        forced_outputs (list): Paths to full tensor representations.
     """
     def get_input_bval_bvec_paths(sidecar_path: str, input_filepath: str) -> tuple[Optional[str], Optional[str]]:
         """Retrieve bval and bvec file paths from the sidecar JSON. If not found, infer from input filepath.
@@ -80,7 +85,7 @@ def dipy_remove_gibbs_ringing(input_filepath: str):
         return bval_filepath, bvec_filepath
 
     # ============================
-    # Step 1: Load Input Data
+    # Step 1: Load Data
     # ============================
     DATA_DIR: str = "/data"
     PIPELINE_NAME: str = os.getenv("PIPELINE_NAME", None)
@@ -90,7 +95,7 @@ def dipy_remove_gibbs_ringing(input_filepath: str):
     img_data: np.ndarray = img.get_fdata()
     affine: np.ndarray = img.affine
     header: nib.Nifti1Header = img.header
-
+    
     if img_data.ndim < 4:
         raise ValueError("Input image must be a 4D DWI image.")
     
@@ -98,45 +103,78 @@ def dipy_remove_gibbs_ringing(input_filepath: str):
     input_bval_filepath, input_bvec_filepath = get_input_bval_bvec_paths(input_sidecar_path, input_filepath)
     if input_bval_filepath is None or input_bvec_filepath is None:
         print("Bval or Bvec file paths not found in sidecar JSON or inferred from input filepath.")
+
+    bval, bvec = read_bvals_bvecs(input_bval_filepath, input_bvec_filepath)
+    gtab = gradient_table(bval, bvec)
+
+    # ============================
+    # Step 2: Fit Tensor Model
+    # ============================
+    tenmodel = TensorModel(gtab)
+    mask = img_data[..., 0] > 0
+    tenfit = tenmodel.fit(img_data, mask=mask)
     
-
-    # ============================
-    # Step 2: Apply Gibbs ringing removal
-    # ============================
-    # Apply along spatial axes only
-    gibbs_corrected_data: np.ndarray = gibbs_removal(img_data, slice_axis=2)
-
-    corrected_img: nib.Nifti1Image = nib.Nifti1Image(gibbs_corrected_data, affine, header)
-    output_data: np.ndarray = corrected_img.get_fdata()
+    # Scalar maps (canonical output)
+    fa = tenfit.fa
+    md = tenfit.md
+    rd = tenfit.rd
+    ad = tenfit.ad
+    
+    output_data = np.stack([fa, md, rd, ad], axis=-1)
 
     # ============================
     # Step 3: Prepare Outputs
     # ============================
-    # Save bvals and bvecs for reference in downstream processing if needed
+    # Full tensor representation
     try:
-        bval, bvec = read_bvals_bvecs(input_bval_filepath, input_bvec_filepath)
         output_dir: str = os.path.join(DATA_DIR, "derivatives", PIPELINE_NAME, "tmp")
         os.makedirs(output_dir, exist_ok=True)
-        input_file_stem: str = "gibbs_corrected_" + input_filepath.split("/")[-1].split(".")[0]
+        input_file_stem: str = "dti_fit_" + input_filepath.split("/")[-1].split(".")[0]
         bval_filepath, bvec_filepath = save_bval_bvec_files(bval, bvec, output_dir, input_file_stem)
     except Exception as e:
-        print(f"Error saving bval and bvec files: {e}")
+        print(f"Error saving tensor representation or bval/bvec files: {e}")
         bval_filepath, bvec_filepath = None, None
     
-    metrics: dict = {
-        "correction_method": "Gibbs ringing removal",
-        "input_shape": img_data.shape,
-        "output_shape": output_data.shape,
+    try:
+        tensor_path = os.path.join(output_dir, f"{input_file_stem}_tensor_evals.npz")
+        np.savez_compressed(
+            tensor_path,
+            evals=tenfit.evals,
+            affine=affine
+        )
+    except Exception as e:
+        print(f"Error saving tensor eigenvalues: {e}")
+        tensor_path = None
+
+    metrics = {
+        "mean_fa": Metric(
+            name="mean_fa",
+            value=float(np.nanmean(fa)),
+            unit=None,
+            description="Mean Fractional Anisotropy (FA) across the brain volume."
+        ),
+        "mean_md": Metric(
+            name="mean_md",
+            value=float(np.nanmean(md)),
+            unit="mm^2/s",
+            description="Mean Diffusivity (MD) across the brain volume."
+        ),
+        "tensor_representation": "eigenvalues_only",
         "bval_filepath": bval_filepath,
         "bvec_filepath": bvec_filepath,
+        "tensor_filepath": tensor_path,
+        "fa_shape": output_data[..., 0].shape,
+        "md_shape": output_data[..., 1].shape,
+        "rd_shape": output_data[..., 2].shape,
+        "ad_shape": output_data[..., 3].shape,
     }
 
-    output_entities: dict = {
+    output_entities = {
         "suffix": "dwi",
-        "desc": "gibbsCorrected",
+        "desc": "dtiFit",
         "extension": ".nii.gz"
     }
 
-    forced_outputs: list = []  # No forced outputs in this step
+    forced_outputs = []
 
     return output_data, metrics, output_entities, forced_outputs
