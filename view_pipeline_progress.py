@@ -196,7 +196,8 @@ if __name__ == "__main__":
     parser.add_argument(
         "-u",
         "--username",
-        required=True,
+        required=False,
+        default=None,
         help="Username that owns the pipeline",
     )
 
