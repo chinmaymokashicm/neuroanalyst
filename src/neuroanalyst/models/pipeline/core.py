@@ -87,11 +87,11 @@ class NeuPipelineStepStatus(BaseModel):
     error: Optional[str] = Field(default=None, description="Error message if the step failed")
     
     # Processes in the step
-    process_execs: List[NeuProcessExecStatus] = Field(default_factory=list, description="List of processes in the step with their statuses")
+    processes: List[NeuProcessExecStatus] = Field(default_factory=list, description="List of processes in the step with their statuses")
     
     def __iter__(self):
         """Allow iteration over the processes in the step."""
-        return iter(self.process_execs)
+        return iter(self.processes)
 
 class ProcessExecSummary(BaseModel):
     exec_id: str
@@ -176,7 +176,7 @@ class NeuPipelineStatus(BaseModel):
         step_status = self.steps[step_idx]
         if exec_id is None:
             return step_status.model_dump()
-        for proc_status in step_status.process_execs:
+        for proc_status in step_status.processes:
             if proc_status.exec_id == exec_id:
                 return proc_status.model_dump()
         return None
@@ -197,14 +197,14 @@ class NeuPipelineStatus(BaseModel):
             if step_idx < 0 or step_idx >= len(self.steps):
                 return 0.0
             step_status = self.steps[step_idx]
-            for proc_status in step_status.process_execs:
+            for proc_status in step_status.processes:
                 if process_id is None or proc_status.process_id == process_id:
                     total_count += 1
                     if proc_status.status == ProcessStatus.COMPLETE:
                         complete_count += 1
         else:
             for step_status in self.steps:
-                for proc_status in step_status.process_execs:
+                for proc_status in step_status.processes:
                     if process_id is None or proc_status.process_id == process_id:
                         total_count += 1
                         if proc_status.status == ProcessStatus.COMPLETE:
@@ -229,7 +229,7 @@ class NeuPipelineStatus(BaseModel):
             for idx in range(len(self.steps)):
                 step_status: NeuPipelineStepStatus = self.steps[idx]
                 step_status_stats: dict = {status_category: 0 for status_category in ProcessStatus._value2member_map_.keys()}
-                for proc_status in step_status.process_execs:
+                for proc_status in step_status.processes:
                     key = proc_status.status.value
                     step_status_stats[key] = step_status_stats.get(key, 0) + 1
                 stats[idx] = step_status_stats
@@ -242,7 +242,7 @@ class NeuPipelineStatus(BaseModel):
         elif by == "process":
             proc_stats: dict = {status_category: 0 for status_category in ProcessStatus._value2member_map_.keys()}
             for step_status in self.steps:
-                for proc_status in step_status.process_execs:
+                for proc_status in step_status.processes:
                     key = proc_status.status.value
                     proc_stats[key] = proc_stats.get(key, 0) + 1
             stats = proc_stats
@@ -265,7 +265,7 @@ class NeuPipelineStatus(BaseModel):
         paths = NeuroAnalystPaths(username=self.username)
 
         for step_status in steps_to_check:
-            for proc_status in step_status.process_execs:
+            for proc_status in step_status.processes:
 
                 # Only inspect failed processes
                 if proc_status.status != ProcessStatus.FAILED:
@@ -320,7 +320,7 @@ class NeuPipelineStatus(BaseModel):
                 processes=[]
             )
 
-            for proc in step.process_execs:
+            for proc in step.processes:
                 proc_summary = ProcessExecSummary(
                     exec_id=proc.exec_id,
                     process_id=proc.process_id,
@@ -1468,7 +1468,7 @@ class NeuPipeline(BaseModel):
                 completed_at=None,
                 last_updated=current_time,
                 error=None,
-                process_execs=[]
+                processes=[]
             )
             for j, proc_exec in enumerate(step.process_execs):
                 proc_status = NeuProcessExecStatus(
@@ -1482,7 +1482,7 @@ class NeuPipeline(BaseModel):
                     error=None,
                     scheduler_job_id=None
                 )
-                step_status.process_execs.append(proc_status)
+                step_status.processes.append(proc_status)
             pipeline_status.steps.append(step_status)
 
         # Save the pipeline status file
@@ -1537,7 +1537,7 @@ class NeuPipeline(BaseModel):
                     print(f"  Error: {step.error}")
 
                 print("  Processes:")
-                for proc in step.process_execs:
+                for proc in step.processes:
                     status_indicator = {
                         ProcessStatus.NOT_STARTED.value: "⬜",
                         ProcessStatus.RUNNING.value: "🔄",
@@ -1593,7 +1593,7 @@ class NeuPipeline(BaseModel):
         if not exec_id:
             raise ValueError("exec_id must be provided to update process status")
         
-        proc_status = next((p for p in step_status.process_execs if p.exec_id == exec_id), None)
+        proc_status = next((p for p in step_status.processes if p.exec_id == exec_id), None)
         if not proc_status:
             raise ValueError(f"Process exec ID {exec_id} not found in step {step_idx}")
         
@@ -1610,14 +1610,14 @@ class NeuPipeline(BaseModel):
                 proc_status.error = error_msg
         
         # Update step status based on process statuses
-        if all(p.status == ProcessStatus.COMPLETE for p in step_status.process_execs):  # Compare with enum directly
+        if all(p.status == ProcessStatus.COMPLETE for p in step_status.processes):  # Compare with enum directly
             step_status.status = ProcessStatus.COMPLETE  # Use enum instance directly
             step_status.completed_at = current_time
-        elif any(p.status == ProcessStatus.FAILED for p in step_status.process_execs):  # Compare with enum directly
+        elif any(p.status == ProcessStatus.FAILED for p in step_status.processes):  # Compare with enum directly
             step_status.status = ProcessStatus.FAILED  # Use enum instance directly
             step_status.completed_at = current_time
             step_status.error = "One or more processes failed"
-        elif any(p.status == ProcessStatus.RUNNING for p in step_status.process_execs):  # Compare with enum directly
+        elif any(p.status == ProcessStatus.RUNNING for p in step_status.processes):  # Compare with enum directly
             step_status.status = ProcessStatus.RUNNING  # Use enum instance directly
             if not step_status.started_at:
                 step_status.started_at = current_time
