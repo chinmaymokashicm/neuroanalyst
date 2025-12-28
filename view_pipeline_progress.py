@@ -49,8 +49,8 @@ def prettify_duration(duration: datetime) -> str:
 
 
 def render_step(step: NeuPipelineStepStatus) -> Panel:
-    total = len(step.process_execs)
-    completed = count_completed(step.process_execs)
+    total = len(step.processes)
+    completed = count_completed(step.processes)
     percent = (completed / total * 100) if total else 0
 
     table = Table.grid(expand=True)
