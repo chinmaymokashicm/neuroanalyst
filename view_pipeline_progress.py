@@ -49,8 +49,8 @@ def prettify_duration(duration: datetime) -> str:
 
 
 def render_step(step: NeuPipelineStepStatus) -> Panel:
-    total = len(step.processes)
-    completed = count_completed(step.processes)
+    total = len(step.process_execs)
+    completed = count_completed(step.process_execs)
     percent = (completed / total * 100) if total else 0
 
     table = Table.grid(expand=True)
@@ -83,7 +83,7 @@ def render_step(step: NeuPipelineStepStatus) -> Panel:
     proc_table.add_column("Completed At")
     proc_table.add_column("Duration")
 
-    for p in step.processes:
+    for p in step.process_execs:
         process_exec: NeuProcessExec = NeuProcessExec.from_exec_id(p.exec_id, username=os.environ.get("USERNAME", None))
         bids_filters: dict = process_exec.bids_filters
         started_at: datetime = datetime.fromisoformat(p.started_at.replace('Z', '+00:00')) if p.started_at else None
