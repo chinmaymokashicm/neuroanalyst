@@ -70,12 +70,11 @@ def autorecon1(input_filepath: str):
     ]
     
     # Step 3: Prepare outputs
-    brain_filepath: str = os.path.join(fs_subjects_dir, subject_dirname, "mri", "brain.mgz")  # Use only as a gate to check if autorecon1 ran successfully  
     skull_stripped_filepath: str = os.path.join(fs_subjects_dir, subject_dirname, "mri", "brainmask.mgz")
     t1_filepath: str = os.path.join(fs_subjects_dir, subject_dirname, "mri", "T1.mgz")
 
     # Step 4: Run the FreeSurfer command if the outputs do not already exist
-    if not os.path.exists(skull_stripped_filepath) or not os.path.exists(t1_filepath) or not os.path.exists(brain_filepath):
+    if not os.path.exists(skull_stripped_filepath) or not os.path.exists(t1_filepath):
         print(f"Running command: {cmd}")
         try:
             result = subprocess.run(cmd, check=True, capture_output=True, text=True)
@@ -95,8 +94,8 @@ def autorecon1(input_filepath: str):
     else:
         print("Outputs already exist. Skipping FreeSurfer command execution.")
 
-    if not os.path.exists(skull_stripped_filepath) or not os.path.exists(t1_filepath) or not os.path.exists(brain_filepath):
-        raise FileNotFoundError(f"Expected outputs from FreeSurfer Autorecon1 not found: {skull_stripped_filepath}, {t1_filepath}, {brain_filepath}.")
+    if not os.path.exists(skull_stripped_filepath) or not os.path.exists(t1_filepath):
+        raise FileNotFoundError(f"Expected outputs from FreeSurfer Autorecon1 not found: {skull_stripped_filepath}, {t1_filepath}.")
     
     skull_stripped_img: nib.Nifti1Image = nib.load(skull_stripped_filepath)
     t1_img: nib.Nifti1Image = nib.load(t1_filepath)
