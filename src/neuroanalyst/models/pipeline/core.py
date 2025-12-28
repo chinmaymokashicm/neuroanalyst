@@ -104,7 +104,7 @@ class ProcessExecSummary(BaseModel):
 class StepSummary(BaseModel):
     step_id: int
     status: ProcessStatus
-    process_execs: List[ProcessExecSummary] = Field(default_factory=list)
+    process_exec_summaries: List[ProcessExecSummary] = Field(default_factory=list)
 
 class PipelineSummary(BaseModel):
     pipeline_id: str
@@ -317,7 +317,7 @@ class NeuPipelineStatus(BaseModel):
             step_summary = StepSummary(
                 step_id=step.step_id,
                 status=step.status,
-                process_execs=[]
+                process_exec_summaries=[]
             )
 
             for proc in step.process_execs:
@@ -336,7 +336,7 @@ class NeuPipelineStatus(BaseModel):
                         if entry["exec_id"] == proc.exec_id:
                             proc_summary.error_files = entry.get("error_files", {})
 
-                step_summary.process_execs.append(proc_summary)
+                step_summary.process_exec_summaries.append(proc_summary)
 
             steps_summary.append(step_summary)
 
@@ -373,7 +373,7 @@ class NeuPipelineStatus(BaseModel):
         for step_idx, step in enumerate(summary.steps):
             print(f"\n[Step {step_idx}] {step.step_id} {status_icon.get(step.status, '')}")
 
-            for proc in step.process_execs:
+            for proc in step.process_exec_summaries:
                 icon = status_icon.get(proc.status, "")
                 print(f"  ├─ {proc.process_id} :: {proc.exec_id} {icon}")
 

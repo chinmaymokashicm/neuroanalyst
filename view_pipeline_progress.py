@@ -1,5 +1,6 @@
 from src.neuroanalyst.models.pipeline.core import NeuPipelineStepStatus, ProcessStatus, NeuPipelineStatus
 from src.neuroanalyst.models.pipeline import NeuPipeline
+from src.neuroanalyst.models.process.exec.core import NeuProcessExec
 
 from datetime import datetime
 import sys, os
@@ -24,6 +25,15 @@ def status_color(status: ProcessStatus) -> str:
     }.get(status, "white")
 
 def prettify_duration(duration: datetime) -> str:
+    """
+    Convert a duration (timedelta) into a human-readable string.
+    
+    Args:
+        duration (datetime): Duration to prettify.
+        
+    Returns:
+        str: Human-readable duration string.
+    """
     if duration is None:
         return "-"
     total_seconds = int(duration.total_seconds())
@@ -67,12 +77,15 @@ def render_step(step: NeuPipelineStepStatus) -> Panel:
     )
     proc_table.add_column("Exec ID")
     proc_table.add_column("Status")
+    proc_table.add_column("BIDS Filters")
     proc_table.add_column("Scheduler Job")
     proc_table.add_column("Started At")
     proc_table.add_column("Completed At")
     proc_table.add_column("Duration")
 
     for p in step.process_execs:
+        process_exec: NeuProcessExec = NeuProcessExec.from_exec_id(p.exec_id, username=os.environ.get("USERNAME", None))
+        bids_filters: dict = process_exec.bids_filters
         started_at: datetime = datetime.fromisoformat(p.started_at.replace('Z', '+00:00')) if p.started_at else None
         completed_at: datetime = datetime.fromisoformat(p.completed_at.replace('Z', '+00:00')) if p.completed_at else None
         duration = (completed_at - started_at) if started_at and completed_at else None
@@ -87,6 +100,7 @@ def render_step(step: NeuPipelineStepStatus) -> Panel:
         proc_table.add_row(
             p.exec_id,
             f"[{status_color(p.status)}]{icon} {p.status.value}[/]",
+            ", ".join(f"{k}={v}" for k, v in bids_filters.items()) if bids_filters else "-",
             p.scheduler_job_id or "-",
             started_at.strftime("%Y-%m-%d %H:%M:%S") if started_at else "-",
             completed_at.strftime("%Y-%m-%d %H:%M:%S") if completed_at else "-",
