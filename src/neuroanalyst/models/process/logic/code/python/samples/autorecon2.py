@@ -115,11 +115,12 @@ def autorecon2(input_filepath: str):
     else:
         print("Outputs already exist. Skipping FreeSurfer command execution.")
     
+    # Load the aseg file and convert to NIfTI
     output_data: nib.Nifti1Image = nib.load(aseg_filepath)
     
     # Step 5: Prepare metrics and output entities
     metrics = {
-        "brain_volume": int(np.sum(output_data > 0)),
+        "brain_volume": int(np.sum(output_data.get_fdata() > 0)),
         "parameters": {
             "FreeSurfer_version": FREESURFER_HOME.split("/")[-1],
         },
