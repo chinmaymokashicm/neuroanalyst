@@ -81,13 +81,13 @@ def autorecon2(input_filepath: str):
     if not os.path.exists(brainmask_mgz_path):
         raise FileNotFoundError(f"Expected brainmask.mgz from autorecon1 step not found: {brainmask_mgz_path}. Please run autorecon1 first.")
     
-    cmd: list[str] = [
+    cmd_autorecon2: list[str] = [
         "bash", "-c",
         f"""source {FREESURFER_HOME}/SetUpFreeSurfer.sh && \\
         export OMP_NUM_THREADS=8 && \\
         export ITK_GLOBAL_DEFAULT_NUMBER_OF_THREADS=8 && \\
         export SUBJECTS_DIR={fs_subjects_dir} && \\
-        recon-all -s {subject_dirname} -autorecon2 -autorecon2-wm -autorecon2-cp -autorecon2-pial
+        recon-all -s {subject_dirname} -autorecon2
         """
     ]
 
@@ -96,16 +96,16 @@ def autorecon2(input_filepath: str):
     
     if not os.path.exists(aseg_filepath):
         # Step 4: Run the FreeSurfer command
-        print(f"Running command: {cmd}")
+        print(f"Running command: {cmd_autorecon2}")
         try:
-            result = subprocess.run(cmd, check=True, capture_output=True, text=True)
+            result = subprocess.run(cmd_autorecon2, check=True, capture_output=True, text=True)
             print(f"FreeSurfer Autorecon2 command finished with return code {result.returncode}")
             if result.stdout:
                 print(result.stdout)
             if result.stderr:
                 print(result.stderr)
         except subprocess.CalledProcessError as e:
-            print(f"Error running FreeSurfer Autorecon1 command: {e}")
+            print(f"Error running FreeSurfer Autorecon2 command: {e}")
             if getattr(e, "stdout", None):
                 print("Stdout:", e.stdout)
             if getattr(e, "stderr", None):
@@ -114,6 +114,36 @@ def autorecon2(input_filepath: str):
             raise e
     else:
         print("Outputs already exist. Skipping FreeSurfer command execution.")
+        
+    # Check for white surfaces to confirm successful completion - if not, re-run autorecon2-wm
+    lh_surf_path: str = os.path.join(fs_subjects_dir, subject_dirname, "surf", "lh.white")
+    rh_surf_path: str = os.path.join(fs_subjects_dir, subject_dirname, "surf", "rh.white")
+    if not os.path.exists(lh_surf_path) or not os.path.exists(rh_surf_path):
+        print("White matter surfaces not found after autorecon2. Re-running autorecon2-wm step...")
+        cmd_autorecon2_wm: list[str] = [
+            "bash", "-c",
+            f"""source {FREESURFER_HOME}/SetUpFreeSurfer.sh && \\
+            export OMP_NUM_THREADS=8 && \\
+            export ITK_GLOBAL_DEFAULT_NUMBER_OF_THREADS=8 && \\
+            export SUBJECTS_DIR={fs_subjects_dir} && \\
+            recon-all -s {subject_dirname} -autorecon2-wm
+            """
+        ]
+        try:
+            result = subprocess.run(cmd_autorecon2_wm, check=True, capture_output=True, text=True)
+            print(f"FreeSurfer Autorecon2-wm command finished with return code {result.returncode}")
+            if result.stdout:
+                print(result.stdout)
+            if result.stderr:
+                print(result.stderr)
+        except subprocess.CalledProcessError as e:
+            print(f"Error running FreeSurfer Autorecon2-wm command: {e}")
+            if getattr(e, "stdout", None):
+                print("Stdout:", e.stdout)
+            if getattr(e, "stderr", None):
+                print("Stderr:", e.stderr)
+            traceback.print_exc()
+            raise e
     
     # Load the aseg file and convert to NIfTI
     output_data: nib.Nifti1Image = nib.Nifti1Image.from_image(nib.load(aseg_filepath))

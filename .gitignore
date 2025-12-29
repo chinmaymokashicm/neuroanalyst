@@ -8,6 +8,8 @@ PR-*/
 working_dirs/
 database/
 __pycache__/
+docs/
+docs_alt/
 test_*
 debug_*
 *.pyc
