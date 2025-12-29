@@ -87,7 +87,7 @@ def autorecon2(input_filepath: str):
         export OMP_NUM_THREADS=8 && \\
         export ITK_GLOBAL_DEFAULT_NUMBER_OF_THREADS=8 && \\
         export SUBJECTS_DIR={fs_subjects_dir} && \\
-        recon-all -s {subject_dirname} -autorecon2
+        recon-all -s {subject_dirname} -autorecon2 -autorecon2-wm -autorecon2-cp -autorecon2-pial
         """
     ]
 
