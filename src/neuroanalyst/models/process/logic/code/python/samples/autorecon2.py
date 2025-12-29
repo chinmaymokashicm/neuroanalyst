@@ -116,7 +116,7 @@ def autorecon2(input_filepath: str):
         print("Outputs already exist. Skipping FreeSurfer command execution.")
     
     # Load the aseg file and convert to NIfTI
-    output_data: nib.Nifti1Image = nib.load(aseg_filepath)
+    output_data: nib.Nifti1Image = nib.Nifti1Image.from_image(nib.load(aseg_filepath))
     
     # Step 5: Prepare metrics and output entities
     metrics = {
