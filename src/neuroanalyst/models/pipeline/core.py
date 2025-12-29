@@ -40,9 +40,9 @@ import pandas as pd
 from bids import BIDSLayout
 
 DEFAULT_SCHEDULER_FLAGS = {
-    HPCScheduler.LSF : {"-n": 2, "-q": "medium", "-M": "20GB", "-W": "12:00"},
-    HPCScheduler.SLURM : {"--cpus-per-task": 2, "--partition": "medium", "--mem": "20G", "--time": "12:00:00"},
-    HPCScheduler.PBS : {"-l": "nodes=1:ppn=2,mem=20gb,walltime=12:00:00", "-q": "medium"},
+    HPCScheduler.LSF : {"-n": 4, "-q": "medium", "-M": "20GB", "-W": "12:00"},
+    HPCScheduler.SLURM : {"--cpus-per-task": 4, "--partition": "medium", "--mem": "20G", "--time": "12:00:00"},
+    HPCScheduler.PBS : {"-l": "nodes=1:ppn=4,mem=20gb,walltime=12:00:00", "-q": "medium"},
     HPCScheduler.LOCAL : {}
 }
 
