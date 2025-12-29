@@ -127,7 +127,7 @@ def dipy_tensor_modeling(input_filepath: str):
 
     output_entities = {
         "desc": "tensor",
-        "suffix": "dwi",
+        "suffix": "mask",
         "extension": ".nii.gz"
     }
 
