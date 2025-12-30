@@ -976,3 +976,34 @@ bash {self.script_path} {' '.join(self.command_flags) if self.command_flags else
         os.chmod(bash_script_path, 0o755) # Make the script executable
         
         return model_path
+
+    def get_logs(self, tail: Optional[int] = None) -> dict[str, str]:
+        """
+        Retrieve the execution logs.
+        
+        Args:
+            tail: If specified, return only the last 'tail' lines of the log.
+        
+        Returns:
+            dict: Dictionary with 'log' and 'error' keys containing log contents
+        """
+        log_path = self.exec_log_path
+        err_path = self.exec_error_path
+        
+        if not log_path.exists() and not err_path.exists():
+            return "No log or error files found."
+        
+        with open(log_path, "r") as log_file:
+            log_content = log_file.readlines()
+            
+        with open(err_path, "r") as err_file:
+            err_content = err_file.readlines()
+               
+        if tail is not None:
+            log_content = log_content[-tail:]
+            err_content = err_content[-tail:]
+            
+        return {
+            "log": "".join(log_content),
+            "error": "".join(err_content)
+        }
