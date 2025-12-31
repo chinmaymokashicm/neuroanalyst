@@ -58,15 +58,20 @@ def render_step(step: NeuPipelineStepStatus) -> Panel:
     total = len(step.processes)
     completed = count_completed(step.processes)
     percent = (completed / total * 100) if total else 0
+    step_started_at: datetime = datetime.fromisoformat(step.started_at.replace('Z', '+00:00')) if step.started_at else None
+    step_completed_at: datetime = datetime.fromisoformat(step.completed_at.replace('Z', '+00:00')) if step.completed_at else None
+    step_duration = (step_completed_at - step_started_at) if step_started_at and step_completed_at else None
 
     table = Table.grid(expand=True)
     table.add_column(justify="left")
     table.add_column(justify="right")
 
+    duration_str = f" Duration - {prettify_duration(step_duration)}" if step_duration else ""
+    
     table.add_row(
         f"[bold]{step.name}[/bold] "
         f"[{status_color(step.status)}]({step.status.value})[/]",
-        f"{completed}/{total} complete"
+        f"{completed}/{total} complete{duration_str}"
     )
 
     bar = Progress(
