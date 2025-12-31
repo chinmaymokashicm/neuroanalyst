@@ -174,8 +174,10 @@ class NeuProcessLogic(BaseModel):
             
         # Check 2: Values should not have spaces, commas, underscores, hyphens, or special characters
         for key, value in v.items():
-            if any(char in value for char in [' ', ',', '_', '-', '/', '\\', '!', '@', '#', '$', '%', '^', '&', '*', '(', ')']):
-                raise ValueError(f"Value for key '{key}' contains invalid characters. Only alphanumeric characters are allowed.")
+            illegal_chars = [' ', ',', '_', '-', '/', '\\', '!', '@', '#', '$', '%', '^', '&', '*', '(', ')']
+            if any(char in value for char in illegal_chars):
+                illegal_chars_found = [char for char in illegal_chars if char in value]
+                raise ValueError(f"Value for key '{key}' contains invalid characters: {', '.join(illegal_chars_found)}. Only alphanumeric characters are allowed.")
         
         # Check 3: All keys must be from the allowed set
         for key in v:
