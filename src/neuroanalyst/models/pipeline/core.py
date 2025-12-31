@@ -2008,7 +2008,7 @@ class NeuPipeline(BaseModel):
         loop = asyncio.get_event_loop()
         return await loop.run_in_executor(None, self.execute_via_python, resume)
     
-    def execute_via_python(self, resume: bool = True) -> str:
+    def execute_via_python(self, resume: bool = True, batch_size: int = 8) -> str:
         """Execute the pipeline step-by-step via Python.
         
         Args:
@@ -2016,6 +2016,10 @@ class NeuPipeline(BaseModel):
         Returns:
             str: A message indicating the result of the execution.
         """
+        def _chunked(self, items, size):
+            for i in range(0, len(items), size):
+                yield items[i:i + size]
+            
         def execute_and_monitor_process(proc_exec: NeuProcessExec) -> bool:
             nonlocal failure, failure_message
             
@@ -2112,7 +2116,6 @@ class NeuPipeline(BaseModel):
             logger.info(f"Executing Step {step_index + 1}/{len(self.steps)}: {step.name}")
             
             # Execute all processes in this step concurrently that are not yet complete
-            
             executors = {}
             status_lock = Lock()  # For thread-safe status updates
             failure = False
@@ -2124,28 +2127,58 @@ class NeuPipeline(BaseModel):
             for pe in incomplete_execs:
                 self.update_pipeline_status(step_index, pe.exec_id, ProcessStatus.NOT_STARTED)
             
-            with concurrent.futures.ThreadPoolExecutor(max_workers=len(incomplete_execs)) as executor:
-                futures = {executor.submit(execute_and_monitor_process, proc_exec): proc_exec.exec_id for proc_exec in incomplete_execs}
+            # with concurrent.futures.ThreadPoolExecutor(max_workers=len(incomplete_execs)) as executor:
+            #     futures = {executor.submit(execute_and_monitor_process, proc_exec): proc_exec.exec_id for proc_exec in incomplete_execs}
                 
-                # Wait for all processes to complete
-                all_succeeded = True
-                for future in concurrent.futures.as_completed(futures):
-                    proc_id = futures[future]
-                    try:
-                        success = future.result()
-                        all_succeeded = all_succeeded and success
-                    except Exception as e:
-                        logger.error(f"Exception in process {proc_id}: {e}")
-                        all_succeeded = False
+            #     # Wait for all processes to complete
+            #     all_succeeded = True
+            #     for future in concurrent.futures.as_completed(futures):
+            #         proc_id = futures[future]
+            #         try:
+            #             success = future.result()
+            #             all_succeeded = all_succeeded and success
+            #         except Exception as e:
+            #             logger.error(f"Exception in process {proc_id}: {e}")
+            #             all_succeeded = False
                 
-                if not all_succeeded:
-                    # If any process failed, cancel all other running processes
-                    for exec_id, exec_obj in executors.items():
-                        if not exec_obj.is_done():
-                            logger.warning(f"Terminating process {exec_id} due to failure in other process")
-                            # Here we would ideally cancel the job, but that's specific to each scheduler
+            #     if not all_succeeded:
+            #         # If any process failed, cancel all other running processes
+            #         for exec_id, exec_obj in executors.items():
+            #             if not exec_obj.is_done():
+            #                 logger.warning(f"Terminating process {exec_id} due to failure in other process")
+            #                 # Here we would ideally cancel the job, but that's specific to each scheduler
                     
-                    return failure_message if failure_message else f"Pipeline {self.pipeline_id} execution halted due to failure."
+            #         return failure_message if failure_message else f"Pipeline {self.pipeline_id} execution halted due to failure."
+            
+            batches: list[list[NeuProcessExec]] = list(_chunked(self, incomplete_execs, batch_size))
+            
+            for batch_idx, batch in enumerate(batches):
+                logger.info(f"Starting batch {batch_idx + 1}/{len(batches)} with {len(batch)} processes.")
+                
+                with concurrent.futures.ThreadPoolExecutor(max_workers=len(batch)) as executor:
+                    futures = {executor.submit(execute_and_monitor_process, proc_exec): proc_exec.exec_id for proc_exec in batch}
+                    
+                    # Wait for all processes in the batch to complete
+                    all_succeeded = True
+                    for future in concurrent.futures.as_completed(futures):
+                        proc_id = futures[future]
+                        try:
+                            success = future.result()
+                            all_succeeded = all_succeeded and success
+                        except Exception as e:
+                            logger.error(f"Exception in process {proc_id}: {e}")
+                            all_succeeded = False
+                    
+                    if not all_succeeded:
+                        # If any process failed, cancel all other running processes
+                        for exec_id, exec_obj in executors.items():
+                            if not exec_obj.is_done():
+                                logger.warning(f"Terminating process {exec_id} due to failure in other process")
+                                # Here we would ideally cancel the job, but that's specific to each scheduler
+                                
+                        return failure_message if failure_message else f"Pipeline {self.pipeline_id} execution halted due to failure."
+                
+                logger.info(f"Batch {batch_idx + 1}/{len(batches)} completed.")
 
             logger.info(f"Step {step_index + 1} completed.")
         
