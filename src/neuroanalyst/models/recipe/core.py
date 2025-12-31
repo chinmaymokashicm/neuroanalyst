@@ -279,6 +279,6 @@ def construct_pipeline_from_recipe(recipe_path: str | Path) -> NeuPipeline:
     pipeline: NeuPipeline = pipeline_config.to_pipeline(
         bids_root=pipeline_recipe.data,
         probable_compute_cost=pipeline_recipe.cost,
-        starting_bids_scope=pipeline_recipe.starting_bids_scope
+        starting_bids_scope=pipeline_recipe.starting_bids_scope if pipeline_recipe.starting_bids_scope else "raw"
     )
     return pipeline
