@@ -66,7 +66,7 @@ def render_step(step: NeuPipelineStepStatus) -> Panel:
     table.add_column(justify="left")
     table.add_column(justify="right")
 
-    duration_str = f"| Duration: {prettify_duration(step_duration)}" if step_duration else ""
+    duration_str = f" | Duration: {prettify_duration(step_duration)}" if step_duration else ""
     
     table.add_row(
         f"[bold]{step.name}[/bold] "
