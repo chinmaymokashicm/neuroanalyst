@@ -167,19 +167,23 @@ class NeuProcessLogic(BaseModel):
         if not v:
             return v
             
-        # Check 1: All values must be strings (no nesting)
+        # Check 1: 'extension' key must be present
+        if "extension" not in v:
+            raise ValueError("The 'extension' key must be present in output_entities.")
+        
+        # Check 2: All values must be strings (no nesting)
         for key, value in v.items():
             if not isinstance(value, str):
                 raise ValueError(f"Value for key '{key}' must be a string, got {type(value).__name__}")
             
-        # Check 2: Values should not have spaces, commas, underscores, hyphens, or special characters
+        # Check 3: Values should not have spaces, commas, underscores, hyphens, or special characters
         for key, value in v.items():
             illegal_chars = [' ', ',', '_', '-', '/', '\\', '!', '@', '#', '$', '%', '^', '&', '*', '(', ')']
             if any(char in value for char in illegal_chars):
                 illegal_chars_found = [char for char in illegal_chars if char in value]
                 raise ValueError(f"Value for key '{key}' contains invalid characters: {', '.join(illegal_chars_found)}. Only alphanumeric characters are allowed.")
         
-        # Check 3: All keys must be from the allowed set
+        # Check 4: All keys must be from the allowed set
         for key in v:
             if key not in ALLOWED_PYBIDS_ENTITY_KEYS:
                 allowed_keys_str = ", ".join(f"'{k}'" for k in ALLOWED_PYBIDS_ENTITY_KEYS)
