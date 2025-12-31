@@ -65,7 +65,7 @@ class PipelineRecipe(BaseModel):
         le=10
     )
     steps: list[PipelineStepRecipe] = Field(..., description="List of steps in the pipeline.")
-    starting_bids_scope: Optional[dict] = Field(None, description="BIDS scope dictionary for the starting inputs of the pipeline.")
+    starting_bids_scope: Optional[str] = Field(None, description="BIDS scope to start the pipeline from.")
     
     def __iter__(self):
         return iter(self.steps)
