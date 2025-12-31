@@ -1706,7 +1706,7 @@ class NeuPipeline(BaseModel):
         if not proc_status:
             raise ValueError(f"Process exec ID {exec_id} not found in step {step_idx}")
         
-        proc_status.status = new_status  # Use enum instance directly instead of new_status.value
+        proc_status.status = new_status
         proc_status.last_updated = current_time
         
         if new_status == ProcessStatus.RUNNING:
@@ -1717,31 +1717,40 @@ class NeuPipeline(BaseModel):
             proc_status.completed_at = current_time
             if new_status == ProcessStatus.FAILED and error_msg:
                 proc_status.error = error_msg
+        elif new_status == ProcessStatus.NOT_STARTED:
+            proc_status.started_at = None
+            proc_status.completed_at = None
+            proc_status.error = None
+            proc_status.scheduler_job_id = None
         
         # Update step status based on process statuses
-        if all(p.status == ProcessStatus.COMPLETE for p in step_status.processes):  # Compare with enum directly
-            step_status.status = ProcessStatus.COMPLETE  # Use enum instance directly
+        if all(p.status == ProcessStatus.COMPLETE for p in step_status.processes):
+            step_status.status = ProcessStatus.COMPLETE
             step_status.completed_at = current_time
-        elif any(p.status == ProcessStatus.FAILED for p in step_status.processes):  # Compare with enum directly
-            step_status.status = ProcessStatus.FAILED  # Use enum instance directly
+        elif any(p.status == ProcessStatus.FAILED for p in step_status.processes):
+            step_status.status = ProcessStatus.FAILED
             step_status.completed_at = current_time
             step_status.error = "One or more processes failed"
-        elif any(p.status == ProcessStatus.RUNNING for p in step_status.processes):  # Compare with enum directly
-            step_status.status = ProcessStatus.RUNNING  # Use enum instance directly
+        elif any(p.status == ProcessStatus.RUNNING for p in step_status.processes):
+            step_status.status = ProcessStatus.RUNNING
             if not step_status.started_at:
                 step_status.started_at = current_time
         else:
-            step_status.status = ProcessStatus.NOT_STARTED  # Use enum instance directly
+            step_status.status = ProcessStatus.NOT_STARTED
+            step_status.started_at = None
+            step_status.completed_at = None
+            step_status.last_updated = current_time
+            step_status.error = None
             
         # Update overall pipeline status based on step statuses
-        if all(s.status == ProcessStatus.COMPLETE for s in status.steps):  # Compare with enum directly
-            status.status = ProcessStatus.COMPLETE  # Use enum instance directly
-        elif any(s.status == ProcessStatus.FAILED for s in status.steps):  # Compare with enum directly
-            status.status = ProcessStatus.FAILED  # Use enum instance directly
-        elif any(s.status == ProcessStatus.RUNNING for s in status.steps):  # Compare with enum directly
-            status.status = ProcessStatus.RUNNING  # Use enum instance directly
+        if all(s.status == ProcessStatus.COMPLETE for s in status.steps):
+            status.status = ProcessStatus.COMPLETE
+        elif any(s.status == ProcessStatus.FAILED for s in status.steps):
+            status.status = ProcessStatus.FAILED
+        elif any(s.status == ProcessStatus.RUNNING for s in status.steps):
+            status.status = ProcessStatus.RUNNING
         else:
-            status.status = ProcessStatus.NOT_STARTED  # Use enum instance directly
+            status.status = ProcessStatus.NOT_STARTED
             
         # Save the updated status back to the file
         status_path = self.pipeline_dir_path / "status.json"
@@ -2007,6 +2016,61 @@ class NeuPipeline(BaseModel):
         Returns:
             str: A message indicating the result of the execution.
         """
+        def execute_and_monitor_process(proc_exec: NeuProcessExec) -> bool:
+            nonlocal failure, failure_message
+            
+            try:
+                logger.info(f"Executing Process: {proc_exec.exec_id}")
+                
+                # Execute the process based on the scheduler
+                if self.scheduler == HPCScheduler.LSF:
+                    executor = LSFExecutor(proc_exec.exec_command)
+                elif self.scheduler == HPCScheduler.SLURM:
+                    executor = SLURMExecutor(proc_exec.exec_command)
+                elif self.scheduler == HPCScheduler.PBS:
+                    executor = PBSExecutor(proc_exec.exec_command)
+                else:
+                    executor = LocalExecutor(proc_exec.exec_command)
+                
+                executors[proc_exec.exec_id] = executor
+                
+                executor.submit()
+                logger.info(f"Submitted process {proc_exec.exec_id} with Job ID: {executor.job_id}")
+                
+                with status_lock:
+                    # Update status to RUNNING
+                    self.update_pipeline_status(step_index, proc_exec.exec_id, ProcessStatus.RUNNING, scheduler_job_id=executor.job_id)
+                
+                # Poll until done
+                while not executor.is_done() and not failure:
+                    executor.poll_status()
+                    logger.info(f"Process {proc_exec.exec_id} Status: {executor.status.value}")
+                    time.sleep(10)  # Polling interval
+                
+                if failure:  # Another process has already failed
+                    logger.warning(f"Process {proc_exec.exec_id} terminated due to failure in another process")
+                    return False
+                
+                if executor.is_success():
+                    logger.info(f"Process {proc_exec.exec_id} completed successfully.")
+                    with status_lock:
+                        self.update_pipeline_status(step_index, proc_exec.exec_id, ProcessStatus.COMPLETE)
+                    return True
+                else:
+                    logger.error(f"Process {proc_exec.exec_id} failed.")
+                    with status_lock:
+                        self.update_pipeline_status(step_index, proc_exec.exec_id, ProcessStatus.FAILED, error_msg="Process failed during execution.")
+                    failure = True
+                    failure_message = f"Pipeline {self.pipeline_id} execution halted due to failure in process {proc_exec.exec_id}."
+                    return False
+            
+            except Exception as e:
+                logger.error(f"Error executing process {proc_exec.exec_id}: {e}")
+                with status_lock:
+                    self.update_pipeline_status(step_index, proc_exec.exec_id, ProcessStatus.FAILED, error_msg=str(e))
+                failure = True
+                failure_message = f"Pipeline {self.pipeline_id} execution halted due to error in process {proc_exec.exec_id}: {e}"
+                return False
         # Ensure pipeline directory and bash script exist
         if not self.script_path.exists():
             self.create_pipeline_dir()
@@ -2054,64 +2118,12 @@ class NeuPipeline(BaseModel):
             failure = False
             failure_message = ""
             
-            def execute_and_monitor_process(proc_exec: NeuProcessExec) -> bool:
-                nonlocal failure, failure_message
-                
-                try:
-                    logger.info(f"Executing Process: {proc_exec.exec_id}")
-                    
-                    # Execute the process based on the scheduler
-                    if self.scheduler == HPCScheduler.LSF:
-                        executor = LSFExecutor(proc_exec.exec_command)
-                    elif self.scheduler == HPCScheduler.SLURM:
-                        executor = SLURMExecutor(proc_exec.exec_command)
-                    elif self.scheduler == HPCScheduler.PBS:
-                        executor = PBSExecutor(proc_exec.exec_command)
-                    else:
-                        executor = LocalExecutor(proc_exec.exec_command)
-                    
-                    executors[proc_exec.exec_id] = executor
-                    
-                    executor.submit()
-                    logger.info(f"Submitted process {proc_exec.exec_id} with Job ID: {executor.job_id}")
-                    
-                    with status_lock:
-                        # Update status to RUNNING
-                        self.update_pipeline_status(step_index, proc_exec.exec_id, ProcessStatus.RUNNING, scheduler_job_id=executor.job_id)
-                    
-                    # Poll until done
-                    while not executor.is_done() and not failure:
-                        executor.poll_status()
-                        logger.info(f"Process {proc_exec.exec_id} Status: {executor.status.value}")
-                        time.sleep(10)  # Polling interval
-                    
-                    if failure:  # Another process has already failed
-                        logger.warning(f"Process {proc_exec.exec_id} terminated due to failure in another process")
-                        return False
-                    
-                    if executor.is_success():
-                        logger.info(f"Process {proc_exec.exec_id} completed successfully.")
-                        with status_lock:
-                            self.update_pipeline_status(step_index, proc_exec.exec_id, ProcessStatus.COMPLETE)
-                        return True
-                    else:
-                        logger.error(f"Process {proc_exec.exec_id} failed.")
-                        with status_lock:
-                            self.update_pipeline_status(step_index, proc_exec.exec_id, ProcessStatus.FAILED, error_msg="Process failed during execution.")
-                        failure = True
-                        failure_message = f"Pipeline {self.pipeline_id} execution halted due to failure in process {proc_exec.exec_id}."
-                        return False
-                
-                except Exception as e:
-                    logger.error(f"Error executing process {proc_exec.exec_id}: {e}")
-                    with status_lock:
-                        self.update_pipeline_status(step_index, proc_exec.exec_id, ProcessStatus.FAILED, error_msg=str(e))
-                    failure = True
-                    failure_message = f"Pipeline {self.pipeline_id} execution halted due to error in process {proc_exec.exec_id}: {e}"
-                    return False
-            
-            # Start all processes in this step concurrently
+            # Start all processes in this step concurrently - only those not yet complete
             incomplete_execs = [pe for pe in step.process_execs if self.get_pipeline_status().steps[step_index].processes[[p.exec_id for p in self.get_pipeline_status().steps[step_index].processes].index(pe.exec_id)].status != ProcessStatus.COMPLETE.value]
+            # Reset start, complete, and last_updated times for incomplete execs
+            for pe in incomplete_execs:
+                self.update_pipeline_status(step_index, pe.exec_id, ProcessStatus.NOT_STARTED)
+            
             with concurrent.futures.ThreadPoolExecutor(max_workers=len(incomplete_execs)) as executor:
                 futures = {executor.submit(execute_and_monitor_process, proc_exec): proc_exec.exec_id for proc_exec in incomplete_execs}
                 
