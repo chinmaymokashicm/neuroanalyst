@@ -1,5 +1,5 @@
 # %% [markdown]
-# # DTI modeling pipeline using DIPY
+# # DTI modeling pipeline using DIPY. Builds on preprocessed DWI data.
 # 
 # ## Processes
 # 1. dti_tensor_fit
