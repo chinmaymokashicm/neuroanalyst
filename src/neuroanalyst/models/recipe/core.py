@@ -91,6 +91,17 @@ def create_mock_recipe(
         raise ValueError(f"Invalid recipe type: {recipe_type}")
     
 def save_recipe_to_yaml(recipe: BaseModel, recipe_name: str, username: Optional[str] = None) -> str:
+    """
+    Save a recipe Pydantic model to a YAML file.
+    
+    Args:
+        recipe (BaseModel): The recipe Pydantic model instance.
+        recipe_name (str): Name of the recipe.
+        username (Optional[str]): Username of the recipe author.
+        
+    Returns:
+        str: The file path of the saved recipe YAML file.
+    """
     if not isinstance(recipe, BaseModel):
         raise ValueError("Recipe must be a Pydantic BaseModel instance.")
     paths = NeuroAnalystPaths(username=username)
@@ -114,6 +125,16 @@ def save_recipe_to_yaml(recipe: BaseModel, recipe_name: str, username: Optional[
     return output_path
         
 def get_recipe_yaml_path(recipe_name: str, recipe_type: str, username: Optional[str] = None) -> Path:
+    """
+    Get the file path of a recipe YAML file based on its name and type.
+    Args:
+        recipe_name (str): Name of the recipe.
+        recipe_type (str): Type of the recipe ("logic", "process", or "pipeline").
+        username (Optional[str]): Username of the recipe author.
+        
+    Returns:
+        Path: The file path of the recipe YAML file.
+    """
     paths = NeuroAnalystPaths(username=username)
     if recipe_type == "logic":
         recipe_path: Path = paths.get_recipes_dir("logic") / f"{recipe_name}.yaml"
@@ -255,6 +276,7 @@ def construct_pipeline_from_recipe(recipe_path: str | Path) -> NeuPipeline:
         scheduler="lsf"
     )
     pipeline: NeuPipeline = pipeline_config.to_pipeline(
-        bids_root=pipeline_recipe.data
+        bids_root=pipeline_recipe.data,
+        probable_compute_cost=pipeline_recipe.cost
     )
     return pipeline
