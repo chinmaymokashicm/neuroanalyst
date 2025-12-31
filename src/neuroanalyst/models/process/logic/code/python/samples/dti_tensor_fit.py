@@ -159,6 +159,42 @@ def dti_tensor_fit(input_filepath: str):
             unit="mm^2/s",
             description="Mean Diffusivity (MD) across the brain volume."
         ),
+        "mean_rd": Metric(
+            name="mean_rd",
+            value=float(np.nanmean(rd)),
+            unit="mm^2/s",
+            description="Mean Radial Diffusivity (RD) across the brain volume."
+        ),
+        "mean_ad": Metric(
+            name="mean_ad",
+            value=float(np.nanmean(ad)),
+            unit="mm^2/s",
+            description="Mean Axial Diffusivity (AD) across the brain volume."
+        ),
+        "std_fa": Metric(
+            name="std_fa",
+            value=float(np.nanstd(fa)),
+            unit=None,
+            description="Standard Deviation of Fractional Anisotropy (FA)."
+        ),
+        "std_md": Metric(
+            name="std_md",
+            value=float(np.nanstd(md)),
+            unit="mm^2/s",
+            description="Standard Deviation of Mean Diffusivity (MD)."
+        ),
+        "std_rd": Metric(
+            name="std_rd",
+            value=float(np.nanstd(rd)),
+            unit="mm^2/s",
+            description="Standard Deviation of Radial Diffusivity (RD)."
+        ),
+        "std_ad": Metric(
+            name="std_ad",
+            value=float(np.nanstd(ad)),
+            unit="mm^2/s",
+            description="Standard Deviation of Axial Diffusivity (AD)."
+        ),
         "tensor_representation": "eigenvalues_only",
         "bval_filepath": bval_filepath,
         "bvec_filepath": bvec_filepath,

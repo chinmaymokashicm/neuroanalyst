@@ -65,6 +65,7 @@ class PipelineRecipe(BaseModel):
         le=10
     )
     steps: list[PipelineStepRecipe] = Field(..., description="List of steps in the pipeline.")
+    starting_bids_scope: Optional[dict] = Field(None, description="BIDS scope dictionary for the starting inputs of the pipeline.")
     
     def __iter__(self):
         return iter(self.steps)
@@ -277,6 +278,7 @@ def construct_pipeline_from_recipe(recipe_path: str | Path) -> NeuPipeline:
     )
     pipeline: NeuPipeline = pipeline_config.to_pipeline(
         bids_root=pipeline_recipe.data,
-        probable_compute_cost=pipeline_recipe.cost
+        probable_compute_cost=pipeline_recipe.cost,
+        starting_bids_scope=pipeline_recipe.starting_bids_scope
     )
     return pipeline
