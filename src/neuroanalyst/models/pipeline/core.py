@@ -2127,29 +2127,6 @@ class NeuPipeline(BaseModel):
             for pe in incomplete_execs:
                 self.update_pipeline_status(step_index, pe.exec_id, ProcessStatus.NOT_STARTED)
             
-            # with concurrent.futures.ThreadPoolExecutor(max_workers=len(incomplete_execs)) as executor:
-            #     futures = {executor.submit(execute_and_monitor_process, proc_exec): proc_exec.exec_id for proc_exec in incomplete_execs}
-                
-            #     # Wait for all processes to complete
-            #     all_succeeded = True
-            #     for future in concurrent.futures.as_completed(futures):
-            #         proc_id = futures[future]
-            #         try:
-            #             success = future.result()
-            #             all_succeeded = all_succeeded and success
-            #         except Exception as e:
-            #             logger.error(f"Exception in process {proc_id}: {e}")
-            #             all_succeeded = False
-                
-            #     if not all_succeeded:
-            #         # If any process failed, cancel all other running processes
-            #         for exec_id, exec_obj in executors.items():
-            #             if not exec_obj.is_done():
-            #                 logger.warning(f"Terminating process {exec_id} due to failure in other process")
-            #                 # Here we would ideally cancel the job, but that's specific to each scheduler
-                    
-            #         return failure_message if failure_message else f"Pipeline {self.pipeline_id} execution halted due to failure."
-            
             batches: list[list[NeuProcessExec]] = list(_chunked(self, incomplete_execs, batch_size))
             
             for batch_idx, batch in enumerate(batches):
@@ -2187,6 +2164,261 @@ class NeuPipeline(BaseModel):
         self.post_execution()
             
         return f"Pipeline {self.pipeline_id} executed successfully."
+    
+    # def execute_via_python(self, resume: bool = True, window_size: int = 8) -> str:
+    #     """Execute the pipeline step-by-step via Python using a sliding window approach.
+
+    #     Args:
+    #         resume: If True, resume execution from the last successful step.
+    #         window_size: Maximum number of concurrent processes to run at once.
+    #     Returns:
+    #         str: A message indicating the result of the execution.
+    #     """
+
+    #     def execute_and_monitor_process(proc_exec: NeuProcessExec) -> bool:
+    #         nonlocal failure, failure_message
+
+    #         try:
+    #             logger.info(f"Executing Process: {proc_exec.exec_id}")
+
+    #             if self.scheduler == HPCScheduler.LSF:
+    #                 executor = LSFExecutor(proc_exec.exec_command)
+    #             elif self.scheduler == HPCScheduler.SLURM:
+    #                 executor = SLURMExecutor(proc_exec.exec_command)
+    #             elif self.scheduler == HPCScheduler.PBS:
+    #                 executor = PBSExecutor(proc_exec.exec_command)
+    #             else:
+    #                 executor = LocalExecutor(proc_exec.exec_command)
+
+    #             executors[proc_exec.exec_id] = executor
+
+    #             executor.submit()
+    #             logger.info(
+    #                 f"Submitted process {proc_exec.exec_id} with Job ID: {executor.job_id}"
+    #             )
+
+    #             with status_lock:
+    #                 self.update_pipeline_status(
+    #                     step_index,
+    #                     proc_exec.exec_id,
+    #                     ProcessStatus.RUNNING,
+    #                     scheduler_job_id=executor.job_id,
+    #                 )
+
+    #             while not executor.is_done() and not failure:
+    #                 executor.poll_status()
+    #                 logger.debug(
+    #                     f"Process {proc_exec.exec_id} Status: {executor.status.value}"
+    #                 )
+    #                 time.sleep(10)
+
+    #             if failure:
+    #                 return False
+
+    #             if executor.is_success():
+    #                 with status_lock:
+    #                     self.update_pipeline_status(
+    #                         step_index,
+    #                         proc_exec.exec_id,
+    #                         ProcessStatus.COMPLETE,
+    #                     )
+    #                 logger.info(
+    #                     f"Process {proc_exec.exec_id} completed successfully."
+    #                 )
+    #                 return True
+
+    #             with status_lock:
+    #                 self.update_pipeline_status(
+    #                     step_index,
+    #                     proc_exec.exec_id,
+    #                     ProcessStatus.FAILED,
+    #                     error_msg="Process failed during execution.",
+    #                 )
+
+    #             failure = True
+    #             failure_message = (
+    #                 f"Pipeline {self.pipeline_id} execution halted due to "
+    #                 f"failure in process {proc_exec.exec_id}."
+    #             )
+    #             return False
+
+    #         except Exception as e:
+    #             logger.exception(
+    #                 f"Error executing process {proc_exec.exec_id}"
+    #             )
+    #             with status_lock:
+    #                 self.update_pipeline_status(
+    #                     step_index,
+    #                     proc_exec.exec_id,
+    #                     ProcessStatus.FAILED,
+    #                     error_msg=str(e),
+    #                 )
+    #             failure = True
+    #             failure_message = (
+    #                 f"Pipeline {self.pipeline_id} execution halted due to "
+    #                 f"error in process {proc_exec.exec_id}: {e}"
+    #             )
+    #             return False
+
+    #     # ------------------------------------------------------------------
+    #     # Pre-flight checks
+    #     # ------------------------------------------------------------------
+
+    #     if not self.script_path.exists():
+    #         self.create_pipeline_dir()
+
+    #     checked_processes = set()
+    #     for proc_exec in self.process_execs:
+    #         if proc_exec.process.process_id in checked_processes:
+    #             continue
+
+    #         if proc_exec.execution_mode == ExecutionMode.CONTAINER:
+    #             if not proc_exec.process.is_image_built:
+    #                 raise RuntimeError(
+    #                     f"Container image for process "
+    #                     f"{proc_exec.process.process_id} is not built."
+    #                 )
+    #         elif proc_exec.execution_mode == ExecutionMode.VENV:
+    #             if not proc_exec.process.is_venv_created:
+    #                 raise RuntimeError(
+    #                     f"Virtual environment for process "
+    #                     f"{proc_exec.process.process_id} is not created."
+    #                 )
+
+    #         checked_processes.add(proc_exec.process.process_id)
+
+    #     for proc_exec in self.process_execs:
+    #         proc_exec.save_to_disk()
+
+    #     logger: logging.Logger = self.logger
+
+    #     print(
+    #         f"Starting pipeline execution. Pipeline ID: {self.pipeline_id}. "
+    #         f"Monitor logs at {self.log_file_path}"
+    #     )
+
+    #     self.pre_execution()
+
+    #     starting_step_index = (
+    #         0 if not resume else self.get_earliest_incomplete_step_index()
+    #     )
+
+    #     if starting_step_index is None:
+    #         return f"Pipeline {self.pipeline_id} already completed."
+
+    #     # ------------------------------------------------------------------
+    #     # Sliding-window execution per step
+    #     # ------------------------------------------------------------------
+
+    #     for step_index in range(starting_step_index, len(self.steps)):
+    #         step = self.steps[step_index]
+    #         logger.info(
+    #             f"Executing Step {step_index + 1}/{len(self.steps)}: {step.name}"
+    #         )
+
+    #         executors = {}
+    #         status_lock = Lock()
+    #         failure = False
+    #         failure_message = ""
+
+    #         incomplete_execs = [
+    #             pe
+    #             for pe in step.process_execs
+    #             if self.get_pipeline_status()
+    #             .steps[step_index]
+    #             .processes[
+    #                 [p.exec_id for p in self.get_pipeline_status()
+    #                 .steps[step_index].processes].index(pe.exec_id)
+    #             ].status
+    #             != ProcessStatus.COMPLETE.value
+    #         ]
+
+    #         for pe in incomplete_execs:
+    #             self.update_pipeline_status(
+    #                 step_index, pe.exec_id, ProcessStatus.NOT_STARTED
+    #             )
+
+    #         if not incomplete_execs:
+    #             logger.info(
+    #                 f"All processes in step {step_index + 1} already complete."
+    #             )
+    #             continue
+
+    #         pending = deque(incomplete_execs)
+    #         in_flight: dict[concurrent.futures.Future, str] = {}
+
+    #         with concurrent.futures.ThreadPoolExecutor(
+    #             max_workers=window_size
+    #         ) as pool:
+
+    #             # Prime the sliding window
+    #             while pending and len(in_flight) < window_size:
+    #                 pe = pending.popleft()
+    #                 future = pool.submit(execute_and_monitor_process, pe)
+    #                 in_flight[future] = pe.exec_id
+
+    #             while in_flight:
+    #                 done, _ = concurrent.futures.wait(
+    #                     in_flight.keys(),
+    #                     return_when=concurrent.futures.FIRST_COMPLETED,
+    #                 )
+
+    #                 for future in done:
+    #                     exec_id = in_flight.pop(future)
+
+    #                     try:
+    #                         success = future.result()
+    #                     except Exception as e:
+    #                         logger.error(
+    #                             f"Unhandled exception in process {exec_id}: {e}"
+    #                         )
+    #                         success = False
+
+    #                     if not success:
+    #                         failure = True
+    #                         break
+
+    #                     if pending:
+    #                         pe = pending.popleft()
+    #                         new_future = pool.submit(
+    #                             execute_and_monitor_process, pe
+    #                         )
+    #                         in_flight[new_future] = pe.exec_id
+
+    #                 if failure:
+    #                     logger.warning(
+    #                         f"Failure detected in step {step_index + 1}. "
+    #                         "Cancelling remaining processes."
+    #                     )
+
+    #                     for future in in_flight:
+    #                         future.cancel()
+
+    #                     for exec_id, exec_obj in executors.items():
+    #                         if not exec_obj.is_done():
+    #                             logger.warning(
+    #                                 f"Terminating process {exec_id}"
+    #                             )
+    #                             # Use scheduler-specific kill commands instead
+    #                             if exec_obj.job_id:
+    #                                 try:
+    #                                     self.kill_job(exec_id)
+    #                                     logger.info(f"Successfully cancelled job {exec_obj.job_id} for process {exec_id}")
+    #                                 except Exception as e:
+    #                                     logger.warning(f"Failed to cancel job {exec_obj.job_id} for process {exec_id}: {e}")
+
+    #                     return (
+    #                         failure_message
+    #                         if failure_message
+    #                         else f"Pipeline {self.pipeline_id} execution halted."
+    #                     )
+
+    #         logger.info(f"Step {step_index + 1} completed successfully.")
+
+    #     logger.info(f"Pipeline {self.pipeline_id} completed successfully.")
+    #     self.post_execution()
+
+    #     return f"Pipeline {self.pipeline_id} executed successfully."
 
     def resume_via_bash(self) -> str:
         """Resume pipeline execution via bash script.
