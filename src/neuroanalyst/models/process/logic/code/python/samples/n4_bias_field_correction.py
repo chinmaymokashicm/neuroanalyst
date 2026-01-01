@@ -93,11 +93,15 @@ def n4_bias_field_correction(input_filepath: str):
         for i in range(img_data.shape[3]):
             sitk_img = sitk.GetImageFromArray(img_data[..., i])
             n4_corrector = sitk.N4BiasFieldCorrectionImageFilter()
+            n4_corrector.SetMaximumNumberOfIterations([20,20,20,10])
+            n4_corrector.SetConvergenceThreshold(1e-7)
             corrected_sitk_img = n4_corrector.Execute(sitk_img)
             output_data[..., i] = sitk.GetArrayFromImage(corrected_sitk_img)
     else:
         sitk_img = sitk.GetImageFromArray(img_data)
         n4_corrector = sitk.N4BiasFieldCorrectionImageFilter()
+        n4_corrector.SetMaximumNumberOfIterations([20,20,20,10])
+        n4_corrector.SetConvergenceThreshold(1e-7)
         corrected_sitk_img = n4_corrector.Execute(sitk_img)
         output_data = sitk.GetArrayFromImage(corrected_sitk_img)
         

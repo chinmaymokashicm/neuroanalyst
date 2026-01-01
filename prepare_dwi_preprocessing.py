@@ -4,8 +4,8 @@
 # ## Processes
 # 1. dipy_denoise_mppca
 # 2. dipy_remove_gibbs_ringing
-# 3. dipy_correct_distortions_and_motion
-# 4. n4_bias_field_correction
+# 3. fsl_correct_distortions_and_motion
+# # 4. n4_bias_field_correction
 # 5. dipy_brain_mask
 
 # %%
@@ -33,8 +33,13 @@ from pathlib import Path
 
 USERNAME: str = "cmokashi"
 AUTHOR: str = "Chinmay Mokashi"
-PIPELINE_NAME: str = "dipy_preprocessing"
-PIPELINE_DESCRIPTION: str = "Performs basic preprocessing steps on DWI data using DIPY."
+PIPELINE_NAME: str = "fsl_preprocessing"
+PIPELINE_DESCRIPTION: str = "Performs basic preprocessing steps on DWI data using FSL."
+
+# Applicable for FSL-based processing only
+EXTRA_BIND_PATHS: dict = {"/opt/fsl_images/": "/risapps/apptainer/repo/fsl/3.16.8/"}
+EXTRA_ENVIRONMENT_VARIABLES: dict = {"FSL_IMG_NAME": "fsl-3.16.8.sif"}
+fsl_logics_idxs: list[int] = [2]  # Indices of logics that use FSL and need extra bind paths/env variables
 
 # %% [markdown]
 # ## Prepare Logics
@@ -43,16 +48,16 @@ PIPELINE_DESCRIPTION: str = "Performs basic preprocessing steps on DWI data usin
 logic_names: list[str] = [
     "dipy_denoise_mppca",
     "dipy_remove_gibbs_ringing",
-    "dipy_correct_distortions_and_motion",
-    "n4_bias_field_correction",
+    "fsl_correct_distortions_and_motion",
+    # "n4_bias_field_correction",
     "dipy_brain_mask",
 ]
 
 logic_descriptions: list[str] = [
     "Denoise DWI data using MP-PCA method from DIPY.",
     "Remove Gibbs ringing artifacts from DWI data using DIPY.",
-    "Correct for eddy currents, susceptibility distortions, and motion in DWI data using DIPY.",
-    "Apply N4 bias field correction to DWI data.",
+    "Correct for eddy currents, susceptibility distortions, and motion in DWI data using FSL.",
+    # "Apply N4 bias field correction to DWI data.",
     "Generate brain mask from DWI data using DIPY.",
 ]
 
@@ -76,16 +81,21 @@ for logic_name, function_path in zip(logic_names, function_paths):
 
 # %%
 process_config: dict = {
+    "command_flags": ["--fakeroot"],
     "bootstrap_method": "localimage",
     "base_image": "/rsrch5/home/csi/cmokashi/neuroanalyst/cmokashi/apptainer/images/base/python_312_slim_amd64_git_apptainer.sif",
     "language_packages": {"python": ["dipy", "nibabel", "numpy", "SimpleITK"]},
     }
 
 process_ids: list[str] = []
-for logic_name in logic_names:
+for i, logic_name in enumerate(logic_names):
+    config = process_config.copy()
+    if i in fsl_logics_idxs:
+        config["bind_paths"] = list(EXTRA_BIND_PATHS.keys())
+        config["environment_variables"] = list(EXTRA_ENVIRONMENT_VARIABLES.keys())
     process_dir_recipe: ProcessDirRecipe = ProcessDirRecipe(
         logic={"name": logic_name, "username": USERNAME},
-        config=process_config,
+        config=config,
     )
     save_recipe_to_yaml(process_dir_recipe, logic_name, username=USERNAME)
     process_dir: NeuProcessDir = create_process_dir_from_recipe(get_recipe_yaml_path(logic_name, "process", username=USERNAME))
@@ -120,6 +130,8 @@ pipeline_recipe_config: dict = {
                         "suffix": "dwi",
                         "extension": ".nii.gz",
                     } if i == 0 else {},
+                    "extra_bind_paths": EXTRA_BIND_PATHS if i in fsl_logics_idxs else {},
+                    "extra_environment_variables": EXTRA_ENVIRONMENT_VARIABLES if i in fsl_logics_idxs else {}
                 }
             ]
         } for i in range(len(logic_names))
