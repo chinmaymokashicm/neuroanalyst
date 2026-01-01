@@ -44,6 +44,9 @@ From: ${base_image}
     # Make installation script executable and run it
     chmod +x /opt/install_requirements.sh
     /opt/install_requirements.sh
+
+    # Create additional directories if requested
+    ${mkdir_dirs}
     
     # Clean up
     apt-get clean

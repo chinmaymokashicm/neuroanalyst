@@ -75,6 +75,10 @@ class NeuProcessDirConfig(BaseModel):
     command_flags: List[str] = Field(default_factory=list,
                                    description="Additional command-line flags for the process (e.g., '--verbose', '--fakeroot')")
     
+    # Extra directories to create inside the container
+    extra_directories: List[str] = Field(default_factory=list,
+                                       description="Additional directories to create inside the container")
+    
     # Additional configuration
     additional_config: Dict[str, Any] = Field(default_factory=dict, 
                                             description="Additional configuration options")
@@ -1088,8 +1092,9 @@ class NeuProcessDir(BaseModel):
             # Fall back to a simple example if the command generation fails
             usage_command = f"singularity run {self.process_id}.sif [arguments]"
         
-        # Prepare extra files section
-        extra_files = ""
+        # Prepare extra files section - handle backward compatibility
+        extra_directories = self.config.extra_directories if hasattr(self.config, "extra_directories") else []
+        mkdir_extra_dirs_cmd: str = "\n".join(f"mkdir -p /{dir_path.lstrip('/')}" for dir_path in extra_directories)
         
         # Prepare context for template
         context = {
@@ -1104,7 +1109,7 @@ class NeuProcessDir(BaseModel):
             "environment_variables_comment": env_vars_comment,
             "environment_variables_export": env_vars_export,
             "bind_paths_comment": bind_paths_comment,
-            "extra_files": extra_files,
+            "mkdir_dirs": mkdir_extra_dirs_cmd,
             "usage_command": usage_command
         }
         
