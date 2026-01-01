@@ -566,6 +566,9 @@ class NeuProcessExec(BaseModel):
         script_args: str = ""
         # Add bind path arguments
         for bind_path, value in self.bind_path_values.items():
+            # Remove trailing slashes for consistency
+            bind_path = bind_path.rstrip('/')
+            
             # For bind paths, we need to handle the format correctly
             # The key is whether we need to quote the entire argument or just the path value
             needs_quoting = " " in str(value) or (isinstance(value, str) and any(c in value for c in "*?[](){}|&;<>"))
