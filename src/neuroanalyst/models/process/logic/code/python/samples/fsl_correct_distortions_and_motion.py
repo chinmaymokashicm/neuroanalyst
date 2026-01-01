@@ -149,7 +149,7 @@ fslroi {dwi_path} {temp_fsl_dir}/b0 0 1
 bet {temp_fsl_dir}/b0 {temp_fsl_dir}/b0_brain -m -f 0.3
 mv {temp_fsl_dir}/b0_brain_mask.nii.gz {mask_path}
 
-eddy \
+eddy \\
     --imain={dwi_path} \\
     --mask={mask_path} \\
     --acqp={acq_path} \\
@@ -157,8 +157,7 @@ eddy \
     --bvecs={fsl_processing_bvec_path} \\
     --bvals={fsl_processing_bval_path} \\
     --out={temp_fsl_dir}/eddy_corrected
-
-    """
+"""
     cmd = [
         "apptainer", "exec",
         fsl_img_path,
