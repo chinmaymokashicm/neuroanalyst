@@ -33,7 +33,7 @@ from pathlib import Path
 
 USERNAME: str = "cmokashi"
 AUTHOR: str = "Chinmay Mokashi"
-PIPELINE_NAME: str = "fsl_preprocessing"
+PIPELINE_NAME: str = "dwi_preprocessing"
 PIPELINE_DESCRIPTION: str = "Performs basic preprocessing steps on DWI data using FSL."
 
 # Applicable for FSL-based processing only
