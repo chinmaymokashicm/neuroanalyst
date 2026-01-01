@@ -93,6 +93,7 @@ for i, logic_name in enumerate(logic_names):
     if i in fsl_logics_idxs:
         config["bind_paths"] = list(EXTRA_BIND_PATHS.keys())
         config["environment_variables"] = list(EXTRA_ENVIRONMENT_VARIABLES.keys())
+        config["extra_directories"] = ["/opt/fsl_images/"] # Ensure FSL image dir exists in container
     process_dir_recipe: ProcessDirRecipe = ProcessDirRecipe(
         logic={"name": logic_name, "username": USERNAME},
         config=config,
