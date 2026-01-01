@@ -142,22 +142,22 @@ def fsl_correct_distortions_and_motion(input_filepath: str):
     # Crude brain mask from b0
     mask_path = os.path.join(temp_fsl_dir, "mask.nii.gz")
     
-    internal_bash_command: str = f"""
-. ${{FSLDIR}}/etc/fslconf/fsl.sh
-
-fslroi {dwi_path} {temp_fsl_dir}/b0 0 1
-bet {temp_fsl_dir}/b0 {temp_fsl_dir}/b0_brain -m -f 0.3
-mv {temp_fsl_dir}/b0_brain_mask.nii.gz {mask_path}
-
-eddy \\
-    --imain={dwi_path} \\
-    --mask={mask_path} \\
-    --acqp={acq_path} \\
-    --index={index_path} \\
-    --bvecs={fsl_processing_bvec_path} \\
-    --bvals={fsl_processing_bval_path} \\
-    --out={temp_fsl_dir}/eddy_corrected
-"""
+    internal_bash_command = "\n".join([
+        ". ${FSLDIR}/etc/fslconf/fsl.sh",
+        f"fslroi {dwi_path} {temp_fsl_dir}/b0 0 1",
+        f"bet {temp_fsl_dir}/b0 {temp_fsl_dir}/b0_brain -m -f 0.3",
+        f"mv {temp_fsl_dir}/b0_brain_mask.nii.gz {mask_path}",
+        f"eddy \\",
+        f"    --imain={dwi_path} \\",
+        f"    --mask={mask_path} \\",
+        f"    --acqp={acq_path} \\",
+        f"    --index={index_path} \\",
+        f"    --bvecs={fsl_processing_bvec_path} \\",
+        f"    --bvals={fsl_processing_bval_path} \\",
+        f"    --out={temp_fsl_dir}/eddy_corrected"
+    ])
+    
+    
     cmd = [
         "apptainer", "exec",
         fsl_img_path,
