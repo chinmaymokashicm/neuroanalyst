@@ -144,7 +144,7 @@ class PydanticWizard:
         return Path(raw)
 
     def _ask_nested_model(self, model_cls: Type[BaseModel]) -> dict:
-        wizard = PydanticWizard(model_cls)
+        wizard = PydanticWizard(model_cls, self.console)
         model = wizard.run()
         return model.model_dump(exclude_unset=True)
 

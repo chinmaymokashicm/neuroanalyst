@@ -97,4 +97,11 @@ def start():
         raise typer.Exit(code=1)
     
 if __name__ == "__main__":
-    typer.run(main)
+    try:
+        typer.run(main)
+    except KeyboardInterrupt:
+        console.print("\n[red]Recipe creation cancelled by user.[/red]")
+        sys.exit(130)
+    except Exception as e:
+        console.print(f"\n[red]An unexpected error occurred: {e}[/red]")
+        sys.exit(1)
