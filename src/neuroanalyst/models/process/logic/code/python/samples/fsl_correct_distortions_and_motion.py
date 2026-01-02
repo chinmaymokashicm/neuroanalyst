@@ -170,6 +170,7 @@ def fsl_correct_distortions_and_motion(input_filepath: str):
             print("FSL Output:", result.stdout)
         if result.stderr:
             print("FSL Errors:", result.stderr)
+            raise subprocess.CalledProcessError(result.returncode, cmd, output=result.stdout, stderr=result.stderr)
     except subprocess.CalledProcessError as e:
         print(f"Error during FSL eddy/topup execution: {e}")
         if getattr(e, 'output', None):
