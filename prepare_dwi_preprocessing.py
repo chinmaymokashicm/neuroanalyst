@@ -37,7 +37,7 @@ PIPELINE_DESCRIPTION: str = "Performs basic preprocessing steps on DWI data usin
 
 # Applicable for FSL-based processing only
 EXTRA_BIND_PATHS: dict = {"/opt/fsl_images/": "/risapps/apptainer/repo/fsl/3.16.8/"}
-EXTRA_ENVIRONMENT_VARIABLES: dict = {"FSL_IMG_NAME": "fsl-3.16.8.sif"}
+EXTRA_ENVIRONMENT_VARIABLES: dict = {"FSL_IMG_NAME": "fsl_3.16.8.sif"}
 fsl_logics_idxs: list[int] = [2]  # Indices of logics that use FSL and need extra bind paths/env variables
 
 # %% [markdown]
