@@ -95,3 +95,6 @@ def start():
     except Exception as e:
         console.print(f"\n[red]An unexpected error occurred: {e}[/red]")
         raise typer.Exit(code=1)
+    
+if __name__ == "__main__":
+    typer.run(main)
