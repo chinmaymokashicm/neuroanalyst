@@ -104,7 +104,12 @@ class PydanticWizard:
 
         raw = questionary.text(name, **prompt_kwargs).ask()
 
-        if raw in ("", None):
+        # if raw in ("", None):
+        #     return PydanticUndefined
+        
+        if raw is None:
+            raise KeyboardInterrupt("Input cancelled by user.")
+        if raw == "":
             return PydanticUndefined
 
         return self._cast_value(raw, annotation)
@@ -120,7 +125,11 @@ class PydanticWizard:
                 item = self._ask_nested_model(item_type)
             else:
                 raw = questionary.text("Item value").ask()
-                if raw in ("", None):
+                # if raw in ("", None):
+                #     continue
+                if raw is None:
+                    raise KeyboardInterrupt("Input cancelled by user.")
+                if raw == "":
                     continue
                 item = self._cast_value(raw, item_type)
 
