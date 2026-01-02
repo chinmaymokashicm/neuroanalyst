@@ -7,11 +7,12 @@ from ..process.exec.core import NeuProcessExec
 from ..pipeline.core import NeuPipeline
 from ..pipeline.constructor import PipelineConstructorConfig, PipelineStepConstructorConfig, ProcessConstructorConfig
 
-import yaml
+import yaml, os
 from typing import Optional, Literal
 from pathlib import Path
 
-from pydantic import Field, BaseModel, field_validator
+from pydantic import Field, BaseModel, field_validator, FilePath
+from pydantic_yaml import to_yaml_str
 from polyfactory.factories.pydantic_factory import ModelFactory
 from ruamel.yaml import YAML
 
@@ -19,29 +20,33 @@ class LogicRecipe(BaseModel):
     """
     Model representing a logic recipe for creating NeuProcessLogic instances.
     """
-    path: str = Field(..., description="Path to the Python code file defining the process logic.")
+    path: FilePath = Field(..., description="Path to the Python code file defining the process logic.")
     function: Optional[str] = Field(None, description="Function string if path does not read to a single function definition.")
-    username: Optional[str] = Field(None, description="Username of the process logic author.")
     version: Optional[str] = Field(None, description="Version string for the process logic.")
     tag: Optional[str] = Field(None, description="Tag string for the process logic.")
     author: Optional[str] = Field(None, description="Author string for the process logic.")
+    
+    def __str__(self):
+        return to_yaml_str(self)
 
 class ProcessDirRecipe(BaseModel):
     """
     Model representing a process directory recipe for creating NeuProcessDir instances.
-    """
-    class LogicDetails(BaseModel):
-        name: str = Field(..., description="Name of the logic.")
-        username: Optional[str] = Field(None, description="Username of the logic author.")
-        
-    logic: LogicDetails = Field(..., description="Dictionary containing logic name and optional username.")
+    """  
+    logic: str = Field(..., description="Logic name for the process directory.")
     config: Optional[NeuProcessDirConfig] = Field(None, description="Configuration for the process directory.")
+    
+    def __str__(self):
+        return to_yaml_str(self)
     
 class ProcessExecInStepRecipe(BaseModel):
     process_id: str = Field(..., description="Process ID.")
     input_bids_filters: dict = Field(..., description="BIDS filters for selecting input files.", default_factory=dict)
     extra_bind_paths: dict = Field(..., description="Extra bind paths for the process execution.", default_factory=dict)
     extra_environment_variables: dict = Field(..., description="Extra environment variables for the process execution.", default_factory=dict)
+    
+    def __str__(self):
+        return to_yaml_str(self)
 
 class PipelineStepRecipe(BaseModel):
     name: str = Field(..., description="Name of the step.")
@@ -50,9 +55,11 @@ class PipelineStepRecipe(BaseModel):
     
     def __iter__(self):
         return iter(self.processes)
+    
+    def __str__(self):
+        return to_yaml_str(self)
 
 class PipelineRecipe(BaseModel):
-    username: Optional[str] = Field(None, description="Namespace within the installation.")
     author: str = Field(..., description="Author of the pipeline.")
     data: str = Field(..., description="Path to the data directory.")
     name: str = Field(..., description="Name of the pipeline.", pattern=r"^\S+$")
@@ -69,6 +76,9 @@ class PipelineRecipe(BaseModel):
     
     def __iter__(self):
         return iter(self.steps)
+    
+    def __str__(self):
+        return to_yaml_str(self)
 
 RECIPE_FACTORIES: dict[str, BaseModel] = {
     "logic": LogicRecipe,
@@ -79,33 +89,31 @@ RECIPE_FACTORIES: dict[str, BaseModel] = {
 def create_mock_recipe(
     recipe_type: Literal["logic", "process", "pipeline"],
     name: str,
-    username: Optional[str] = None,
     save: bool = False
     ) -> Optional[Path]:
     try:
         class Factory(ModelFactory[RECIPE_FACTORIES[recipe_type]]): ...
         mock_recipe: LogicRecipe | ProcessDirRecipe | PipelineRecipe = Factory.build()
         if save:
-            return save_recipe_to_yaml(mock_recipe, name, username)
+            return save_recipe_to_yaml(mock_recipe, name)
         return mock_recipe
     except KeyError:
         raise ValueError(f"Invalid recipe type: {recipe_type}")
     
-def save_recipe_to_yaml(recipe: BaseModel, recipe_name: str, username: Optional[str] = None) -> str:
+def save_recipe_to_yaml(recipe: BaseModel, recipe_name: str) -> str:
     """
     Save a recipe Pydantic model to a YAML file.
     
     Args:
         recipe (BaseModel): The recipe Pydantic model instance.
         recipe_name (str): Name of the recipe.
-        username (Optional[str]): Username of the recipe author.
         
     Returns:
         str: The file path of the saved recipe YAML file.
     """
     if not isinstance(recipe, BaseModel):
         raise ValueError("Recipe must be a Pydantic BaseModel instance.")
-    paths = NeuroAnalystPaths(username=username)
+    paths = NeuroAnalystPaths()
     if isinstance(recipe, LogicRecipe):
         output_path: str = paths.get_recipes_dir("logic") / f"{recipe_name}.yaml"
     elif isinstance(recipe, ProcessDirRecipe):
@@ -119,24 +127,23 @@ def save_recipe_to_yaml(recipe: BaseModel, recipe_name: str, username: Optional[
     ruayaml.indent(mapping=2, sequence=4, offset=2)
     with open(output_path, "w") as f:
         try:
-            ruayaml.dump(recipe.model_dump(), f)
+            ruayaml.dump(recipe.model_dump(mode="json"), f)
         except Exception:
-            yaml.dump(recipe.model_dump(), f)
+            yaml.dump(recipe.model_dump(mode="json"), f)
         
     return output_path
         
-def get_recipe_yaml_path(recipe_name: str, recipe_type: str, username: Optional[str] = None) -> Path:
+def get_recipe_yaml_path(recipe_name: str, recipe_type: str) -> Path:
     """
     Get the file path of a recipe YAML file based on its name and type.
     Args:
         recipe_name (str): Name of the recipe.
         recipe_type (str): Type of the recipe ("logic", "process", or "pipeline").
-        username (Optional[str]): Username of the recipe author.
         
     Returns:
         Path: The file path of the recipe YAML file.
     """
-    paths = NeuroAnalystPaths(username=username)
+    paths = NeuroAnalystPaths()
     if recipe_type == "logic":
         recipe_path: Path = paths.get_recipes_dir("logic") / f"{recipe_name}.yaml"
     elif recipe_type == "process":
@@ -156,7 +163,6 @@ def create_logic_from_recipe(recipe_path: str | Path) -> NeuProcessLogic:
         - path: Path to the Python code file defining the process logic.
     Optional keys:
         - function: function string if path does not read to a single function definition.
-        - username: Username of the process logic author.
         - version: Version string for the process logic.
         - tag: Tag string for the process logic.
         - author: Author string for the process logic.
@@ -177,19 +183,18 @@ def create_logic_from_recipe(recipe_path: str | Path) -> NeuProcessLogic:
     decoder: PythonDecoder = PythonDecoder()
     if not Path(logic_recipe.path).exists():
         raise FileNotFoundError(f"Logic code file does not exist: {logic_recipe.path}")
-    with open(logic_recipe.path, "r") as code_file:
-        code_str: str = code_file.read()
     try:
-        logic: NeuProcessLogic = decoder.decode_from_string(code_str)
+        logic: NeuProcessLogic = decoder.decode_from_file(logic_recipe.path)
     except Exception as e:
         if not logic_recipe.function:
             raise ValueError(f"Error decoding logic from code file: {e}. No function string provided in recipe.")
         try:
+            with open(logic_recipe.path, 'r') as code_file:
+                code_str = code_file.read()
             logic: NeuProcessLogic = decoder.decode_from_string(code_str, function_name=logic_recipe.function)
         except Exception as e2:
             raise ValueError(f"Error decoding logic from code file with function '{logic_recipe.function}': {e2}")
     # Update metadata if provided
-    logic.username = logic_recipe.username or logic.username
     logic.about.version = logic_recipe.version or logic.about.version
     logic.about.tag = logic_recipe.tag or logic.about.tag
     logic.about.author = logic_recipe.author or logic.about.author
@@ -211,11 +216,10 @@ def create_process_dir_from_recipe(recipe_path: str | Path) -> NeuProcessDir:
         recipe: dict = yaml.safe_load(f)
         
     process_dir_recipe: ProcessDirRecipe = ProcessDirRecipe.model_validate(recipe)
-    logic_name: str = process_dir_recipe.logic.name
-    logic_username: Optional[str] = process_dir_recipe.logic.username
-    logic: NeuProcessLogic = NeuProcessLogic.from_func_name(logic_name, logic_username)
+    logic_name: str = process_dir_recipe.logic
+    logic: NeuProcessLogic = NeuProcessLogic.from_func_name(logic_name)
     if not logic:
-        raise ValueError(f"Could not find NeuProcessLogic with name '{logic_name}' and username '{logic_username}'")
+        raise ValueError(f"Could not find NeuProcessLogic with name '{logic_name}'")
     config: Optional[NeuProcessDirConfig] = process_dir_recipe.config
     process_dir: NeuProcessDir = NeuProcessDir.from_logic(
         logic=logic,
@@ -246,7 +250,6 @@ def construct_pipeline_from_recipe(recipe_path: str | Path) -> NeuPipeline:
         process_configs: list[ProcessConstructorConfig] = []
         for process_exec_recipe in step_recipe.processes:
             process_config = ProcessConstructorConfig(
-                username=pipeline_recipe.username,
                 process_id=process_exec_recipe.process_id,
                 input_bids_filters=current_input_bids_filters or process_exec_recipe.input_bids_filters,
                 extra_bind_paths=process_exec_recipe.extra_bind_paths,
@@ -270,7 +273,6 @@ def construct_pipeline_from_recipe(recipe_path: str | Path) -> NeuPipeline:
         about={
             "name": pipeline_recipe.name,
             "description": pipeline_recipe.description,
-            "username": pipeline_recipe.username,
             "author": pipeline_recipe.author
         },
         steps=pipeline_step_configs,

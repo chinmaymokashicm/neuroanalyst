@@ -446,7 +446,7 @@ class PipelineStepsComponent(Horizontal):
         self.table = DataTable(id="pipeline_steps_table", cursor_type="row", zebra_stripes=True)
         self.process_separator = process_separator
         self.id = "pipeline_steps_component"
-        paths = NeuroAnalystPaths(username=self.app.global_vars.get("username"))
+        paths = NeuroAnalystPaths()
         self.available_processes: list[str] = [subdir.name for subdir in paths.workdir.iterdir() if subdir.is_dir()]
         
     def on_mount(self) -> None:

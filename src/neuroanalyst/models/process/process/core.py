@@ -18,7 +18,7 @@ from typing import Optional, List, Dict, Any, ClassVar
 from pydantic import BaseModel, Field, model_validator
 
 from ....utils.constants import NeuroAnalystPaths
-from ....utils.id_generators import generate_process_id
+from ....utils.id_generators import generate_unique_id
 from ...about import About
 from ..dir.core import NeuProcessDir, NeuProcessLogic
 
@@ -41,7 +41,7 @@ class NeuProcess(BaseModel):
     """
     
     # Basic information
-    process_id: str = Field(default_factory=generate_process_id, 
+    process_id: str = Field(default_factory=lambda: generate_unique_id(kind="process"), 
                           description="Unique identifier for the process")
     
     # Input source
@@ -100,7 +100,7 @@ class NeuProcess(BaseModel):
                 self.command_flags = self.process_dir.config.command_flags.copy() if self.process_dir.config.command_flags else []
             
             # Update process_id if not explicitly set
-            if self.process_id == generate_process_id():  # If it's a default generated ID
+            if self.process_id == generate_unique_id(kind="process"):  # If it's a default generated ID
                 self.process_id = self.process_dir.process_id
     
     @classmethod
@@ -164,13 +164,12 @@ class NeuProcess(BaseModel):
             raise ValueError(f"Failed to load NeuProcessDir from {model_json_path}: {e}")
     
     @classmethod
-    def from_process_id(cls, process_id: str, username: Optional[str] = None, **kwargs):
+    def from_process_id(cls, process_id: str, **kwargs):
         """
         Create a NeuProcess from a process ID.
         
         Args:
             process_id: Process ID
-            username: Optional username associated with the process
             **kwargs: Additional arguments to pass to the NeuProcess constructor
             
         Returns:
@@ -180,26 +179,19 @@ class NeuProcess(BaseModel):
             FileNotFoundError: If the process directory is not found
             ValueError: If the model.json file cannot be parsed
         """
-        paths = NeuroAnalystPaths(username=username)
+        paths = NeuroAnalystPaths()
         dir_path = paths.get_process_workdir(process_id)
         return cls.from_dir_path(dir_path, process_id=process_id, **kwargs)
     
     @classmethod
-    def get_all_processes(cls, username: Optional[str] = None) -> list["NeuProcess"]:
+    def get_all_processes(cls) -> list["NeuProcess"]:
         """
         Get all NeuProcess instances for a given user.
         
-        Args:
-            username: Optional username to filter processes. If None, uses the current user.
-        """
-        process_ids: list[str] = [process_dir.process_id for process_dir in NeuProcessDir.get_all_process_dirs(username=username)]
-        processes: list[NeuProcess] = [cls.from_process_id(process_id, username=username) for process_id in process_ids]
+        Returns:"""
+        process_ids: list[str] = [process_dir.process_id for process_dir in NeuProcessDir.get_all_process_dirs()]
+        processes: list[NeuProcess] = [cls.from_process_id(process_id) for process_id in process_ids]
         return processes
-    
-    @property
-    def username(self) -> Optional[str]:
-        """Get the username associated with the process, if any."""
-        return self.process_dir.username
     
     # Properties to access NeuProcessDir attributes
     @property
@@ -235,14 +227,14 @@ class NeuProcess(BaseModel):
     @property
     def image_path(self) -> Path:
         """Get the path to the Singularity image."""
-        image_path = NeuroAnalystPaths(username=self.username).get_process_image_path(self.process_id)
+        image_path = NeuroAnalystPaths().get_process_image_path(self.process_id)
         image_path.parent.mkdir(parents=True, exist_ok=True)
         return image_path
     
     @property
     def venv_path(self) -> Path:
         """Get the path to the virtual environment."""
-        venv_path = NeuroAnalystPaths(username=self.username).get_venv_path(self.process_id)
+        venv_path = NeuroAnalystPaths().get_venv_path(self.process_id)
         venv_path.parent.mkdir(parents=True, exist_ok=True)
         return venv_path
 

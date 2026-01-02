@@ -37,7 +37,7 @@ class NeuProcessSync(SyncBase):
         self.mongo_client = MongoDBClient()
         self.mongo_client.connect()
     
-    def load_from_hpc(self, process_id: str, username: Optional[str] = None) -> Optional[NeuProcess]:
+    def load_from_hpc(self, process_id: str) -> Optional[NeuProcess]:
         """
         Load NeuProcess data from HPC storage.
         
@@ -50,7 +50,7 @@ class NeuProcessSync(SyncBase):
         self.logger.info(f"Loading NeuProcess {process_id} from HPC storage")
         
         # Check if process directory exists
-        paths = NeuroAnalystPaths(username=username)
+        paths = NeuroAnalystPaths()
         process_dir_path = paths.get_process_workdir(process_id)
         if not process_dir_path.exists():
             self.logger.warning(f"Process directory {process_dir_path} does not exist")

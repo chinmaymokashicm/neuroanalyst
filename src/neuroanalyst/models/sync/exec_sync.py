@@ -50,7 +50,7 @@ class NeuProcessExecSync(SyncBase):
         self.logger.info(f"Loading NeuProcessExec {exec_id} from HPC storage")
         
         # Check if exec directory exists
-        paths = NeuroAnalystPaths(username=username)
+        paths = NeuroAnalystPaths()
         exec_dir_path = paths.get_process_exec_path(exec_id)
         if not exec_dir_path.exists():
             self.logger.warning(f"Exec directory {exec_dir_path} does not exist")
@@ -221,7 +221,7 @@ class NeuProcessExecSync(SyncBase):
         
         try:
             # Create the exec directory if it doesn't exist
-            paths = NeuroAnalystPaths(username=username)
+            paths = NeuroAnalystPaths()
             exec_dir_path = paths.get_process_exec_path(exec_id)
             exec_dir_path.mkdir(parents=True, exist_ok=True)
             

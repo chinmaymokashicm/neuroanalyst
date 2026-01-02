@@ -32,7 +32,7 @@ async def list_datasets(username: Optional[str] = None):
         List[Dict[str, str]]: A list of datasets with their names and paths.
     """
     try:
-        paths = NeuroAnalystPaths(username=username)
+        paths = NeuroAnalystPaths()
         datasets_path = Path(paths.datasets)
         
         if not datasets_path.exists():
@@ -67,7 +67,7 @@ async def get_dataset_tree(dataset_name: str, path: Optional[str] = None, userna
     """
     try:
         # Get base path for the dataset
-        neuroanalyst_paths = NeuroAnalystPaths(username=username)
+        neuroanalyst_paths = NeuroAnalystPaths()
         dataset_base_path = Path(neuroanalyst_paths.datasets) / dataset_name
         
         if not dataset_base_path.exists():
@@ -175,7 +175,7 @@ async def get_file(file_path: str, download: bool = False, username: Optional[st
             
         # Ensure the file is within the datasets directory for security
         try:
-            neuroanalyst_paths = NeuroAnalystPaths(username=username)
+            neuroanalyst_paths = NeuroAnalystPaths()
             datasets_path = Path(neuroanalyst_paths.datasets)
             # Check if the file_path is within the datasets directory
             if not str(file_path.absolute()).startswith(str(datasets_path.absolute())):
@@ -236,7 +236,7 @@ async def stream_file(file_path: str, username: Optional[str] = None):
             
         # Ensure the file is within the datasets directory for security
         
-        neuroanalyst_paths = NeuroAnalystPaths(username=username)
+        neuroanalyst_paths = NeuroAnalystPaths()
         datasets_path = Path(neuroanalyst_paths.datasets)
         if not str(file_path.absolute()).startswith(str(datasets_path.absolute())):
             raise HTTPException(

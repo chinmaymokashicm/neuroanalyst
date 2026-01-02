@@ -18,6 +18,17 @@ import os
 from pathlib import Path
 from typing import Optional, Literal
 
+def get_current_username() -> str:
+    """Retrieve the current username from environment variables."""
+    username = os.getenv("NEUROANALYST_USER")
+    if not username:
+        raise EnvironmentError("NEUROANALYST_USER environment variable is not set.")
+    return username
+
+def get_project_root() -> Path:
+    """Get the root directory of the NeuroAnalyst project."""
+    return Path(__file__).resolve().parents[3]
+
 
 class NeuroAnalystPaths:
     """
@@ -26,49 +37,19 @@ class NeuroAnalystPaths:
     This class reads environment variables set by the setup process and provides
     easy access to all important directories used by the framework.
     """
-    username: Optional[str] = None
     
-    def __init__(self, username: Optional[str] = None):
+    def __init__(self):
         # Base home directory for NeuroAnalyst
         self._home = os.getenv('NEUROANALYST_HOME', os.path.expanduser('~/neuroanalyst'))
-        if username:
-            self._home = os.path.join(self._home, username)
         
-        #! Core directories - commented out to only use NEUROANALYST_HOME.
-        #! The plan is to build user-specific paths under the home directory.
-        #! The MongoDB settings will be project-wide.
-        # self._images = os.getenv('NEUROANALYST_IMAGES', 
-        #                         os.path.join(self._home, 'apptainer', 'images'))
-        # self._docs = os.getenv('NEUROANALYST_DOCS', 
-        #                       os.path.join(self._home, 'apptainer', 'docs'))
-        # self._workdir = os.getenv('NEUROANALYST_WORKDIR', 
-        #                          os.path.join(self._home, 'working_dirs'))
-        # self._pipelines = os.getenv('NEUROANALYST_PIPELINES',
-        #                            os.path.join(self._home, 'pipelines'))
-        # self._reports = os.getenv('NEUROANALYST_REPORTS', 
-        #                          os.path.join(self._home, 'reports'))
-        # self._logs = os.getenv('NEUROANALYST_LOGS', 
-        #                       os.path.join(self._home, 'logs'))
-        # self._datasets = os.getenv('NEUROANALYST_DATASETS', 
-        #                           os.path.join(self._home, 'datasets'))
-        # self._venvs = os.getenv('NEUROANALYST_VENVS', 
-        #                        os.path.join(self._home, 'virtual_environments'))
-        # self._process_execs = os.getenv('NEUROANALYST_PROCESS_EXECS',
-        #                               os.path.join(self._home, 'process_execs'))
-        # self._config = os.getenv('NEUROANALYST_CONFIG',
-        #                         os.path.join(self._home, 'config'))
-        # self._functions = os.getenv('NEUROANALYST_FUNCTIONS',
-        #                            os.path.join(self._home, 'functions'))
+        self.username: str = get_current_username()
         
-        # # MongoDB configuration
-        # self._db_host = os.getenv('NEUROANALYST_DB_HOST', 'localhost')
-        # self._db_port = int(os.getenv('NEUROANALYST_DB_PORT', '27017'))
-        # self._db_name = os.getenv('NEUROANALYST_DB_NAME', 'neuroanalyst')
+        self._home = os.path.join(self._home, "users", self.username)
         
-        # Only use the NEURONALYST_HOME env variable for now
+        # Only use the NEUROANALYST_HOME env variable for now
         self._images = os.path.join(self._home, 'apptainer', 'images')
         self._docs = os.path.join(self._home, 'apptainer', 'docs')
-        self._workdir = os.path.join(self._home, 'working_dirs')
+        self._workdir = os.path.join(self._home, 'process_dirs')
         self._pipelines = os.path.join(self._home, 'pipelines')
         self._reports = os.path.join(self._home, 'reports')
         self._logs = os.path.join(self._home, 'logs')

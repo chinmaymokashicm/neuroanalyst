@@ -74,7 +74,7 @@ class ProcessListScreen(BaseScreen):
         if not process_dirs:
             table.add_row("No processes found", "", "", "", "", "", "")
             return
-        paths = NeuroAnalystPaths(username=self.username)
+        paths = NeuroAnalystPaths()
         for process in process_dirs:
             image_exists: bool = (paths.get_process_image_path(process.process_id)).exists()
             venv_exists: bool = (paths.get_venv_path(process.process_id)).exists()
@@ -150,7 +150,7 @@ class ProcessListScreen(BaseScreen):
     def confirm_delete_all_processes(self, result: bool) -> None:
         """Callback to confirm deletion of all processes."""
         if result:
-            paths = NeuroAnalystPaths(username=self.username)
+            paths = NeuroAnalystPaths()
             all_processes: list[NeuProcessDir] = NeuProcessDir.get_all_process_dirs(username=self.app.global_vars.get("username"))
             for process in all_processes:
                 process_image_path: Path = paths.get_process_image_path(process.process_id)

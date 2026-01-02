@@ -20,7 +20,7 @@ from pydantic import BaseModel, Field, field_validator, model_validator, ConfigD
 from bids import BIDSLayout
 
 from ....utils.constants import NeuroAnalystPaths
-from ....utils.id_generators import generate_process_exec_id
+from ....utils.id_generators import generate_unique_id
 from ....utils.bids import split_by_subject_session
 from ..process.core import NeuProcess
 from ..dir.core import ExecutionMode
@@ -64,7 +64,7 @@ class NeuProcessExec(BaseModel):
     model_config = ConfigDict(validate_assignment=True)
     
     # Basic information
-    exec_id: str = Field(default_factory=generate_process_exec_id, 
+    exec_id: str = Field(default_factory=lambda: generate_unique_id(kind="process_exec"), 
                         description="Unique identifier for the execution instance")
     
     process: NeuProcess = Field(description="NeuProcess to execute")
@@ -110,11 +110,6 @@ class NeuProcessExec(BaseModel):
         return v
     
     @property
-    def username(self) -> Optional[str]:
-        """Get the username associated with the process, if any."""
-        return self.process.username
-    
-    @property
     def bids_filters(self) -> Dict[str, Any]:
         """Get the BIDS filters from the environment variable values."""
         bids_filters_str: Optional[str] = self.env_var_values.get("BIDS_FILTERS")
@@ -128,7 +123,7 @@ class NeuProcessExec(BaseModel):
     @property
     def exec_log_dir(self) -> Path:
         """Get the path to the execution log directory."""
-        log_dir: Path = Path(NeuroAnalystPaths(username=self.username).logs) / "process_execs" / self.exec_id
+        log_dir: Path = Path(NeuroAnalystPaths().logs) / "process_execs" / self.exec_id
         log_dir.mkdir(parents=True, exist_ok=True)
         return log_dir
     
@@ -169,19 +164,18 @@ class NeuProcessExec(BaseModel):
         return cls(process=process, **kwargs)
     
     @classmethod
-    def generate_from_process_id(cls, process_id: str, username: Optional[str] = None, **kwargs) -> "NeuProcessExec":
+    def generate_from_process_id(cls, process_id: str, **kwargs) -> "NeuProcessExec":
         """
         Create a NeuProcessExec from a process ID.
         
         Args:
             process_id: Process ID
-            username: Username of the process owner
             **kwargs: Additional arguments to pass to the NeuProcessExec constructor
             
         Returns:
             NeuProcessExec instance
         """
-        process = NeuProcess.from_process_id(process_id, username=username)
+        process = NeuProcess.from_process_id(process_id)
         return cls(process=process, **kwargs)
     
     @classmethod
@@ -200,13 +194,12 @@ class NeuProcessExec(BaseModel):
         return cls(process=process, **kwargs)
     
     @classmethod
-    def from_exec_id(cls, exec_id: str, username: Optional[str] = None) -> "NeuProcessExec":
+    def from_exec_id(cls, exec_id: str) -> "NeuProcessExec":
         """
         Create a NeuProcessExec from a saved execution ID.
         
         Args:
             exec_id: Execution ID of a previously saved NeuProcessExec
-            username: Username of the user executing the process
             
         Returns:
             NeuProcessExec instance
@@ -217,7 +210,7 @@ class NeuProcessExec(BaseModel):
         """
         
         # Get the path to the execution directory
-        paths = NeuroAnalystPaths(username=username)
+        paths = NeuroAnalystPaths()
         exec_dir = paths.get_process_exec_path(exec_id)
         if not exec_dir.exists():
             raise FileNotFoundError(f"Execution directory not found: {exec_dir}")
@@ -335,7 +328,7 @@ class NeuProcessExec(BaseModel):
             FileNotFoundError: If the execution directory does not exist
             Exception: If deletion fails for any reason
         """
-        exec_dir: Path = Path(NeuroAnalystPaths(username=self.username).get_process_exec_path(self.exec_id))
+        exec_dir: Path = Path(NeuroAnalystPaths().get_process_exec_path(self.exec_id))
         if not exec_dir.exists():
             print(f"Execution directory not found: {exec_dir}")
             return
@@ -703,7 +696,7 @@ class NeuProcessExec(BaseModel):
         # Pass bind path and environment variable arguments that the script will use
 
         # Generate the bash script if not already set and save to disk
-        exec_dir: Path = Path(NeuroAnalystPaths(username=self.username).process_execs) / self.exec_id
+        exec_dir: Path = Path(NeuroAnalystPaths().process_execs) / self.exec_id
         # if not Path(exec_dir / BASH_SCRIPT_NAME).exists():
         #     bash_script_with_runtime_args_path: str = str(self.generate_and_save_bash_script())
         # else:
@@ -936,7 +929,7 @@ class NeuProcessExec(BaseModel):
         """
         
         # Create process_execs directory if it doesn't exist
-        exec_dir = Path(NeuroAnalystPaths(username=self.username).process_execs) / self.exec_id
+        exec_dir = Path(NeuroAnalystPaths().process_execs) / self.exec_id
         
         exec_dir.mkdir(parents=True, exist_ok=True)
         
@@ -962,7 +955,7 @@ bash {self.script_path} {' '.join(self.command_flags) if self.command_flags else
         """
         
         # Create process_execs directory if it doesn't exist
-        exec_dir = Path(NeuroAnalystPaths(username=self.username).process_execs) / self.exec_id
+        exec_dir = Path(NeuroAnalystPaths().process_execs) / self.exec_id
         
         exec_dir.mkdir(parents=True, exist_ok=True)
         

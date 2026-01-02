@@ -20,7 +20,6 @@ from bids.layout import BIDSLayout
 
 class ProcessConstructorConfig(BaseModel, validate_assignment=True):
     """Configuration for passing a NeuProcess to a NeuPipeline constructor."""
-    username: Optional[str] = Field(None, description="Username of the process owner.")
     process_id: str = Field(..., description="Unique identifier for the process.")
     extra_bind_paths: dict[str, str] = Field(default_factory=dict, description="Extra bind paths required by the process.")
     extra_environment_variables: dict[str, str] = Field(default_factory=dict, description="Extra environment variables required by the process.")
@@ -31,7 +30,7 @@ class ProcessConstructorConfig(BaseModel, validate_assignment=True):
     @property
     def process(self) -> NeuProcess:
         """Get the NeuProcess instance for the given process_id."""
-        return NeuProcess.from_process_id(self.process_id, username=self.username)
+        return NeuProcess.from_process_id(self.process_id)
     
     @property
     def output_entities(self) -> dict[str, str]:
@@ -61,7 +60,7 @@ class ProcessConstructorConfig(BaseModel, validate_assignment=True):
                 bids_filters["subject"] = subjects
             if len(sessions) > 0 and sessions != [None]:
                 bids_filters["session"] = sessions
-            process_exec: NeuProcessExec = NeuProcessExec.generate_from_process_id(process_id=self.process_id, username=self.username)
+            process_exec: NeuProcessExec = NeuProcessExec.generate_from_process_id(process_id=self.process_id)
             
             # Set BIDS filters
             process_exec.env_var_values["BIDS_FILTERS"] = json.dumps(bids_filters)
@@ -84,19 +83,18 @@ class ProcessConstructorConfig(BaseModel, validate_assignment=True):
         return process_execs
     
     @classmethod
-    def initiate_from_process_id(cls, process_id: str, username: Optional[str] = None, **kwargs) -> "ProcessConstructorConfig":
+    def initiate_from_process_id(cls, process_id: str, **kwargs) -> "ProcessConstructorConfig":
         """
         Create a ProcessConstructorConfig from a process ID by auto-detecting required extra bind paths and environment variables.
         The generated config will have empty strings for the values of extra bind paths and environment variables, which should be filled in later.
         
         Args:
             process_id (str): The unique identifier of the process.
-            username (Optional[str]): The username of the process owner.
             
         Returns:
             ProcessConstructorConfig: The generated process constructor configuration.
         """
-        process: NeuProcess = NeuProcess.from_process_id(process_id, username=username)
+        process: NeuProcess = NeuProcess.from_process_id(process_id)
         extra_bind_paths: dict = {path: "" for path in process.get_non_standard_bind_paths()}
         extra_environment_variables: dict = {var: "" for var in process.get_non_standard_environment_variables()}
         print(f"Generating ProcessConstructorConfig for process_id: {process_id}")
@@ -104,7 +102,6 @@ class ProcessConstructorConfig(BaseModel, validate_assignment=True):
         print(f"  Extra environment variables required: {extra_environment_variables}")
 
         return cls(
-            username=username,
             process_id=process_id,
             extra_bind_paths=extra_bind_paths,
             extra_environment_variables=extra_environment_variables,
@@ -119,7 +116,7 @@ class ProcessConstructorConfig(BaseModel, validate_assignment=True):
         input_bids_filters: dict = self.input_bids_filters
         
         try:
-            process: NeuProcess = NeuProcess.from_process_id(process_id, username=self.username)
+            process: NeuProcess = NeuProcess.from_process_id(process_id)
         except Exception as e:
             raise ValueError(f"Invalid process_id '{process_id}'? : {e}")
         
@@ -232,7 +229,6 @@ class PipelineConstructorConfig(BaseModel):
                 if process_exec.process.process_id in [process_config.process_id for process_config in process_configs]:
                     continue  # Avoid duplicate process configs for the same process_id within a step
                 process_config = ProcessConstructorConfig(
-                    username=process_exec.username,
                     process_id=process_exec.process.process_id,
                     extra_bind_paths=extra_bind_paths,
                     extra_environment_variables=extra_environment_variables,

@@ -95,7 +95,7 @@ def render_step(step: NeuPipelineStepStatus) -> Panel:
     proc_table.add_column("Duration")
 
     for p in step.processes:
-        process_exec: NeuProcessExec = NeuProcessExec.from_exec_id(p.exec_id, username=os.environ.get("USERNAME", None))
+        process_exec: NeuProcessExec = NeuProcessExec.from_exec_id(p.exec_id)
         bids_filters: dict = process_exec.bids_filters
         started_at: datetime = datetime.fromisoformat(p.started_at.replace('Z', '+00:00')) if p.started_at else None
         completed_at: datetime = datetime.fromisoformat(p.completed_at.replace('Z', '+00:00')) if p.completed_at else None
@@ -136,7 +136,6 @@ def render_pipeline(status: NeuPipelineStatus) -> Panel:
     
     pipeline: NeuPipeline = NeuPipeline.from_pipeline_id(
         pipeline_id=status.pipeline_id,
-        username=os.environ.get("USERNAME", None)
     )
     pipeline_name: str = pipeline.about.name
 
@@ -164,7 +163,6 @@ def render_pipeline(status: NeuPipelineStatus) -> Panel:
 
     return Panel(
         main_grid,
-        title=f"user: {status.username}",
         border_style=status_color(status.status),
     )
 
@@ -215,14 +213,6 @@ if __name__ == "__main__":
     )
 
     parser.add_argument(
-        "-u",
-        "--username",
-        required=False,
-        default=None,
-        help="Username that owns the pipeline",
-    )
-
-    parser.add_argument(
         "-v",
         "--verbose",
         action="store_true",
@@ -231,12 +221,10 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    os.environ["USERNAME"] = args.username
     os.environ["VERBOSE"] = str(args.verbose)
 
     pipeline: NeuPipeline = NeuPipeline.from_pipeline_id(
         pipeline_id=args.pipeline_id,
-        username=args.username,
     )
 
     def fetch_status():

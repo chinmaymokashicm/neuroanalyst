@@ -145,7 +145,7 @@ async def list_processes(id_only: bool = False, username: Optional[str] = None):
     List all available NeuProcesses.
     """
     try:
-        paths = NeuroAnalystPaths(username=username)
+        paths = NeuroAnalystPaths()
         process_ids: list[str] = [subdir.name for subdir in paths.workdir.iterdir() if subdir.is_dir()]
         if id_only:
             return [NeuProcess.from_process_id(pid).process_id for pid in process_ids]
@@ -162,7 +162,7 @@ async def get_available_base_images(username: Optional[str] = None) -> List[str]
     Get a list of available base images for process creation.
     """
     try:
-        paths = NeuroAnalystPaths(username=username)
+        paths = NeuroAnalystPaths()
         base_images_path = paths.base_images
         if not base_images_path.exists():
             return []
@@ -186,7 +186,7 @@ async def is_build_complete(process_id: str, username: Optional[str] = None) -> 
         List containing two booleans: [is_image_built, is_venv_built]
     """
     try:
-        paths = NeuroAnalystPaths(username=username)
+        paths = NeuroAnalystPaths()
         image_path: Path = paths.get_process_image_path(process_id)
         venv_path: Path = paths.get_venv_path(process_id)
         is_image_built: bool = image_path.exists()

@@ -99,7 +99,7 @@ async def list_pipelines(username: Optional[str] = None):
     List all available pipelines.
     """
     try:
-        paths = NeuroAnalystPaths(username=username)
+        paths = NeuroAnalystPaths()
         pipeline_dir: Path = paths.pipelines
         pipelines: List[NeuPipeline] = []
         for pipeline_path in pipeline_dir.iterdir():

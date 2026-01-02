@@ -9,7 +9,7 @@ pip install openpyxl
 
 pip install ipython ipykernel ipywidgets pymongo "fastapi[standard]"
 
-pip install pybids nibabel nilearn matplotlib pandas
+pip install pybids nibabel nilearn matplotlib pandas networkx 
 
 pip install textual textual-dev
 

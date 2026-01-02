@@ -77,7 +77,7 @@ class PipelineWizardScreen(BaseScreen):
         self.current_step = 1
         self.total_steps = 3
         
-        datasets_path = NeuroAnalystPaths(username=self.app.global_vars.get("username")).datasets
+        datasets_path = NeuroAnalystPaths().datasets
         self.datasets_options = [(str(p.name), str(p)) for p in datasets_path.iterdir() if p.is_dir()]
         
         self.n_pipeline_steps: int = reactive(1)  # Default number of steps

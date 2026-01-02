@@ -150,7 +150,7 @@ async def list_process_logic(username: Optional[str] = None):
     List all available NeuProcessLogic functions.
     """
     try:
-       neuroanalyst_paths = NeuroAnalystPaths(username=username)
+       neuroanalyst_paths = NeuroAnalystPaths()
        logic_dir: Path = Path(neuroanalyst_paths.functions)
        logic_name: list[str] = [subdir.name for subdir in logic_dir.iterdir() if subdir.is_dir()]
        return [NeuProcessLogic.from_func_name(name) for name in logic_name]

@@ -11,8 +11,8 @@ NeuPipeline is responsible for:
 4. Tracking status of each process and enabling resumable execution
 """
 
-from ...utils.constants import NeuroAnalystPaths
-from ...utils.id_generators import generate_id
+from ...utils.constants import NeuroAnalystPaths, get_current_username
+from ...utils.id_generators import generate_unique_id
 from ...utils.data import flatten_dict
 from ..about import About
 from ..bids import BIDSDatasetDescription, BIDSGeneratedByToolInfo, PipelineDescriptionSpec
@@ -124,9 +124,6 @@ class NeuPipelineStatus(BaseModel):
     This class tracks the overall status of the pipeline as well as the status of each
     individual step and process execution within the pipeline.
     """
-    
-    username: str = Field(description="Username of the pipeline owner")
-    # Pipeline-level status
     pipeline_id: str = Field(description="Unique identifier for the pipeline")
     created_at: str = Field(description="Timestamp when the pipeline was created")
     last_updated: str = Field(description="Timestamp when the pipeline status was last updated")
@@ -264,7 +261,7 @@ class NeuPipelineStatus(BaseModel):
         else:
             steps_to_check = self.steps
 
-        paths = NeuroAnalystPaths(username=self.username)
+        paths = NeuroAnalystPaths()
 
         for step_status in steps_to_check:
             for proc_status in step_status.processes:
@@ -463,7 +460,7 @@ class NeuPipeline(BaseModel):
     3. Storing pipeline metadata for reproducibility
     """
     # Basic information
-    pipeline_id: str = Field(default_factory=lambda: generate_id("pipeline_id"), 
+    pipeline_id: str = Field(default_factory=lambda: generate_unique_id(kind="pipeline"),
                            description="Unique identifier for the pipeline")
     bids_root: Path = Field(..., description="Path to the BIDS dataset root directory")
     
@@ -551,16 +548,9 @@ class NeuPipeline(BaseModel):
         return detailed_info
     
     @property
-    def username(self) -> Optional[str]:
-        """Get the username associated with the pipeline (from the first process exec)."""
-        if self.steps and self.steps[0].process_execs:
-            return self.steps[0].process_execs[0].username
-        return None
-    
-    @property
     def pipeline_dir_path(self) -> Path:
         """Get the path to the pipeline directory."""
-        return Path(NeuroAnalystPaths(username=self.username).pipelines) / self.pipeline_id
+        return Path(NeuroAnalystPaths().pipelines) / self.pipeline_id
     
     @property
     def model_path(self) -> Path:
@@ -602,7 +592,7 @@ class NeuPipeline(BaseModel):
     @property
     def log_dir(self) -> Path:
         """Get the path to the pipeline log directory."""
-        dir_path: Path = Path(NeuroAnalystPaths(username=self.username).logs) / "pipelines" / self.pipeline_id
+        dir_path: Path = Path(NeuroAnalystPaths().logs) / "pipelines" / self.pipeline_id
         dir_path.mkdir(parents=True, exist_ok=True)
         return dir_path
     
@@ -638,7 +628,6 @@ class NeuPipeline(BaseModel):
     def constructor_v2(
         cls,
         about_pipeline: About | dict,
-        username: str,
         bids_root: str | Path,
         steps_info: list[list[str]],
         process_configs: list[list[str | dict]],
@@ -652,7 +641,6 @@ class NeuPipeline(BaseModel):
         Construct a NeuPipeline instance from high-level process configurations.
         Args:
             about_pipeline (About | dict): Metadata about the pipeline. If dict, requires keys: name, description, version, author.
-            username (str): Username of the pipeline creator. This username will be associated with all processes.
             bids_root (str | Path): Path to the BIDS dataset root directory.
             steps_info (list[list[str]]): List of steps, each defined by [step_name, step_description].
             process_configs (list[list[str | dict]]): List of process configurations, each with keys: 'process_ids' and 'extra_parameters'.
@@ -710,7 +698,7 @@ class NeuPipeline(BaseModel):
             if len(process_ids) != len(extra_parameters):
                 raise KeyError(f"'process_ids' has {len(process_ids)} items while 'extra_parameters' has {len(extra_parameters)}")
             
-            step_configs[step_id]["processes"] = [NeuProcess.from_process_id(process_id, username=username) for process_id in process_ids]
+            step_configs[step_id]["processes"] = [NeuProcess.from_process_id(process_id, ) for process_id in process_ids]
             step_configs[step_id]["extra_parameters"] = extra_parameters
             
             if step_id == 0:
@@ -783,13 +771,13 @@ class NeuPipeline(BaseModel):
             # Verify that each unique process has the required environment (container image or venv)
             unique_process_ids: Set[str] = set([proc_exec.process.process_id for proc_exec in pipeline.process_execs])
             for unique_proc_id in unique_process_ids:
-                process: NeuProcess = NeuProcess.from_process_id(unique_proc_id, username=username)
+                process: NeuProcess = NeuProcess.from_process_id(unique_proc_id)
                 if execution_mode == ExecutionMode.CONTAINER:
-                    image_path: Path = NeuroAnalystPaths(username=username).get_process_image_path(unique_proc_id)
+                    image_path: Path = NeuroAnalystPaths().get_process_image_path(unique_proc_id)
                     if not image_path.exists():
                         raise ValueError(f"Process ID '{unique_proc_id}' does not have a container image")
                 elif execution_mode == ExecutionMode.VENV:
-                    venv_path: Path = NeuroAnalystPaths(username=username).get_venv_path(unique_proc_id)
+                    venv_path: Path = NeuroAnalystPaths().get_venv_path(unique_proc_id)
                     if not venv_path.exists() or (venv_path / "bin" / "activate").exists() is False:
                         raise ValueError(f"Process ID '{unique_proc_id}' does not have a virtual environment")
                 else:
@@ -1019,17 +1007,17 @@ class NeuPipeline(BaseModel):
         return cls.model_validate(model_data)
     
     @classmethod
-    def from_pipeline_id(cls, pipeline_id: str, username: Optional[str] = None) -> 'NeuPipeline':
+    def from_pipeline_id(cls, pipeline_id: str = None) -> 'NeuPipeline':
         """Create a NeuPipeline instance from a pipeline ID."""
-        paths = NeuroAnalystPaths(username=username)
+        paths = NeuroAnalystPaths()
         model_path = Path(paths.pipelines) / pipeline_id / "model.json"
         
         return cls.from_model_file(model_path)
     
     @classmethod
-    def get_all_pipelines(cls, username: Optional[str]) -> list['NeuPipeline']:
+    def get_all_pipelines(cls) -> list['NeuPipeline']:
         """List all available pipelines."""
-        paths = NeuroAnalystPaths(username=username)
+        paths = NeuroAnalystPaths()
         pipelines_dir: Path = paths.pipelines
         
         pipeline_list = []
@@ -1037,7 +1025,7 @@ class NeuPipeline(BaseModel):
             for pipeline_dir in pipelines_dir.iterdir():
                 if pipeline_dir.is_dir():
                     try:
-                        pipeline = cls.from_pipeline_id(pipeline_dir.name, username=username)
+                        pipeline = cls.from_pipeline_id(pipeline_dir.name, )
                         pipeline_list.append(pipeline)
                     except Exception as e:
                         print(f"Warning: Could not load pipeline from {pipeline_dir}: {e}")
@@ -1562,7 +1550,6 @@ class NeuPipeline(BaseModel):
         current_time = datetime.now().isoformat()
         
         pipeline_status = NeuPipelineStatus(
-            username=self.username,
             pipeline_id=self.pipeline_id,
             created_at=current_time,
             last_updated=current_time,
@@ -1864,7 +1851,7 @@ class NeuPipeline(BaseModel):
                         Description=self.about.description if self.about.description else "Neuroimaging pipeline",
                         Author=self.about.author if self.about.author else "Unknown",
                         ID=self.pipeline_id,
-                        UserName=self.username,
+                        UserName=get_current_username(),
                     ),
                     BIDSGeneratedByToolInfo(
                         Name="NeuroAnalyst",

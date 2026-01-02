@@ -642,8 +642,7 @@ class KnowledgeGraphBuilder(BaseModel):
             # Identify the pipelines that correspond to this scope - if 'raw', then no pipeline; else the pipeline name is the scope
             if scope != "raw":
                 pipeline_id: str = self.layout.get_dataset_description(scope=scope)["GeneratedBy"][0]["ID"]
-                username: str = self.layout.get_dataset_description(scope=scope)["GeneratedBy"][0]["UserName"]
-                pipeline: NeuPipeline = NeuPipeline.from_pipeline_id(pipeline_id, username)
+                pipeline: NeuPipeline = NeuPipeline.from_pipeline_id(pipeline_id)
                 self.create_node(
                     cls_name="Pipeline",
                     identifier=pipeline.pipeline_id,

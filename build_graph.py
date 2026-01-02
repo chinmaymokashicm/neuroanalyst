@@ -13,10 +13,9 @@ import networkx as nx
 from bids.layout import BIDSLayout
 
 # %%
-USERNAME = "cmokashi"
 BASE_IMAGE = "/rsrch5/home/csi/cmokashi/neuroanalyst/cmokashi/apptainer/images/base/for_freesurfer.sif"
 EXECUTION_MODE: str = "container"
-paths = NeuroAnalystPaths(username=USERNAME)
+paths = NeuroAnalystPaths()
 BIDS_ROOT: str = str([dataset for dataset in paths.datasets.iterdir() if dataset.is_dir()][0])
 FREESURFER_HOME: str = os.getenv("FREESURFER_HOME", "/risapps/rhel8/freesurfer/7.4.1")
 BIDS_ROOT, FREESURFER_HOME
@@ -64,31 +63,28 @@ try:
     autorecon1_logic.about.author = author
     autorecon1_logic.about.version = version
     autorecon1_logic.about.tag = tag
-    autorecon1_logic.username = USERNAME
     autorecon1_logic.register()
 except Exception as e:
     print(f"Error decoding Autorecon1 logic: {e}. Loading from registry as fallback.")
-    autorecon1_logic: NeuProcessLogic = NeuProcessLogic.from_func_name("autorecon1", username=USERNAME)
+    autorecon1_logic: NeuProcessLogic = NeuProcessLogic.from_func_name("autorecon1")
 try:
     autorecon2_logic: NeuProcessLogic = decoder.decode_from_file(functions["autorecon2"]["file_path"])
     autorecon2_logic.about.author = author
     autorecon2_logic.about.version = version
     autorecon2_logic.about.tag = tag
-    autorecon2_logic.username = USERNAME
     autorecon2_logic.register()
 except Exception as e:
     print(f"Error decoding Autorecon2 logic: {e}. Loading from registry as fallback.")
-    autorecon2_logic: NeuProcessLogic = NeuProcessLogic.from_func_name("autorecon2", username=USERNAME)
+    autorecon2_logic: NeuProcessLogic = NeuProcessLogic.from_func_name("autorecon2")
 try:
     autorecon3_logic: NeuProcessLogic = decoder.decode_from_file(functions["autorecon3"]["file_path"])
     autorecon3_logic.about.author = author
     autorecon3_logic.about.version = version
     autorecon3_logic.about.tag = tag
-    autorecon3_logic.username = USERNAME
     autorecon3_logic.register()
 except Exception as e:
     print(f"Error decoding Autorecon3 logic: {e}. Loading from registry as fallback.")
-    autorecon3_logic: NeuProcessLogic = NeuProcessLogic.from_func_name("autorecon3", username=USERNAME)
+    autorecon3_logic: NeuProcessLogic = NeuProcessLogic.from_func_name("autorecon3")
 
 # %% [markdown]
 # ## Create Recon Processes and Build Images
@@ -113,9 +109,6 @@ autorecon2_process: NeuProcess = NeuProcess.from_process_dir(autorecon2_process_
 autorecon3_process: NeuProcess = NeuProcess.from_process_dir(autorecon3_process_dir)
 autorecon1_process.process_id, autorecon2_process.process_id, autorecon3_process.process_id
 
-# autorecon1_process: NeuProcess = NeuProcess.from_process_id(process_id="PR-581497", username=USERNAME)
-# autorecon2_process: NeuProcess = NeuProcess.from_process_id(process_id="PR-616178", username=USERNAME)
-# autorecon3_process: NeuProcess = NeuProcess.from_process_id(process_id="PR-574089", username=USERNAME)
 
 # # %%
 # autorecon1_process.build_singularity_image()
@@ -130,9 +123,9 @@ autorecon1_process.process_id, autorecon2_process.process_id, autorecon3_process
 # ## Set up Pipeline Graph
 
 # %%
-process_config_autorecon1: ProcessConstructorConfig = ProcessConstructorConfig.initiate_from_process_id(username=USERNAME, process_id=autorecon1_process.process_id)
-process_config_autorecon2: ProcessConstructorConfig = ProcessConstructorConfig.initiate_from_process_id(username=USERNAME, process_id=autorecon2_process.process_id)
-process_config_autorecon3: ProcessConstructorConfig = ProcessConstructorConfig.initiate_from_process_id(username=USERNAME, process_id=autorecon3_process.process_id)
+process_config_autorecon1: ProcessConstructorConfig = ProcessConstructorConfig.initiate_from_process_id(process_id=autorecon1_process.process_id)
+process_config_autorecon2: ProcessConstructorConfig = ProcessConstructorConfig.initiate_from_process_id(process_id=autorecon2_process.process_id)
+process_config_autorecon3: ProcessConstructorConfig = ProcessConstructorConfig.initiate_from_process_id(process_id=autorecon3_process.process_id)
 
 for process_config in [process_config_autorecon1, process_config_autorecon2, process_config_autorecon3]:
     process_config.extra_bind_paths = {FREESURFER_HOME: FREESURFER_HOME}

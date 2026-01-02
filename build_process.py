@@ -6,11 +6,9 @@ from src.neuroanalyst.models.process.process.core import NeuProcess
 import sys
 
 process_id: str = sys.argv[1]
-username: str = sys.argv[2]
 
 process: NeuProcess = NeuProcess.from_process_id(
-    process_id=process_id,
-    username=username
+    process_id=process_id
 )
 
 process.build_singularity_image()

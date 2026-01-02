@@ -110,7 +110,6 @@ class NeuProcessLogicArgument(BaseModel):
     description: str = Field(..., description="Description of the argument")
 
 class NeuProcessLogic(BaseModel):
-    username: Optional[str] = Field(default=None, description="Username of the user registering the process logic")
     about: About = Field(..., description="About the process logic")
     language: ProgrammingLanguage = Field(default=ProgrammingLanguage.PYTHON, description="Programming language used in the process logic")
     kind: NeuProcessKind = Field(default=NeuProcessKind.FILE, description="Kind of processing - file-level or bulk dataset processing")
@@ -132,7 +131,16 @@ class NeuProcessLogic(BaseModel):
     
     def __str__(self) -> str:
         """Return a human-readable string representation of the NeuProcessLogic."""
-        return f"NeuProcessLogic(name='{self.about.name}', language={self.language}, kind={self.kind})"
+        return_str: str = "\n".join([
+            f"NeuProcessLogic: {self.about.name}",
+            f"  Language: {self.language}",
+            f"  Kind: {self.kind}",
+            f"  Arguments: {[arg.name for arg in self.arguments]}",
+            f"  Import Statements: {len(self.import_statements)} imports",
+            f"  Code Preview:",
+            f"    {self.code[:500]}..." if len(self.code) > 500 else f"  Code: {self.code}"
+        ])
+        return return_str
     
     def __repr__(self) -> str:
         """Return a detailed string representation of the NeuProcessLogic."""
@@ -192,8 +200,8 @@ class NeuProcessLogic(BaseModel):
         return v
     
     @classmethod
-    def from_func_name(cls, func_name: str, username: Optional[str] = None) -> Self:
-        paths = NeuroAnalystPaths(username=username)
+    def from_func_name(cls, func_name: str) -> Self:
+        paths = NeuroAnalystPaths()
         function_dir: Path = paths.get_function_workdir(func_name)
         if not function_dir.exists():
             raise FileNotFoundError(f"Function directory does not exist: {function_dir}")
@@ -205,9 +213,9 @@ class NeuProcessLogic(BaseModel):
         return cls.model_validate(model_data)
     
     @staticmethod
-    def get_all_registered_logics(username: Optional[str] = None) -> list[Self]:
+    def get_all_registered_logics() -> list[Self]:
         """Get a list of all registered NeuProcessLogic instances."""
-        paths = NeuroAnalystPaths(username=username)
+        paths = NeuroAnalystPaths()
         function_workdir = paths.functions
         if not function_workdir.exists():
             return []
@@ -216,7 +224,7 @@ class NeuProcessLogic(BaseModel):
         for item in function_workdir.iterdir():
             if item.is_dir():
                 try:
-                    logic = NeuProcessLogic.from_func_name(item.name, username=username)
+                    logic = NeuProcessLogic.from_func_name(item.name)
                     logics.append(logic)
                 except Exception as e:
                     print(f"Error loading logic from {item}: {e}")
@@ -231,7 +239,7 @@ class NeuProcessLogic(BaseModel):
         Path: The path to the function directory.
         """
         
-        paths = NeuroAnalystPaths(username=self.username)
+        paths = NeuroAnalystPaths()
         function_dir: Path = paths.get_function_workdir(self.about.name)
         if function_dir.exists() and not overwrite:
            raise FileExistsError(f"Function directory already exists: {function_dir} . Use a different function name or delete the existing directory, or set overwrite=True to overwrite.") 
@@ -265,7 +273,7 @@ class NeuProcessLogic(BaseModel):
         """
         Delete the NeuProcessLogic from the functions directory.
         """
-        paths = NeuroAnalystPaths(username=self.username)
+        paths = NeuroAnalystPaths()
         function_dir: Path = paths.get_function_workdir(self.about.name)
         if not function_dir.exists():
             raise FileNotFoundError(f"Function directory does not exist: {function_dir}")

@@ -42,3 +42,13 @@ source set_envs.sh
 
 # Set up BIDS configuration
 # source set_config.sh
+
+# Set up users
+# Look for users.txt in the current directory, if it exists pass it to set_user.sh
+if [ -f "users.txt" ]; then
+    echo "Setting up users from users.txt..."
+    source set_user.sh "users.txt"
+else
+    echo "users.txt not found. Running set_user.sh without arguments."
+    source set_user.sh
+fi

@@ -50,7 +50,7 @@ class LogSync(SyncBase):
         self.logger.info(f"Loading logs for {component_type} {component_id} from HPC storage")
         
         # Determine log file path based on component type
-        paths = NeuroAnalystPaths(username=username)
+        paths = NeuroAnalystPaths()
         log_dir_path = paths.logs / component_type / component_id
         
         if component_type == 'process':
@@ -272,7 +272,7 @@ class LogSync(SyncBase):
         
         try:
             # Determine log directory path
-            paths = NeuroAnalystPaths(username=username)
+            paths = NeuroAnalystPaths()
             log_dir_path = paths.logs / component_type / component_id
             
             # Create log directory if it doesn't exist

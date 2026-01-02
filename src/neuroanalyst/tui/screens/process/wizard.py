@@ -262,7 +262,7 @@ class ProcessWizardScreen(BaseScreen):
     def get_base_image_component(self, bootstrap_method: Literal["docker", "localimage"]) -> Input | Select:
         """Return the appropriate base image component based on the bootstrap method."""
         if bootstrap_method == "localimage":
-            paths = NeuroAnalystPaths(username=self.app.global_vars.get("username"))
+            paths = NeuroAnalystPaths()
             options: list[tuple[str, str]] = [
                 (img.name, str(img)) for img in paths.base_images.iterdir() if img.is_file() and img.suffix in {".sif", ".img"}
             ]
@@ -314,7 +314,7 @@ class ProcessWizardScreen(BaseScreen):
         
     def set_ui_fields_for_step_2(self) -> None:
         if self.process_dir:
-            paths = NeuroAnalystPaths(username=self.app.global_vars.get("username"))
+            paths = NeuroAnalystPaths()
             self.query_one("#review_process_id_input", Input).value = self.process_dir.process_id
             self.query_one("#review_logic_name_input", Input).value = self.process_dir.logic.about.name
             self.query_one("#review_bootstrap_method_input", Input).value = self.process_dir.config.bootstrap_method
@@ -335,7 +335,7 @@ class ProcessWizardScreen(BaseScreen):
             build_venv_btn = self.query_one("#build_venv_btn", Button)
             
             # Check if builds exist
-            paths = NeuroAnalystPaths(username=self.app.global_vars.get("username"))
+            paths = NeuroAnalystPaths()
             image_exists: bool = (paths.get_process_image_path(self.process_dir.process_id)).exists()
             venv_exists: bool = (paths.get_venv_path(self.process_dir.process_id)).exists()
 
