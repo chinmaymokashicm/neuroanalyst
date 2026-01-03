@@ -1722,14 +1722,8 @@ class NeuPipeline(BaseModel):
             step_status.error = "One or more processes failed"
         elif any(p.status == ProcessStatus.RUNNING for p in step_status.processes):
             step_status.status = ProcessStatus.RUNNING
-            if not step_status.started_at:
+            if step_status.started_at is None:
                 step_status.started_at = current_time
-        else:
-            step_status.status = ProcessStatus.NOT_STARTED
-            step_status.started_at = None
-            step_status.completed_at = None
-            step_status.last_updated = current_time
-            step_status.error = None
             
         # Update overall pipeline status based on step statuses
         if all(s.status == ProcessStatus.COMPLETE for s in status.steps):
@@ -1744,6 +1738,36 @@ class NeuPipeline(BaseModel):
         # Save the updated status back to the file
         status_path = self.pipeline_dir_path / "status.json"
         with open(status_path, "w") as f:
+            f.write(status.model_dump_json(indent=2))
+            
+    def reset_exec(self, step_idx: int, exec_id: str) -> None:
+        """
+        Reset a specific process execution in the pipeline to NOT_STARTED status.
+        
+        Args:
+            step_idx: The index of the step in the pipeline
+            exec_id: The execution ID of the specific process to reset
+            
+        Raises:
+            FileNotFoundError: If the status file does not exist
+            ValueError: If the step index or exec_id is invalid
+        """
+        status = self.get_pipeline_status()
+        current_time = datetime.now().isoformat()
+
+        step_status = status.steps[step_idx]
+        proc_status = next(p for p in step_status.processes if p.exec_id == exec_id)
+
+        proc_status.completed_at = None
+        proc_status.error = None
+        proc_status.scheduler_job_id = None
+        proc_status.status = ProcessStatus.RUNNING
+        proc_status.last_updated = current_time
+
+        step_status.last_updated = current_time
+        status.last_updated = current_time
+
+        with open(self.pipeline_dir_path / "status.json", "w") as f:
             f.write(status.model_dump_json(indent=2))
         
     
@@ -2120,7 +2144,7 @@ class NeuPipeline(BaseModel):
 
             # Reset start, complete, and last_updated times for incomplete execs
             for pe in incomplete_execs:
-                self.update_pipeline_status(step_index, pe.exec_id, ProcessStatus.NOT_STARTED)
+                self.reset_exec(step_index, pe.exec_id)
             
             pending_execs = deque(incomplete_execs)
             running_futures: dict[concurrent.futures.Future, str] = {}
