@@ -1761,7 +1761,7 @@ class NeuPipeline(BaseModel):
         proc_status.completed_at = None
         proc_status.error = None
         proc_status.scheduler_job_id = None
-        proc_status.status = ProcessStatus.RUNNING
+        proc_status.status = ProcessStatus.NOT_STARTED
         proc_status.last_updated = current_time
 
         step_status.last_updated = current_time
