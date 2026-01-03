@@ -168,9 +168,12 @@ def fsl_correct_distortions_and_motion(input_filepath: str):
         result = subprocess.run(cmd, capture_output=True, text=True)
         if result.stdout:
             print("FSL Output:", result.stdout)
-        if result.stderr:
-            print("FSL Errors:", result.stderr)
-            raise subprocess.CalledProcessError(result.returncode, cmd, output=result.stdout, stderr=result.stderr)
+        if result.returncode != 0:
+            raise subprocess.CalledProcessError(
+                result.returncode, cmd,
+                output=result.stdout,
+                stderr=result.stderr
+            )
     except subprocess.CalledProcessError as e:
         print(f"Error during FSL eddy/topup execution: {e}")
         if getattr(e, 'output', None):
@@ -178,12 +181,15 @@ def fsl_correct_distortions_and_motion(input_filepath: str):
         if getattr(e, 'stderr', None):
             print("Errors:", e.stderr)
         traceback.print_exc()
-        raise e
     # ============================
     # Step 3: Prepare Outputs
     # ============================
-    corrected_img: nib.Nifti1Image = nib.load(os.path.join(temp_fsl_dir, "eddy_corrected.nii.gz"))
-    output_data = corrected_img.get_fdata()
+    try:
+        corrected_img: nib.Nifti1Image = nib.load(os.path.join(temp_fsl_dir, "eddy_corrected.nii.gz"))
+        output_data = corrected_img.get_fdata()
+    except Exception as e:
+        print(f"Error loading corrected image: {e}")
+        raise e
     
     # Save bvals and bvecs for reference in downstream processing if needed
     try:
