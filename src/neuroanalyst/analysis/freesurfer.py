@@ -1908,6 +1908,14 @@ def extract_cortical_regional_metrics(lh_aparc: Optional[pd.DataFrame],
     """
     Extract and combine cortical regional metrics from both hemispheres.
     Handles cases where one hemisphere might be None or empty.
+    
+    Args:
+        lh_aparc (Optional[pd.DataFrame]): DataFrame from load_aparc_stats() for left hemisphere.
+        rh_aparc (Optional[pd.DataFrame]): DataFrame from load_aparc_stats() for right hemisphere.
+        
+    Returns:
+        dict[str, pd.DataFrame]: Dictionary with keys 'lh', 'rh', and 'bilateral' containing
+                                 DataFrames of regional metrics.
     """
     results = {'lh': None, 'rh': None, 'bilateral': pd.DataFrame()}
     to_concat = []

@@ -149,7 +149,7 @@ def autorecon3(input_filepath: str):
         raise FileNotFoundError(f"Expected aparc.annot files not found: {lh_aparc_annot_path}, {rh_aparc_annot_path}.")
     lh_aparc = load_aparc_stats(lh_aparc_path)
     rh_aparc = load_aparc_stats(rh_aparc_path)
-    output_data: pd.DataFrame = extract_cortical_regional_metrics(lh_aparc, rh_aparc)
+    output_data: pd.DataFrame = extract_cortical_regional_metrics(lh_aparc, rh_aparc)["bilateral"]
 
     # Step 5: Prepare metrics and output entities
     try:
