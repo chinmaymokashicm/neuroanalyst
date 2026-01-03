@@ -1903,59 +1903,70 @@ def load_aparc_stats(aparc_stats_path: str) -> pd.DataFrame:
     return pd.DataFrame(stats_data)
 
 
-def extract_cortical_regional_metrics(lh_aparc: Optional[pd.DataFrame], 
-                                      rh_aparc: Optional[pd.DataFrame]) -> dict[str, pd.DataFrame]:
+def extract_cortical_regional_metrics(
+    lh_aparc: Optional[pd.DataFrame], 
+    rh_aparc: Optional[pd.DataFrame]
+) -> pd.DataFrame:
     """
     Extract and combine cortical regional metrics from both hemispheres.
-    Handles cases where one hemisphere might be None or empty.
-    
+    Handles cases where one hemisphere might be None or empty,
+    and computes bilateral metrics including separate LH and RH values.
+
     Args:
-        lh_aparc (Optional[pd.DataFrame]): DataFrame from load_aparc_stats() for left hemisphere.
-        rh_aparc (Optional[pd.DataFrame]): DataFrame from load_aparc_stats() for right hemisphere.
-        
+        lh_aparc (Optional[pd.DataFrame]): DataFrame for left hemisphere.
+        rh_aparc (Optional[pd.DataFrame]): DataFrame for right hemisphere.
+
     Returns:
-        dict[str, pd.DataFrame]: Dictionary with keys 'lh', 'rh', and 'bilateral' containing
-                                 DataFrames of regional metrics.
+        pd.DataFrame: DataFrame containing bilateral regional metrics with separate
+                     LH and RH columns plus bilateral averages.
     """
-    results = {'lh': None, 'rh': None, 'bilateral': pd.DataFrame()}
-    to_concat = []
+    hemispheres = []
 
-    # Process Left Hemisphere
     if lh_aparc is not None and not lh_aparc.empty:
-        lh = lh_aparc.copy()
-        lh['Hemisphere'] = 'LH'
-        results['lh'] = lh
-        to_concat.append(lh)
+        lh_df = lh_aparc.copy()
+        lh_df['Hemisphere'] = 'LH'
+        hemispheres.append(lh_df)
 
-    # Process Right Hemisphere
     if rh_aparc is not None and not rh_aparc.empty:
-        rh = rh_aparc.copy()
-        rh['Hemisphere'] = 'RH'
-        results['rh'] = rh
-        to_concat.append(rh)
+        rh_df = rh_aparc.copy()
+        rh_df['Hemisphere'] = 'RH'
+        hemispheres.append(rh_df)
 
-    # Handle the bilateral merge
-    if not to_concat:
-        return results  # Return early if both are empty
+    if not hemispheres:
+        return pd.DataFrame()  # Both hemispheres missing
 
-    bilateral = pd.concat(to_concat, ignore_index=True)
+    # Combine available hemispheres
+    combined: pd.DataFrame = pd.concat(hemispheres, ignore_index=True)
 
-    # Clean structure names and aggregate
-    # Using 'base_name' to avoid confusion with the original 'StructName'
-    bilateral['StructName_base'] = bilateral['StructName'].str.replace(r'^(lh_|rh_)', '', regex=True)
-    
+    # Remove 'lh_' or 'rh_' prefix to get the base structure name
+    combined['StructName_base'] = combined['StructName'].str.replace(r'^(lh_|rh_)', '', regex=True)
+
+    # Define metrics to extract
     metrics = ['SurfaceArea_mm2', 'GrayVolume_mm3', 'ThickAvg_mm', 'MeanCurv', 'GausCurv']
-    
-    # Check which metrics actually exist in the dataframe to avoid KeyErrors
-    available_metrics = [m for m in metrics if m in bilateral.columns]
+    available_metrics = [m for m in metrics if m in combined.columns]
 
-    results['bilateral'] = (
-        bilateral.groupby('StructName_base')[available_metrics]
-        .mean()
-        .reset_index()
+    # Pivot LH and RH metrics to separate columns
+    pivoted: pd.DataFrame = pd.pivot_table(
+        combined,
+        index='StructName_base',
+        columns='Hemisphere',
+        values=available_metrics,
+        aggfunc='first'  # In case of duplicates, take the first
     )
 
-    return results
+    # Flatten MultiIndex columns
+    pivoted.columns = [f"{hemi}_{metric}" for metric, hemi in pivoted.columns]
+
+    # Compute bilateral mean
+    for metric in available_metrics:
+        lh_col = f"LH_{metric}"
+        rh_col = f"RH_{metric}"
+        bilateral_col = f"Bilateral_{metric}"
+
+        # Compute mean, skipping NaNs if one hemisphere is missing
+        pivoted[bilateral_col] = pivoted[[lh_col, rh_col]].mean(axis=1, skipna=True)
+
+    return pivoted.reset_index()
 
 def extract_total_cortical_metrics(lh_aparc: Optional[pd.DataFrame], 
                                   rh_aparc: Optional[pd.DataFrame]) -> dict[str, float]:
