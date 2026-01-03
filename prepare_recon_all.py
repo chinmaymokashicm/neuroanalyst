@@ -41,6 +41,8 @@ PIPELINE_DESCRIPTION: str = "Executes the recon-all pipeline for preprocessing a
 EXTRA_BIND_PATHS: dict = {"/risapps/rhel8/freesurfer/7.4.1": "/risapps/rhel8/freesurfer/7.4.1"}
 EXTRA_ENVIRONMENT_VARIABLES: dict = {"FREESURFER_HOME": "/risapps/rhel8/freesurfer/7.4.1"}
 
+DATA_DIR: str = "/rsrch5/home/csi/cmokashi/neuroanalyst/users/cmokashi/datasets/ds004884-1.0.2/"
+
 # %% [markdown]
 # ## Prepare Logics
 
@@ -102,7 +104,7 @@ for logic_name in logic_names:
 # %%
 pipeline_recipe_config: dict = {
     "author": AUTHOR,
-    "data": "/rsrch5/home/csi/cmokashi/neuroanalyst/cmokashi/datasets/ds004884-1.0.2/",
+    "data": DATA_DIR,
     "name": PIPELINE_NAME,
     "description": PIPELINE_DESCRIPTION,
     "auto_link": True,

@@ -40,6 +40,8 @@ EXTRA_BIND_PATHS: dict = {"/opt/fsl_images/": "/risapps/apptainer/repo/fsl/3.16.
 EXTRA_ENVIRONMENT_VARIABLES: dict = {"FSL_IMG_NAME": "fsl_3.16.8.sif"}
 fsl_logics_idxs: list[int] = [2]  # Indices of logics that use FSL and need extra bind paths/env variables
 
+DATA_DIR: str = "/rsrch5/home/csi/cmokashi/neuroanalyst/users/cmokashi/datasets/ds004884-1.0.2/"
+
 # %% [markdown]
 # ## Prepare Logics
 
@@ -111,7 +113,7 @@ for i, logic_name in enumerate(logic_names):
 # %%
 pipeline_recipe_config: dict = {
     "author": AUTHOR,
-    "data": "/rsrch5/home/csi/cmokashi/neuroanalyst/cmokashi/datasets/ds004884-1.0.2/",
+    "data": DATA_DIR,
     "name": PIPELINE_NAME,
     "description": PIPELINE_DESCRIPTION,
     "auto_link": True,
