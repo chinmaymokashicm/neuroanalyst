@@ -29,7 +29,7 @@ def main():
         console.print("[red]Process ID is required. Exiting.[/red]")
         return
     process: NeuProcess = NeuProcess.from_process_id(process_id)
-    console.print(Panel.fit(f"[bold green]Loaded Process:[/bold green] {process.about.name} (ID: {process.process_id})"))
+    console.print(Panel.fit(f"[bold green]Loaded Process:[/bold green] {process.logic.about.name} (ID: {process.process_id})"))
     
     # Check if process image is built
     if not process.is_image_built():
