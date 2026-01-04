@@ -77,6 +77,7 @@ def main():
             default=True
         ).ask()
         if confirm_build:
+            selected_process_dir.generate()
             console.print(f"[blue]Building Singularity image...[/blue]")
             try:
                 selected_process_dir.build_singularity_image()
