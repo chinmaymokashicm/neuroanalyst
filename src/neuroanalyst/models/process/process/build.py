@@ -3,6 +3,7 @@ Build Process Environment
 """
 from src.neuroanalyst.utils.constants import get_current_username
 from src.neuroanalyst.models.process.dir.core import NeuProcessDir
+from src.neuroanalyst.models.process.process.core import NeuProcess
 from src.neuroanalyst.models.process.logic.core import NeuProcessLogic
 
 from pathlib import Path
@@ -29,7 +30,7 @@ def main():
     selected_logic: Optional[NeuProcessLogic] = None
     
     while not selected_logic and not cancel:
-        logic_choices: list[str] = [f"{logic.about.name} (ID: {logic.logic_id})" for logic in all_logics]
+        logic_choices: list[str] = [f"{logic.about.name} (Name: {logic.about.name})" for logic in all_logics]
         
         selected_logic_choice: str = questionary.select(
             "Select a process logic to build its environment:",
@@ -44,7 +45,7 @@ def main():
         selected_logic = all_logics[selected_index]
         
         # Display selected logic info
-        console.print(Panel.fit(f"[bold green]Selected Process Logic:[/bold green] {selected_logic.about.name} (ID: {selected_logic.logic_id})"))
+        console.print(Panel.fit(f"[bold green]Selected Process Logic:[/bold green] {selected_logic.about.name} (Name: {selected_logic.about.name})"))
         console.print(Panel.fit(selected_logic))
         
         # Confirm selection
@@ -60,9 +61,10 @@ def main():
     if not selected_logic:
         return
     
-    selected_process: NeuProcessDir = NeuProcessDir.from_logic(selected_logic)
-    console.print(Panel.fit(f"[bold green]Process Directory Created for:[/bold green] {selected_process.logic.about.name}"))
-    console.print(Panel.fit(selected_process))
+    selected_process_dir: NeuProcessDir = NeuProcessDir.from_logic(selected_logic)
+    selected_process: NeuProcess = NeuProcess.from_process_dir(selected_process_dir)
+    console.print(Panel.fit(f"[bold green]Process Directory Created for:[/bold green] {selected_process_dir.logic.about.name}"))
+    console.print(Panel.fit(selected_process_dir))
         
     # Select environment type to build
     env_type: str = questionary.select(
@@ -75,13 +77,13 @@ def main():
     
     if env_type == "Singularity Image":
         confirm_build: bool = questionary.confirm(
-            f"Do you want to build the Singularity image for process '{selected_process.logic.about.name}' now?",
+            f"Do you want to build the Singularity image for process '{selected_process_dir.logic.about.name}' now?",
             default=True
         ).ask()
         if confirm_build:
             console.print(f"[blue]Building Singularity image...[/blue]")
             try:
-                selected_process.build_singularity_image()
+                selected_process_dir.build_singularity_image()
                 console.print(f"[green]Singularity image built successfully at {selected_process.image_path}[/green]")
             except Exception as e:
                 console.print(f"[red]Error building Singularity image: {e}[/red]")
@@ -89,13 +91,13 @@ def main():
             console.print("[yellow]Singularity image build cancelled by user.[/yellow]")
     elif env_type == "Virtual Environment":
         confirm_build: bool = questionary.confirm(
-            f"Do you want to create the virtual environment for process '{selected_process.logic.about.name}' now?",
+            f"Do you want to create the virtual environment for process '{selected_process_dir.logic.about.name}' now?",
             default=True
         ).ask()
         if confirm_build:
             console.print(f"[blue]Creating virtual environment...[/blue]")
             try:
-                selected_process.create_virtual_env()
+                selected_process_dir.create_virtual_env()
                 console.print(f"[green]Virtual environment created successfully at {selected_process.venv_path}[/green]")
             except Exception as e:
                 console.print(f"[red]Error creating virtual environment: {e}[/red]")
