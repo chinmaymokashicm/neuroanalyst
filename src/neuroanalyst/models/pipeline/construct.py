@@ -137,10 +137,10 @@ def main():
 def start():
     try:
         main()
-    except Exception as e:
-        console.print(f"[red]An unexpected error occurred: {e}[/red]")
     except KeyboardInterrupt:
         console.print("[yellow]Execution interrupted by user.[/yellow]")
+    except Exception as e:
+        console.print(f"[red]An unexpected error occurred: {e}[/red]")
         
 if __name__ == "__main__":
     app()
