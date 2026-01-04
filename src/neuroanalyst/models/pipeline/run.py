@@ -64,10 +64,10 @@ def main():
         "Enter the window size (number of parallel processes to run at the same time):",
         default="1",
         validate=lambda text: text.isdigit() and int(text) in range(1, 31) or "Please enter a positive integer."
-    ))
+    ).ask())
     console.print(f"[blue]Running pipeline '{selected_pipeline.about.name}'...[/blue]")
     try:
-        selected_pipeline.execute_via_python()
+        selected_pipeline.execute_via_python(window_size=window_size)
         console.print(f"[green]Pipeline '{selected_pipeline.about.name}' started execution. Minimize this window to continue working.[/green]")
     except Exception as e:
         console.print(f"[red]Error running pipeline '{selected_pipeline.about.name}': {e}[/red]")
