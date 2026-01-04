@@ -1,6 +1,7 @@
 """
 Test or dry run a Process before integrating it into a full Pipeline.
 """
+from src.neuroanalyst.models.process.logic.core import ALLOWED_PYBIDS_ENTITY_KEYS
 from src.neuroanalyst.models.process.process.core import NeuProcess
 from src.neuroanalyst.models.process.exec.core import NeuProcessExec
 from src.neuroanalyst.models.pipeline.core import NeuPipeline
@@ -86,6 +87,23 @@ def main():
         "Select the BIDS scope for testing:",
         choices=NeuPipeline.get_available_scopes(bids_root)
         ).ask()
+    
+    # Ask for BIDS filters (key-value pairs)
+    available_entities: list[str] = ALLOWED_PYBIDS_ENTITY_KEYS.copy()
+    while True:
+        add_filter: bool = questionary.confirm("Do you want to add a BIDS filter?", default=False).ask()
+        if not add_filter:
+            break
+        entity_key: str = questionary.select(
+            "Select the BIDS entity key for the filter:",
+            choices=available_entities
+            ).ask()
+        entity_value: str = questionary.text(f"Enter the value for entity '{entity_key}':").ask()
+        process_constructor_config.input_bids_filters[entity_key] = entity_value
+        # Remove selected entity from available choices
+        available_entities.remove(entity_key)
+        if not available_entities:
+            break
     
     process_exec: NeuProcessExec = process_constructor_config.create_single_process_exec(
         scheduler_flags=scheduler_flags,

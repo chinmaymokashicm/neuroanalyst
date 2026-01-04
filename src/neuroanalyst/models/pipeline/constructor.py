@@ -86,6 +86,7 @@ class ProcessConstructorConfig(BaseModel, validate_assignment=True):
         self,
         scheduler_flags: dict,
         bids_root: str | Path,
+        bids_filters: dict[str, Optional[str | list[Optional[str | int]]]],
         bids_scope: str = "raw",
         sample_pipeline_id: str = "PL-000000",
         sample_pipeline_name: str = "Test Pipeline"
@@ -95,7 +96,7 @@ class ProcessConstructorConfig(BaseModel, validate_assignment=True):
         
         """
         process_exec: NeuProcessExec = NeuProcessExec.generate_from_process_id(process_id=self.process_id)
-        bids_filters: dict[str, Optional[str | list[Optional[str | int]]]] = self.input_bids_filters.copy()
+        # bids_filters: dict[str, Optional[str | list[Optional[str | int]]]] = self.input_bids_filters.copy()
         # Update BIDS filters with first subject/session if available
         if self.subject_session_pairs:
             subjects: list[Optional[str]] = self.subject_session_pairs[0][0]
