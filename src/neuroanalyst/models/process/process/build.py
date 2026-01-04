@@ -30,23 +30,20 @@ def main():
     selected_logic: Optional[NeuProcessLogic] = None
     
     while not selected_logic and not cancel:
-        logic_choices: list[str] = [f"{logic.about.name} (Name: {logic.about.name})" for logic in all_logics]
-        
-        selected_logic_choice: str = questionary.select(
+        selected_logic_name: str = questionary.select(
             "Select a process logic to build its environment:",
-            choices=["CANCEL"] + logic_choices
+            choices=["CANCEL"] + [logic.about.name for logic in all_logics]
         ).ask()
-        if not selected_logic_choice or selected_logic_choice == "CANCEL":
+        if not selected_logic_name or selected_logic_name == "CANCEL":
             console.print("[red]Process logic selection is required. Exiting.[/red]")
             cancel = True
             return
         
-        selected_index: int = logic_choices.index(selected_logic_choice)
-        selected_logic = all_logics[selected_index]
+        selected_logic: NeuProcessLogic = next(logic for logic in all_logics if logic.about.name == selected_logic_name)
         
         # Display selected logic info
         console.print(Panel.fit(f"[bold green]Selected Process Logic:[/bold green] {selected_logic.about.name} (Name: {selected_logic.about.name})"))
-        console.print(Panel.fit(selected_logic))
+        console.print(Panel.fit(selected_logic.code))
         
         # Confirm selection
         confirm_selection: bool = questionary.confirm(
@@ -64,7 +61,7 @@ def main():
     selected_process_dir: NeuProcessDir = NeuProcessDir.from_logic(selected_logic)
     selected_process: NeuProcess = NeuProcess.from_process_dir(selected_process_dir)
     console.print(Panel.fit(f"[bold green]Process Directory Created for:[/bold green] {selected_process_dir.logic.about.name}"))
-    console.print(Panel.fit(selected_process_dir))
+    console.print(Panel.fit(selected_process_dir.model_dump()))
         
     # Select environment type to build
     env_type: str = questionary.select(
