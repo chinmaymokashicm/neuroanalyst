@@ -77,7 +77,7 @@ def main():
     console.print(f"[blue]Registering process logic from recipe '{selected_recipe_path.name}'...[/blue]")
     new_logic: NeuProcessLogic = create_logic_from_recipe(selected_recipe_path)
     new_logic.register()
-    console.print(f"[bold green]Successfully registered process logic '{new_logic.about.name}' with ID '{new_logic.logic_id}'[/bold green]")
+    console.print(f"[bold green]Successfully registered process logic '{new_logic.about.name}' with ID '{new_logic.about.name}'[/bold green]")
     
 @app.command()
 def start():
