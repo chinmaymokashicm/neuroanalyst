@@ -44,8 +44,8 @@ def main():
         selected_pipeline = all_pipelines[selected_index]
         
         # Display selected pipeline info
-        console.print(Panel.fit(f"[bold green]Selected Pipeline:[/bold green] {selected_pipeline.about.name} (ID: {selected_pipeline.pipeline_id})"))
-        console.print(Panel.fit(selected_pipeline))
+        console.print(f"[bold green]Selected Pipeline:[/bold green] {selected_pipeline.about.name} (ID: {selected_pipeline.pipeline_id})")
+        console.print(selected_pipeline)
         
         # Confirm selection
         confirm_selection: bool = questionary.confirm(
