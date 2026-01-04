@@ -47,7 +47,7 @@ def main():
         
         # Display selected recipe info
         console.print(Panel.fit(f"[bold green]Selected Recipe:[/bold green] {selected_recipe_path.name}"))
-        recipe_content: ProcessDirRecipe = get_recipe_yaml_path(selected_recipe_path, recipe_type="process")
+        recipe_content: ProcessDirRecipe = get_recipe_yaml_path(selected_recipe_path.stem, recipe_type="process")
         console.print(Panel.fit(recipe_content))
         
         # Confirm selection
