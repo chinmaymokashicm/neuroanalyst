@@ -79,7 +79,7 @@ def main():
     # Create pipeline from selected recipe
     try:
         pipeline: NeuPipeline = construct_pipeline_from_recipe(selected_recipe_path)
-        console.print(Panel.fit(f"[bold green]Pipeline '{pipeline.about.name}' created successfully![/bold green]\n\n[bold]Pipeline ID:[/bold] {pipeline.pipeline_id}\n[bold]Description:[/bold] {pipeline.description}"))
+        console.print(Panel.fit(f"[bold green]Pipeline '{pipeline.about.name}' created successfully![/bold green]\n\n[bold]Pipeline ID:[/bold] {pipeline.pipeline_id}\n[bold]Description:[/bold] {pipeline.about.description}"))
     except Exception as e:
         console.print(f"[red]Error creating pipeline from recipe: {e}[/red]")
         return
@@ -91,7 +91,7 @@ def main():
     ).ask()
     if confirm_save:
         try:
-            pipeline.create_pipeline_dir()
+            # pipeline.create_pipeline_dir()
             console.print(f"[green]Pipeline saved successfully at {pipeline.pipeline_dir_path}[/green]")
         except FileExistsError:
             console.print(f"[red]Pipeline directory already exists at {pipeline.pipeline_dir_path}. Not overwriting.[/red]")
