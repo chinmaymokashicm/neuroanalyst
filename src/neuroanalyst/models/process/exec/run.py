@@ -69,13 +69,15 @@ def main():
     sample_pipeline_name: str = questionary.text("Enter a sample Pipeline Name for testing (default: Test Pipeline):", default="Test Pipeline").ask()
     
     # Ask for scheduler flags
-    scheduler_flags: list[str] = []
-    while True:
-        add_flag: bool = questionary.confirm("Do you want to add a scheduler flag?", default=False).ask()
-        if not add_flag:
+    scheduler_flags: dict[str, str] = {}
+    add_scheduler_flags: bool = questionary.confirm("Do you want to add scheduler flags for testing?", default=False).ask()
+    while add_scheduler_flags:
+        flag_key: str = questionary.text("Enter the scheduler flag key (e.g., --time):").ask()
+        flag_value: str = questionary.text(f"Enter the value for scheduler flag '{flag_key}':").ask()
+        scheduler_flags[flag_key] = flag_value
+        add_more: bool = questionary.confirm("Do you want to add another scheduler flag?", default=False).ask()
+        if not add_more:
             break
-        flag: str = questionary.text("Enter the scheduler flag (e.g., --time=01:00:00):").ask()
-        scheduler_flags.append(flag)
     
     # Ask for BIDS root path
     bids_root: str = questionary.path(
@@ -109,7 +111,7 @@ def main():
     # Ask for subjects
     add_subjects: bool = questionary.confirm("Do you want to specify subjects for testing?", default=False).ask()
     subjects: Optional[list[str]] = None
-    available_subjects: list[str] = bids_layout.get_subjects()
+    available_subjects: list[str] = bids_layout.get_subjects(scope=bids_scope)
     while add_subjects and available_subjects:
         subjects = subjects or []
         subject: str = questionary.select(
@@ -128,7 +130,7 @@ def main():
     available_sessions: Optional[list[str]] = None
     if subjects:
         sessions = sessions or []
-        available_sessions = bids_layout.get_sessions(subject=subjects)
+        available_sessions = bids_layout.get_sessions(subject=subjects, scope=bids_scope)
         while len(available_sessions) > 0:
             add_session: bool = questionary.confirm("Do you want to specify sessions for testing?", default=False).ask()
             if not add_session:
