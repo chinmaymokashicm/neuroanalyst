@@ -17,8 +17,6 @@ from rich.console import Console
 from rich.panel import Panel
 from bids.layout import BIDSLayout
 
-TARGET_MODULE_PATH: str = "neuroanalyst.models.process.logic.core"
-
 console = Console()
 app = typer.Typer()
 

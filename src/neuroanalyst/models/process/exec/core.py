@@ -140,14 +140,21 @@ class NeuProcessExec(BaseModel):
     @property
     def is_fully_configured(self) -> bool:
         """
-        Check if all required bind paths and environment variables have values.
+        Check if -
+        - All required bind paths have values set
+        - All required environment variables have values set
+        - The execution command is generated
+        - The execution container/venv is built
         
         Returns:
             bool: True if all required values are provided, False otherwise
         """
         missing_bind_paths = [path for path in self.process.bind_paths if path not in self.bind_path_values]
         missing_env_vars = [var for var in self.process.environment_variables if var not in self.env_var_values]
-        return len(missing_bind_paths) == 0 and len(missing_env_vars) == 0
+        command_generated = self.exec_command is not None
+        container_built = self.is_container_built()
+        
+        return len(missing_bind_paths) == 0 and len(missing_env_vars) == 0 and command_generated and container_built
     
     @classmethod
     def generate_from_process(cls, process: NeuProcess, **kwargs) -> "NeuProcessExec":
@@ -437,10 +444,24 @@ class NeuProcessExec(BaseModel):
             set_scheduler_flags({'queue': 'batch', 'l mem': '4gb', 'l walltime': '1:00:00'})
         """
         self.scheduler_flags.update(flags)
+        
+    def is_container_built(self) -> bool:
+        """
+        Check if the execution container image is built if using container mode, or if the virtual environment is created in venv mode.
+        
+        Returns:
+            bool: True if the container image is built, False otherwise
+        """
+        if self.execution_mode == ExecutionMode.CONTAINER:
+            return self.process.is_image_built
+        elif self.execution_mode == ExecutionMode.VENV:
+            return self.process.is_venv_created
+        return False
     
     def get_configuration_status(self) -> Dict[str, Dict[str, List[str]] | Dict[str, Any]]:
         """
-        Get the status of required bind paths and environment variables.
+        - Get the status of required bind paths and environment variables, execution command, scheduler flags.
+        - Check if the execution container is built.
         
         Returns:
             Dict with information about provided and missing bind paths and environment variables,
@@ -482,14 +503,19 @@ class NeuProcessExec(BaseModel):
             "command": {
                 "is_set": self.exec_command is not None,
                 "value": self.exec_command if self.exec_command is not None else None
-            }
+            },
+            "container_built": self.is_container_built()
         }
         return status
     
     def print_configuration_status(self) -> None:
         """
-        Print a report of the required, provided, and missing bind paths and environment variables,
-        as well as the execution command status.
+        Print a report of the required, provided -
+        - Missing bind paths
+        - Missing environment variables
+        - Execution command status
+        - Scheduler flags
+        - Execution container status
         """
         status = self.get_configuration_status()
         
@@ -530,12 +556,19 @@ class NeuProcessExec(BaseModel):
         else:
             print(f"  Status: ❌ Command is not set")
         
+        # Container status section
+        print("\nExecution Container Status:")
+        if status['container_built']:
+            print("  Status: ✅ Execution container/venv is built")
+        else:
+            print("  Status: ❌ Execution container/venv is not built")
+        
         # Overall status
         print("\nOverall Status:")
         if not status['bind_paths']['missing'] and not status['environment_variables']['missing']:
-            print("  Configuration: ✅ All required configuration values are provided")
+            print("  ✅ All required bind paths and environment variables are provided.")
         else:
-            print("  Configuration: ❌ Missing required configuration values")
+            print("  ❌ Some required bind paths or environment variables are missing.")
         
         print(f"=== End of Configuration Status ===\n")
     

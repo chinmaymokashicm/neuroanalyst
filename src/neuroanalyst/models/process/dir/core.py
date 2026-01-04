@@ -97,16 +97,8 @@ class NeuProcessDirConfig(BaseModel):
                 normalized.append(flag)
         return normalized
     
-    def __str__(self) -> str:
-        """Return a human-readable string representation of the NeuProcessDirConfig."""
-        languages = ', '.join(self.language_packages.keys()) if self.language_packages else 'none'
-        return f"NeuProcessDirConfig(languages=[{languages}], system_packages={len(self.system_packages)}, parallel={self.parallel_execution})"
-    
-    def __repr__(self) -> str:
-        """Return a detailed string representation of the NeuProcessDirConfig."""
-        return f"NeuProcessDirConfig(language_packages={self.language_packages}, "\
-               f"system_packages={self.system_packages}, "\
-               f"parallel_execution={self.parallel_execution}, max_workers={self.max_workers})"
+    def __str__(self):
+        return self.model_dump_json(indent=2)
 
 class NeuProcessDir(BaseModel):
     """
@@ -149,7 +141,16 @@ class NeuProcessDir(BaseModel):
 
     def __str__(self) -> str:
         """Return a human-readable string representation of the NeuProcessDir."""
-        return f"NeuProcessDir(name='{self.logic.about.name if self.logic else None}', id='{self.process_id}')"
+        return "\n".join([
+            f"Process ID: {self.process_id}",
+            f"Process Name: {self.process_name}",
+            f"Description: {self.description}",
+            f"Version: {self.version}",
+            f"Author: {self.author}",
+            f"Language: {self.language}",
+            f"Logic: {self.logic.about.name if self.logic else 'Custom Scripts'}",
+            f"Code: {self.logic.code if self.logic else self.script_paths}"
+        ])
 
     # Configuration modification methods
     def add_environment_variables(self, variables: str | List[str]) -> None:
