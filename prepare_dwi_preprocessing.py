@@ -6,7 +6,7 @@
 # 2. dipy_remove_gibbs_ringing
 # 3. fsl_correct_distortions_and_motion
 # # 4. n4_bias_field_correction
-# # 5. dipy_brain_mask
+# 5. dipy_brain_mask
 
 # %%
 from src.neuroanalyst.models.recipe.core import (
@@ -51,7 +51,7 @@ logic_names: list[str] = [
     "dipy_remove_gibbs_ringing",
     "fsl_correct_distortions_and_motion",
     # "n4_bias_field_correction",
-    # "dipy_brain_mask",
+    "dipy_brain_mask",
 ]
 
 logic_descriptions: list[str] = [
@@ -59,7 +59,7 @@ logic_descriptions: list[str] = [
     "Remove Gibbs ringing artifacts from DWI data using DIPY.",
     "Correct for eddy currents, susceptibility distortions, and motion in DWI data using FSL.",
     # "Apply N4 bias field correction to DWI data.",
-    # "Generate brain mask from DWI data using DIPY.",
+    "Generate brain mask from DWI data using DIPY.",
 ]
 
 # %%
