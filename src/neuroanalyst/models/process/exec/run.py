@@ -10,10 +10,12 @@ from src.neuroanalyst.models.pipeline.constructor import ProcessConstructorConfi
 
 from pathlib import Path
 import subprocess
+from typing import Optional
 
 import typer, questionary
 from rich.console import Console
 from rich.panel import Panel
+from bids.layout import BIDSLayout
 
 TARGET_MODULE_PATH: str = "neuroanalyst.models.process.logic.core"
 
@@ -81,15 +83,17 @@ def main():
         only_directories=True
         ).ask()
     
+    bids_layout: BIDSLayout = BIDSLayout(bids_root, derivatives=True)
+    
     # Ask for BIDS scope
     bids_scope: str = questionary.select(
         "Select the BIDS scope for testing:",
         choices=NeuPipeline.get_available_scopes(bids_root)
         ).ask()
     
-    # Ask for BIDS filters (key-value pairs)
-    available_entities: list[str] = ALLOWED_PYBIDS_ENTITY_KEYS.copy()
-    while True:
+    # Ask for BIDS filters
+    available_entities: list[str] = sorted(ALLOWED_PYBIDS_ENTITY_KEYS.copy())
+    while len(available_entities) > 0:
         add_filter: bool = questionary.confirm("Do you want to add a BIDS filter?", default=False).ask()
         if not add_filter:
             break
@@ -101,13 +105,47 @@ def main():
         process_constructor_config.input_bids_filters[entity_key] = entity_value
         # Remove selected entity from available choices
         available_entities.remove(entity_key)
-        if not available_entities:
+    
+    # Ask for subjects
+    add_subjects: bool = questionary.confirm("Do you want to specify subjects for testing?", default=False).ask()
+    subjects: Optional[list[str]] = None
+    available_subjects: list[str] = bids_layout.get_subjects()
+    while add_subjects and available_subjects:
+        subjects = subjects or []
+        subject: str = questionary.select(
+            "Select a subject to add:",
+            choices=available_subjects
+            ).ask()
+        if subjects is None:
+            subjects = []
+        subjects.append(subject)
+        available_subjects.remove(subject)
+        add_more: bool = questionary.confirm("Do you want to add another subject?", default=False).ask()
+        if not add_more:
             break
+    
+    sessions: Optional[list[str]] = None
+    available_sessions: Optional[list[str]] = None
+    if subjects:
+        sessions = sessions or []
+        available_sessions = bids_layout.get_sessions(subject=subjects)
+        while len(available_sessions) > 0:
+            add_session: bool = questionary.confirm("Do you want to specify sessions for testing?", default=False).ask()
+            if not add_session:
+                break
+            session: str = questionary.select(
+                "Select a session to add:",
+                choices=available_sessions
+                ).ask()
+            sessions.append(session)
+            available_sessions.remove(session)
     
     process_exec: NeuProcessExec = process_constructor_config.create_single_process_exec(
         scheduler_flags=scheduler_flags,
         bids_root=bids_root,
         bids_scope=bids_scope,
+        subjects=subjects,
+        sessions=sessions,
         sample_pipeline_id=sample_pipeline_id,
         sample_pipeline_name=sample_pipeline_name
     )

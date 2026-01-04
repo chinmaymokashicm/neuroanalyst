@@ -86,7 +86,8 @@ class ProcessConstructorConfig(BaseModel, validate_assignment=True):
         self,
         scheduler_flags: dict,
         bids_root: str | Path,
-        bids_filters: dict[str, Optional[str | list[Optional[str | int]]]],
+        subjects: Optional[str | list[str]] = None,
+        sessions: Optional[str | list[str]] = None,
         bids_scope: str = "raw",
         sample_pipeline_id: str = "PL-000000",
         sample_pipeline_name: str = "Test Pipeline"
@@ -96,14 +97,17 @@ class ProcessConstructorConfig(BaseModel, validate_assignment=True):
         
         """
         process_exec: NeuProcessExec = NeuProcessExec.generate_from_process_id(process_id=self.process_id)
-        # bids_filters: dict[str, Optional[str | list[Optional[str | int]]]] = self.input_bids_filters.copy()
+        bids_filters: dict[str, Optional[str | list[Optional[str | int]]]] = self.input_bids_filters.copy()
         # Update BIDS filters with first subject/session if available
-        if self.subject_session_pairs:
-            subjects: list[Optional[str]] = self.subject_session_pairs[0][0]
-            sessions: list[Optional[str]] = self.subject_session_pairs[0][1]
-            if len(subjects) > 0 and subjects != [None]:
+        if subjects:
+            if isinstance(subjects, str):
+                bids_filters["subject"] = [subjects]
+            else:
                 bids_filters["subject"] = subjects
-            if len(sessions) > 0 and sessions != [None]:
+        if sessions:
+            if isinstance(sessions, str):
+                bids_filters["session"] = [sessions]
+            else:
                 bids_filters["session"] = sessions
         # Update BIDS filters with scope - verify if scope is valid
         if NeuPipeline.is_scope_valid(bids_scope, bids_root):
