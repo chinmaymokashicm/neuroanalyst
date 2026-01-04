@@ -1,5 +1,5 @@
 """
-Construct and run a Pipeline from a recipe
+Construct a Pipeline from a recipe
 """
 from src.neuroanalyst.models.recipe.core import (
     construct_pipeline_from_recipe,
