@@ -1,7 +1,13 @@
 """
 Build Process Environment
 """
-from src.neuroanalyst.utils.constants import get_current_username
+from src.neuroanalyst.utils.constants import get_current_username, NeuroAnalystPaths
+from src.neuroanalyst.models.recipe.core import (
+    ProcessDirRecipe,
+    save_recipe_to_yaml,
+    get_recipe_yaml_path,
+    create_process_dir_from_recipe
+)
 from src.neuroanalyst.models.process.dir.core import NeuProcessDir
 from src.neuroanalyst.models.process.process.core import NeuProcess
 from src.neuroanalyst.models.process.logic.core import NeuProcessLogic
@@ -20,45 +26,40 @@ def main():
     console.rule("[bold blue]Build Process Environment[/bold blue]")
     console.print(f"Welcome {get_current_username()}!")
     
-    all_logics: list[NeuProcessLogic] = NeuProcessLogic.get_all_registered_logics()
-    if not all_logics:
-        console.print("[red]No registered process logics found. Exiting.[/red]")
-        return
+    all_process_recipe_paths: list[Path] = list(NeuroAnalystPaths().recipes.glob("process/*.yaml"))
     
-    # Loop until a logic is selected or cancelled
     cancel: bool = False
-    selected_logic: Optional[NeuProcessLogic] = None
-    
-    while not selected_logic and not cancel:
-        selected_logic_name: str = questionary.select(
-            "Select a process logic to build its environment:",
-            choices=["CANCEL"] + [logic.about.name for logic in all_logics]
+    selected_recipe_path: Optional[Path] = None
+    while not selected_recipe_path and not cancel:
+        recipe_choices: list[str] = [path.name for path in all_process_recipe_paths]
+        
+        selected_recipe_choice: str = questionary.select(
+            "Select a process recipe to build environment for:",
+            choices=["CANCEL"] + recipe_choices
         ).ask()
-        if not selected_logic_name or selected_logic_name == "CANCEL":
-            console.print("[red]Process logic selection is required. Exiting.[/red]")
+        if not selected_recipe_choice or selected_recipe_choice == "CANCEL":
+            console.print("[red]Recipe selection is required. Exiting.[/red]")
             cancel = True
             return
         
-        selected_logic: NeuProcessLogic = next(logic for logic in all_logics if logic.about.name == selected_logic_name)
+        selected_index: int = recipe_choices.index(selected_recipe_choice)
+        selected_recipe_path = all_process_recipe_paths[selected_index]
         
-        # Display selected logic info
-        console.print(Panel.fit(f"[bold green]Selected Process Logic:[/bold green] {selected_logic.about.name} (Name: {selected_logic.about.name})"))
-        console.print(Panel.fit(selected_logic.code))
+        # Display selected recipe info
+        console.print(Panel.fit(f"[bold green]Selected Recipe:[/bold green] {selected_recipe_path.name}"))
+        recipe_content: ProcessDirRecipe = get_recipe_yaml_path(selected_recipe_path)
+        console.print(Panel.fit(recipe_content))
         
         # Confirm selection
         confirm_selection: bool = questionary.confirm(
-            f"Do you want to build the environment for process logic '{selected_logic.about.name}'?",
+            f"Do you want to build the environment for process '{selected_recipe_path.stem}'?",
             default=True
         ).ask()
         if not confirm_selection:
-            console.print("[yellow]Process logic selection cancelled by user.[/yellow]")
-            selected_logic = None
-            
-    # Create NeuProcessDir instance
-    if not selected_logic:
-        return
+            console.print("[yellow]Recipe selection cancelled by user.[/yellow]")
+            selected_recipe_path = None
     
-    selected_process_dir: NeuProcessDir = NeuProcessDir.from_logic(selected_logic)
+    selected_process_dir: NeuProcessDir = create_process_dir_from_recipe(selected_recipe_path)
     selected_process: NeuProcess = NeuProcess.from_process_dir(selected_process_dir)
     console.print(Panel.fit(f"[bold green]Process Directory Created for:[/bold green] {selected_process_dir.logic.about.name}"))
         
@@ -81,7 +82,7 @@ def main():
             console.print(f"[blue]Building Singularity image...[/blue]")
             try:
                 selected_process_dir.build_singularity_image()
-                console.print(f"[green]Singularity image built successfully at {selected_process.image_path}[/green]")
+                console.print(f"[green]Singularity image build started at {selected_process.image_path}[/green]")
             except Exception as e:
                 console.print(f"[red]Error building Singularity image: {e}[/red]")
         else:
