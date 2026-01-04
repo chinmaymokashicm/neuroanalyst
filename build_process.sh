@@ -1,1 +1,1 @@
-python -m src.neuroanalyst.models.process.process.run
+python -m src.neuroanalyst.models.process.process.build

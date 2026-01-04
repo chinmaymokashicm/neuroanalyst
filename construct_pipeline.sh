@@ -1,1 +1,1 @@
-python -m src.neuroanalyst.models.pipeline.run
+python -m src.neuroanalyst.models.pipeline.construct
