@@ -24,7 +24,7 @@ def main():
     console.print(f"Welcome {get_current_username()}!")
     
     paths = NeuroAnalystPaths()
-    logic_recipes_root: Path = paths.recipes / "process_logic"
+    logic_recipes_root: Path = paths.recipes / "logic"
     
     # Load available logic recipes
     available_recipes: list[Path] = list(logic_recipes_root.glob("*.yaml"))
