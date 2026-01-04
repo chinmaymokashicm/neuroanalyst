@@ -151,6 +151,7 @@ def main():
         sample_pipeline_id=sample_pipeline_id,
         sample_pipeline_name=sample_pipeline_name
     )
+    process_exec.generate_command()
     console.print(Panel.fit(f"[bold green]Created Test Process Execution:[/bold green] ID: {process_exec.exec_id}"))
     exec_command: str = process_exec.exec_command
     console.print(f"[blue]Execution Command:[/blue]\n{exec_command}")

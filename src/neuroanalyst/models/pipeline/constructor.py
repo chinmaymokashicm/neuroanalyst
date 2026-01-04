@@ -88,6 +88,8 @@ class ProcessConstructorConfig(BaseModel, validate_assignment=True):
         bids_root: str | Path,
         subjects: Optional[str | list[str]] = None,
         sessions: Optional[str | list[str]] = None,
+        execution_mode: ExecutionMode = ExecutionMode.CONTAINER,
+        scheduler: HPCScheduler = HPCScheduler.LSF,
         bids_scope: str = "raw",
         sample_pipeline_id: str = "PL-000000",
         sample_pipeline_name: str = "Test Pipeline"
@@ -137,6 +139,10 @@ class ProcessConstructorConfig(BaseModel, validate_assignment=True):
             
         # Set scheduler flags
         process_exec.set_scheduler_flags(scheduler_flags)
+        
+        # Set scheduler and execution mode
+        process_exec.scheduler = scheduler
+        process_exec.execution_mode = execution_mode
         
         return process_exec
     
