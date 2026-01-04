@@ -3,6 +3,7 @@ Build Process Environment
 """
 from src.neuroanalyst.utils.constants import get_current_username
 from src.neuroanalyst.models.process.dir.core import NeuProcessDir
+from src.neuroanalyst.models.process.logic.core import NeuProcessLogic
 
 from pathlib import Path
 from typing import Optional
@@ -18,44 +19,50 @@ def main():
     console.rule("[bold blue]Build Process Environment[/bold blue]")
     console.print(f"Welcome {get_current_username()}!")
     
-    all_process_dirs: list[NeuProcessDir] = NeuProcessDir.get_all_process_dirs()
+    all_logics: list[NeuProcessLogic] = NeuProcessLogic.get_all_registered_logics()
+    if not all_logics:
+        console.print("[red]No registered process logics found. Exiting.[/red]")
+        return
     
-    # Loop until a process is selected or cancelled
+    # Loop until a logic is selected or cancelled
     cancel: bool = False
-    selected_process: Optional[NeuProcessDir] = None
-    while not selected_process and not cancel:
-        process_choices: list[str] = [f"{proc.logic.about.name} (ID: {proc.process_id})" for proc in all_process_dirs]
-        selected_process_choice: str = questionary.select(
-            "Select a process to build its environment:",
-            choices=["CANCEL"] + process_choices
+    selected_logic: Optional[NeuProcessLogic] = None
+    
+    while not selected_logic and not cancel:
+        logic_choices: list[str] = [f"{logic.about.name} (ID: {logic.logic_id})" for logic in all_logics]
+        
+        selected_logic_choice: str = questionary.select(
+            "Select a process logic to build its environment:",
+            choices=["CANCEL"] + logic_choices
         ).ask()
-        if not selected_process_choice or selected_process_choice == "CANCEL":
-            console.print("[red]Process selection is required. Exiting.[/red]")
+        if not selected_logic_choice or selected_logic_choice == "CANCEL":
+            console.print("[red]Process logic selection is required. Exiting.[/red]")
             cancel = True
             return
         
-        selected_index: int = process_choices.index(selected_process_choice)
-        selected_process = all_process_dirs[selected_index]
+        selected_index: int = logic_choices.index(selected_logic_choice)
+        selected_logic = all_logics[selected_index]
         
-        # Display selected process info
-        console.print(Panel.fit(f"[bold green]Selected Process:[/bold green] {selected_process.logic.about.name} (ID: {selected_process.process_id})"))
-        console.print(Panel.fit(selected_process))
+        # Display selected logic info
+        console.print(Panel.fit(f"[bold green]Selected Process Logic:[/bold green] {selected_logic.about.name} (ID: {selected_logic.logic_id})"))
+        console.print(Panel.fit(selected_logic))
         
         # Confirm selection
         confirm_selection: bool = questionary.confirm(
-            f"Do you want to build the environment for process '{selected_process.logic.about.name}'?",
+            f"Do you want to build the environment for process logic '{selected_logic.about.name}'?",
             default=True
         ).ask()
         if not confirm_selection:
-            console.print("[yellow]Process selection cancelled by user.[/yellow]")
-            selected_process = None
+            console.print("[yellow]Process logic selection cancelled by user.[/yellow]")
+            selected_logic = None
+            
+    # Create NeuProcessDir instance
+    if not selected_logic:
+        return
     
-    # Check if process environment is already built
-    if selected_process.is_image_built:
-        console.print(f"[yellow]Process environment is already built at {selected_process.image_path}[/yellow]")
-    
-    if selected_process.is_venv_created:
-        console.print(f"[yellow]Virtual environment is already created at {selected_process.venv_path}[/yellow]")
+    selected_process: NeuProcessDir = NeuProcessDir.from_logic(selected_logic)
+    console.print(Panel.fit(f"[bold green]Process Directory Created for:[/bold green] {selected_process.logic.about.name}"))
+    console.print(Panel.fit(selected_process))
         
     # Select environment type to build
     env_type: str = questionary.select(
