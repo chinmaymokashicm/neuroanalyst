@@ -24,7 +24,8 @@ class PythonFunctionExtractor(ast.NodeVisitor):
         self.current_function = None
         self.has_metrics = False
         self.output_entities = {}
-    
+        self.current_function_env_vars = set() # Track vars for the current function
+        
     def visit_Import(self, node):
         """Extract import statements."""
         for alias in node.names:
@@ -48,6 +49,7 @@ class PythonFunctionExtractor(ast.NodeVisitor):
     
     def visit_FunctionDef(self, node):
         """Extract function definitions and their metadata."""
+        self.current_function_env_vars = set()  # Reset for each function
         # Get source code from the source being parsed
         # This approach uses the node's line number information to preserve the original formatting
         source_lines = None
@@ -70,7 +72,8 @@ class PythonFunctionExtractor(ast.NodeVisitor):
             'returns': ast.unparse(node.returns) if node.returns else None,
             'lineno': node.lineno,
             'has_metrics': self.has_metrics,
-            'output_entities': self.output_entities
+            'output_entities': self.output_entities,
+            'env_vars': list(self.current_function_env_vars)
         }
         self.functions.append(func_info)
         self.generic_visit(node)
@@ -118,6 +121,41 @@ class PythonFunctionExtractor(ast.NodeVisitor):
                         elif isinstance(stmt.value, ast.Name):
                             # Can't extract the contents directly, but note that it exists
                             pass
+                        
+            # Pattern: os.getenv('VAR') or os.environ.get('VAR') or getenv('VAR')
+            if isinstance(stmt, ast.Call):
+                call_func = stmt.func
+                # Handles: os.getenv() or os.environ.get()
+                if isinstance(call_func, ast.Attribute):
+                    if call_func.attr in ('getenv', 'get'):
+                        # Check if calling from 'os' or 'os.environ'
+                        if self._is_os_environ_call(call_func.value):
+                            self._extract_env_name_from_args(stmt.args)
+                # Handles: getenv() directly (if imported via 'from os import getenv')
+                elif isinstance(call_func, ast.Name) and call_func.id == 'getenv':
+                    self._extract_env_name_from_args(stmt.args)
+
+            # Pattern: os.environ['VAR']
+            elif isinstance(stmt, ast.Subscript):
+                if isinstance(stmt.value, ast.Attribute) and stmt.value.attr == 'environ':
+                    if isinstance(stmt.slice, ast.Constant) and isinstance(stmt.slice.value, str):
+                        self.current_function_env_vars.add(stmt.slice.value)
+    
+    def _is_os_environ_call(self, node):
+        """Helper to check if a node refers to 'os' or 'os.environ'."""
+        # Check for 'os'
+        if isinstance(node, ast.Name) and node.id == 'os':
+            return True
+        # Check for 'os.environ'
+        if isinstance(node, ast.Attribute) and node.attr == 'environ':
+            if isinstance(node.value, ast.Name) and node.value.id == 'os':
+                return True
+        return False
+    
+    def _extract_env_name_from_args(self, args):
+        """Helper to get the string literal from a function call argument."""
+        if args and isinstance(args[0], ast.Constant) and isinstance(args[0].value, str):
+            self.current_function_env_vars.add(args[0].value)
     
     def _extract_dict_items(self, dict_node):
         """Extract items from a dictionary node."""
@@ -526,7 +564,8 @@ class PythonDecoder(BaseDecoder):
             arguments=arguments,
             kind=logic_kind,  # Use "kind" instead of "logic_kind"
             has_metrics=has_metrics,  # Keep original parameter name
-            output_entities=output_entities
+            output_entities=output_entities,
+            env_vars=func_info.get('env_vars', [])
         )
     
     def _fallback_decode(self, code: str, function_name: Optional[str] = None) -> NeuProcessLogic:

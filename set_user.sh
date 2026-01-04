@@ -94,20 +94,26 @@ else
     done
 fi
 
+# Function to check and add environment variable
+add_env_var() {
+    local var_name=$1
+    local var_value=$2
+    if ! grep -q "$var_name" ~/.bashrc; then
+        echo "$var_value" >> ~/.bashrc
+        echo "$var_name added to ~/.bashrc"
+    else
+        echo "$var_name already set in ~/.bashrc"
+    fi
+}
+
 # Set the first user to NEUROANALYST_USER as the default user if none exists
 if [[ -z "${NEUROANALYST_USER:-}" ]]; then
     first_user="$(ls -1 "$USERS_DIR" | head -n 1 || true)"
     if [[ -n "$first_user" ]]; then
-        echo
-        echo "Setting NEUROANALYST_USER to the first user: $first_user"
-        echo "export NEUROANALYST_USER=${first_user}" >> ~/.bashrc
-        export NEUROANALYST_USER="$first_user"
+        add_env_var "NEUROANALYST_USER" "export NEUROANALYST_USER=${first_user}"
+        export NEUROANALYST_USER="${first_user}"
+        echo "Set NEUROANALYST_USER to default user: $NEUROANALYST_USER"
     else
-        echo
-        echo "No users found to set as NEUROANALYST_USER. Creating default user 'default_user'."
-        create_user_dir "default_user"
-        echo "export NEUROANALYST_USER=default_user" >> ~/.bashrc
-        export NEUROANALYST_USER="default_user"
+        echo "No users found to set as NEUROANALYST_USER."
     fi
 fi
-

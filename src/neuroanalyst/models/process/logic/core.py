@@ -128,6 +128,9 @@ class NeuProcessLogic(BaseModel):
     has_metrics: bool = Field(
         default=False, description="Indicates if a 'metrics' dictionary is available in the code (only for Python)"
     )
+    env_vars: list[str] = Field(
+        default_factory=list, description="List of environment variables used in the code (only for Python)"
+    )
     
     def __str__(self) -> str:
         """Return a human-readable string representation of the NeuProcessLogic."""
@@ -137,6 +140,9 @@ class NeuProcessLogic(BaseModel):
             f"  Kind: {self.kind}",
             f"  Arguments: {[arg.name for arg in self.arguments]}",
             f"  Import Statements: {len(self.import_statements)} imports",
+            f"  Has Metrics: {self.has_metrics}",
+            f"  Output Entities: {self.output_entities}" if self.output_entities else "  Output Entities: None",
+            f"  Environment Variables: {self.env_vars}" if self.env_vars else "  Environment Variables: None",
             f"  Code Preview:",
             f"    {self.code[:500]}..." if len(self.code) > 500 else f"  Code: {self.code}"
         ])

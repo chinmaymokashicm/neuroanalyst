@@ -10,7 +10,7 @@ from ..process.exec.core import NeuProcessExec, HPCScheduler, ExecutionMode
 from ..process.logic.core import NeuProcessLogic, ALLOWED_PYBIDS_ENTITY_KEYS
 
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Literal
 import json
 
 from pydantic import BaseModel, Field, model_validator, field_validator
@@ -81,6 +81,59 @@ class ProcessConstructorConfig(BaseModel, validate_assignment=True):
             process_execs.append(process_exec)
             
         return process_execs
+    
+    def create_single_process_exec(
+        self,
+        scheduler_flags: dict,
+        bids_root: str | Path,
+        bids_scope: str = "raw",
+        sample_pipeline_id: str = "PL-000000",
+        sample_pipeline_name: str = "Test Pipeline"
+        ) -> NeuProcessExec:
+        """
+        Create a single NeuProcessExec instance for this configuration. Useful for testing.
+        
+        """
+        process_exec: NeuProcessExec = NeuProcessExec.generate_from_process_id(process_id=self.process_id)
+        bids_filters: dict[str, Optional[str | list[Optional[str | int]]]] = self.input_bids_filters.copy()
+        # Update BIDS filters with first subject/session if available
+        if self.subject_session_pairs:
+            subjects: list[Optional[str]] = self.subject_session_pairs[0][0]
+            sessions: list[Optional[str]] = self.subject_session_pairs[0][1]
+            if len(subjects) > 0 and subjects != [None]:
+                bids_filters["subject"] = subjects
+            if len(sessions) > 0 and sessions != [None]:
+                bids_filters["session"] = sessions
+        # Update BIDS filters with scope - verify if scope is valid
+        if NeuPipeline.is_scope_valid(bids_scope, bids_root):
+            bids_filters["scope"] = bids_scope
+        else:
+            raise ValueError(f"Invalid BIDS scope '{bids_scope}' for BIDS root '{bids_root}'")
+        
+        # Set BIDS filters
+        process_exec.set_env_var_value("BIDS_FILTERS", json.dumps(bids_filters))
+        
+        # Set execution mode
+        process_exec.execution_mode = self.execution_mode
+        
+        # Apply standard bind paths and environment variables
+        process_exec.set_bind_path_value("/data", str(bids_root))
+        process_exec.set_env_var_value("PIPELINE_NAME", sample_pipeline_name)
+        process_exec.set_env_var_value("PIPELINE_ID", sample_pipeline_id)
+        process_exec.set_env_var_value("PROCESS_ID", process_exec.process.process_id)
+        process_exec.set_env_var_value("PROCESS_EXEC_ID", process_exec.exec_id)
+        
+        # Add extra bind paths and environment variables
+        for path_name, path_value in self.extra_bind_paths.items():
+            process_exec.set_bind_path_value(path_name, path_value)
+            
+        for var_name, var_value in self.extra_environment_variables.items():
+            process_exec.set_env_var_value(var_name, var_value)
+            
+        # Set scheduler flags
+        process_exec.set_scheduler_flags(scheduler_flags)
+        
+        return process_exec
     
     @classmethod
     def initiate_from_process_id(cls, process_id: str, **kwargs) -> "ProcessConstructorConfig":
