@@ -71,3 +71,17 @@ def main():
         console.print(f"[green]Pipeline '{selected_pipeline.about.name}' started execution. Minimize this window to continue working.[/green]")
     except Exception as e:
         console.print(f"[red]Error running pipeline '{selected_pipeline.about.name}': {e}[/red]")
+        
+@app.command()
+def start():
+    try:
+        main()
+    except KeyboardInterrupt:
+        console.print("\n[red]Pipeline run interrupted by user.[/red]")
+    except EOFError:
+        console.print("\n[red]Pipeline run interrupted by user (EOF).[/red]")
+    except Exception as e:
+        console.print(f"\n[red]An error occurred: {e}[/red]")
+        
+if __name__ == "__main__":
+    app()
