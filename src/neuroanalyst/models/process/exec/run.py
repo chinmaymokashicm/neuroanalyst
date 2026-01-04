@@ -164,6 +164,7 @@ def main():
         console.print("[yellow]Test process execution cancelled by user.[/yellow]")
         return
     console.print(f"[blue]Running test process execution...[/blue]")
+    process_exec.save_to_disk()
     try:
         subprocess.run(exec_command, shell=True)
     except subprocess.CalledProcessError as e:
