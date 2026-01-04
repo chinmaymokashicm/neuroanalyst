@@ -3,7 +3,6 @@ Register a Logic from a recipe
 """
 from src.neuroanalyst.models.process.logic.core import NeuProcessLogic
 from src.neuroanalyst.models.recipe.core import (
-    get_logic_recipe_yaml_path,
     create_logic_from_recipe
 )
 from src.neuroanalyst.utils.constants import get_current_username, NeuroAnalystPaths
