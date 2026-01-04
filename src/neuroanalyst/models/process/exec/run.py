@@ -67,14 +67,13 @@ def main():
     sample_pipeline_name: str = questionary.text("Enter a sample Pipeline Name for testing (default: Test Pipeline):", default="Test Pipeline").ask()
     
     # Ask for scheduler flags
-    scheduler_flags: dict = {}
+    scheduler_flags: list[str] = []
     while True:
         add_flag: bool = questionary.confirm("Do you want to add a scheduler flag?", default=False).ask()
         if not add_flag:
             break
-        flag_name: str = questionary.text("Enter the scheduler flag name (e.g., --time):").ask()
-        flag_value: str = questionary.text(f"Enter the value for {flag_name}:").ask()
-        scheduler_flags[flag_name] = flag_value
+        flag: str = questionary.text("Enter the scheduler flag (e.g., --time=01:00:00):").ask()
+        scheduler_flags.append(flag)
     
     # Ask for BIDS root path
     bids_root: str = questionary.path(
