@@ -83,20 +83,6 @@ def main():
     except Exception as e:
         console.print(f"[red]Error creating pipeline from recipe: {e}[/red]")
         return
-    
-    # Save pipeline to disk
-    confirm_save: bool = questionary.confirm(
-        f"Do you want to save the pipeline '{pipeline.about.name}' to disk?",
-        default=True
-    ).ask()
-    if confirm_save:
-        try:
-            # pipeline.create_pipeline_dir()
-            console.print(f"[green]Pipeline saved successfully at {pipeline.pipeline_dir_path}[/green]")
-        except FileExistsError:
-            console.print(f"[red]Pipeline directory already exists at {pipeline.pipeline_dir_path}. Not overwriting.[/red]")
-        except Exception as e:
-            console.print(f"[red]Error saving pipeline to disk: {e}[/red]")
             
     all_processes: list[NeuProcess] = [NeuProcess.from_process_id(process_id) for process_id in pipeline.all_process_ids]
     # Check if the process images are built
