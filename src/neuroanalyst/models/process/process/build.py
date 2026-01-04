@@ -61,7 +61,6 @@ def main():
     selected_process_dir: NeuProcessDir = NeuProcessDir.from_logic(selected_logic)
     selected_process: NeuProcess = NeuProcess.from_process_dir(selected_process_dir)
     console.print(Panel.fit(f"[bold green]Process Directory Created for:[/bold green] {selected_process_dir.logic.about.name}"))
-    console.print(Panel.fit(selected_process_dir.model_dump()))
         
     # Select environment type to build
     env_type: str = questionary.select(
