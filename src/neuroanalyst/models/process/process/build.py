@@ -35,7 +35,7 @@ def main():
         
         selected_recipe_choice: str = questionary.select(
             "Select a process recipe to build environment for:",
-            choices=["CANCEL"] + recipe_choices
+            choices=["CANCEL"] + sorted(recipe_choices)
         ).ask()
         if not selected_recipe_choice or selected_recipe_choice == "CANCEL":
             console.print("[red]Recipe selection is required. Exiting.[/red]")
@@ -48,7 +48,7 @@ def main():
         # Display selected recipe info
         console.print(Panel.fit(f"[bold green]Selected Recipe:[/bold green] {selected_recipe_path.name}"))
         recipe_content: ProcessDirRecipe = get_recipe_yaml_path(selected_recipe_path.stem, recipe_type="process")
-        console.print(Panel.fit(recipe_content))
+        console.print(recipe_content)
         
         # Confirm selection
         confirm_selection: bool = questionary.confirm(
