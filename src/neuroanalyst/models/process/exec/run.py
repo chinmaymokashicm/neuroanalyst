@@ -32,7 +32,7 @@ def main():
     console.print(Panel.fit(f"[bold green]Loaded Process:[/bold green] {process.logic.about.name} (ID: {process.process_id})"))
     
     # Check if process image is built
-    if not process.is_image_built():
+    if not process.is_image_built:
         console.print(f"[yellow]Process image not built. Building now...[/yellow]")
         build_image: bool = questionary.confirm(
             "Do you want to build the process image now?",
