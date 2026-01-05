@@ -1,17 +1,6 @@
 """
 Test or dry run a function or a Logic before registering and without integrating it into a full Process or Pipeline.
 """
-import sys
-from pathlib import Path
-
-PROJECT_ROOT = Path(__file__).resolve().parents[5]
-sys.path.insert(0, str(PROJECT_ROOT))
-
-from rich.console import Console
-console = Console()
-console.print(f"[dim]Using PYTHONPATH root: {PROJECT_ROOT}[/dim]")
-
-
 import src.neuroanalyst.models.process.logic.core as core_module
 from src.neuroanalyst.models.process.logic.code.python.decoder import PythonFunctionExtractor
 from src.neuroanalyst.utils.constants import get_current_username
@@ -19,12 +8,15 @@ from src.neuroanalyst.utils.constants import get_current_username
 from unittest.mock import patch
 import os, importlib, sys, ast, inspect
 import tempfile
+from pathlib import Path
 
 import typer, questionary
+from rich.console import Console
 from rich.panel import Panel
 
 TARGET_MODULE_PATH: str = "neuroanalyst.models.process.logic.core"
 
+console = Console()
 app = typer.Typer()
 
 _real_mkdir = Path.mkdir

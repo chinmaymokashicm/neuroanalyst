@@ -1,1 +1,1 @@
-python -m src.neuroanalyst.models.process.logic.run
+python src/neuroanalyst/models/process/logic/run.py
