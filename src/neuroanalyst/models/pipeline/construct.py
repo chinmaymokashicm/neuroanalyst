@@ -82,6 +82,7 @@ def main():
         console.print(Panel.fit(f"[bold green]Pipeline '{pipeline.about.name}' created successfully![/bold green]\n\n[bold]Pipeline ID:[/bold] {pipeline.pipeline_id}\n[bold]Description:[/bold] {pipeline.about.description}"))
     except Exception as e:
         console.print(f"[red]Error creating pipeline from recipe: {e}[/red]")
+        console.print(traceback.format_exc())
         return
             
     all_processes: list[NeuProcess] = [NeuProcess.from_process_id(process_id) for process_id in pipeline.all_process_ids]
