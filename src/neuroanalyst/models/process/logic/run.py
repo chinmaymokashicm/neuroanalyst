@@ -17,12 +17,68 @@ from src.neuroanalyst.utils.constants import get_current_username
 
 from unittest.mock import patch
 import os, importlib, sys, ast, inspect
+from contextlib import contextmanager
 import tempfile
 
 import typer, questionary
 from rich.panel import Panel
 
 TARGET_MODULE_PATH: str = "neuroanalyst.models.process.logic.core"
+
+@contextmanager
+def emulate_container_data_mount(data_root: Path):
+    """
+    Emulate a container /data mount by translating /data paths
+    to a host directory.
+    """
+    data_root = Path(data_root).resolve()
+
+    _orig_open = open
+    _orig_exists = Path.exists
+    _orig_is_file = Path.is_file
+    _orig_is_dir = Path.is_dir
+    _orig_mkdir = Path.mkdir
+    _orig_iterdir = Path.iterdir
+
+    def resolve(p: Path) -> Path:
+        if str(p).startswith("/data"):
+            return data_root / p.relative_to("/data")
+        return p
+
+    def patched_open(file, *args, **kwargs):
+        return _orig_open(resolve(Path(file)), *args, **kwargs)
+
+    def patched_exists(self):
+        return _orig_exists(resolve(self))
+
+    def patched_is_file(self):
+        return _orig_is_file(resolve(self))
+
+    def patched_is_dir(self):
+        return _orig_is_dir(resolve(self))
+
+    def patched_mkdir(self, *args, **kwargs):
+        return _orig_mkdir(resolve(self), *args, **kwargs)
+
+    def patched_iterdir(self):
+        return _orig_iterdir(resolve(self))
+
+    try:
+        Path.exists = patched_exists
+        Path.is_file = patched_is_file
+        Path.is_dir = patched_is_dir
+        Path.mkdir = patched_mkdir
+        Path.iterdir = patched_iterdir
+        builtins_open = __builtins__["open"]
+        __builtins__["open"] = patched_open
+        yield
+    finally:
+        Path.exists = _orig_exists
+        Path.is_file = _orig_is_file
+        Path.is_dir = _orig_is_dir
+        Path.mkdir = _orig_mkdir
+        Path.iterdir = _orig_iterdir
+        __builtins__["open"] = builtins_open
 
 app = typer.Typer()
 
@@ -96,20 +152,21 @@ def main():
         # default=str(samples_path / "sub-01_T1w.nii.gz")
     ).ask()
     
-    with tempfile.TemporaryDirectory() as temp_dir:
-        with patch.object(Path, "mkdir", lambda self, *args, **kwargs: redirected_mkdir(self, temp_dir, *args, **kwargs)):
-            with patch.dict(sys.modules, {TARGET_MODULE_PATH: core_module}):
-                with patch.dict(os.environ, mock_env):
-                    try:
-                        console.print("[bold blue]Running the function...[/bold blue]")
-                        console.print(f"[dim]Temporary directory used: {temp_dir}[/dim]")
-                        console.print(f"[dim]Mocked environment variables: {mock_env}[/dim]")
-                        console.print(f"[dim]Input file path: {input_filepath}[/dim]")
-                        console.print(f"[dim]Listdir in '/data': {os.listdir('/data')}[/dim]")
-                        result = function(input_filepath)
-                        console.print(Panel.fit(f"[bold green]Function executed successfully![/bold green]\n\n[bold]Result:[/bold] {result}"))
-                    except Exception as e:
-                        console.print(f"[red]Error executing function: {e}[/red]")
+    data_root: str = questionary.path(
+        message="Enter the host path to use as /data:"
+    ).ask()
+
+    with patch.dict(sys.modules, {TARGET_MODULE_PATH: core_module}):
+        with patch.dict(os.environ, mock_env):
+            with emulate_container_data_mount(Path(data_root)):
+                console.print("[bold blue]Running the function...[/bold blue]")
+                result = function(input_filepath)
+                try:
+                    console.print(f"[dim]Listdir in '/data': {os.listdir('/data')}[/dim]")
+                    result = function(input_filepath)
+                    console.print(Panel.fit(f"[bold green]Function executed successfully![/bold green]\n\n[bold]Result:[/bold] {result}"))
+                except Exception as e:
+                    console.print(f"[red]Error executing function: {e}[/red]")
 @app.command()
 def start():
     try:
