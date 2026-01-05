@@ -162,7 +162,6 @@ def main():
                 console.print("[bold blue]Running the function...[/bold blue]")
                 result = function(input_filepath)
                 try:
-                    console.print(f"[dim]Listdir in '/data': {os.listdir('/data')}[/dim]")
                     result = function(input_filepath)
                     console.print(Panel.fit(f"[bold green]Function executed successfully![/bold green]\n\n[bold]Result:[/bold] {result}"))
                 except Exception as e:
