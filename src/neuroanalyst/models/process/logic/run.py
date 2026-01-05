@@ -16,7 +16,7 @@ from src.neuroanalyst.models.process.logic.code.python.decoder import PythonFunc
 from src.neuroanalyst.utils.constants import get_current_username
 
 from unittest.mock import patch
-import os, importlib, sys, ast, inspect
+import os, importlib, sys, ast, inspect, traceback
 from contextlib import contextmanager
 import tempfile
 
@@ -167,6 +167,7 @@ def main():
                     console.print(Panel.fit(f"[bold green]Function executed successfully![/bold green]\n\n[bold]Result:[/bold] {result}"))
                 except Exception as e:
                     console.print(f"[red]Error executing function: {e}[/red]")
+                    traceback.print_exc()
 @app.command()
 def start():
     try:

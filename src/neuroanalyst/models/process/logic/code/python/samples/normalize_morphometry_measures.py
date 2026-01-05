@@ -32,6 +32,7 @@ def normalize_morphometry_measures(input_filepath: str):
     # --------------------------------------------------
     # Step 1: Load data
     # --------------------------------------------------
+    DATA_DIR: str = "/data"
     input_filepath = Path(input_filepath)
     output_data = pd.read_csv(input_filepath)
 
