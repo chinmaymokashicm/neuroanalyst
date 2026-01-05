@@ -9,11 +9,23 @@ def categorize_morphometry_measures(
 ) -> tuple[pd.DataFrame, dict, dict, list]:
     """
     Categorize morphometric measures from a wide FreeSurfer-style
-    morphometry table into biologically interpretable semantic buckets.
+    morphometry table into statistically interpretable semantic buckets.
 
     Expected input columns include:
       - StructName_base
       - LH_*, RH_*, Bilateral_* morphometry measures
+    
+    Output columns include:
+      - roi_name
+      - hemisphere
+      - metric
+      - metric_family
+      - metric_semantic
+      - value
+      - z_value (z-score normalized value)
+      - deviation
+      - bucket
+      - bucket_type
 
     Args:
         input_filepath (str): Path to morphometry CSV file.
@@ -24,20 +36,8 @@ def categorize_morphometry_measures(
         output_entities (dict): BIDS-like entities for output file.
         forced_outputs (list): Non-BIDS outputs (none).
     """
-    def str_to_bool(s):
-        """Converts a string to a boolean value, handling various representations."""
-        if s.lower() in ('true', '1', 'yes', 'on', 't', 'y'):
-            return True
-        elif s.lower() in ('false', '0', 'no', 'off', 'f', 'n', ''):
-            return False
-        elif s is None:
-            raise ValueError(f"Please set the environment variable {s} to 'true' or 'false'.")
-        else:
-            # Raise an error or handle unexpected values as appropriate
-            raise ValueError(f"Invalid boolean value for environment variable: {s}")
     
     DATA_DIR: str = "/data"
-    NORMALIZE: bool = str_to_bool(os.getenv("NORMALIZE_MORPHOMETRY"))
     
     Z_LOW = -1.96 # 95% confidence interval lower bound
     Z_HIGH = 1.96 # 95% confidence interval upper bound
@@ -67,13 +67,11 @@ def categorize_morphometry_measures(
         )
         .rename(columns={"StructName_base": "roi_name"})
     )
-    if NORMALIZE:
-        # Z-score normalization per metric
-        df_long["value"] = (
-            df_long
-            .groupby("raw_metric")["value"]
-            .transform(lambda x: (x - x.mean()) / x.std(ddof=0) if x.std(ddof=0) > 0 else 0)
-        )
+    df_long["z_value"] = (
+        df_long
+        .groupby("raw_metric")["value"]
+        .transform(lambda x: (x - x.mean()) / x.std(ddof=0) if x.std(ddof=0) > 0 else 0)
+    )
 
     # --------------------------------------------------
     # Step 3: Parse hemisphere + metric name
@@ -97,25 +95,42 @@ def categorize_morphometry_measures(
     # Step 4: Metric definitions
     # --------------------------------------------------
     METRIC_DEFINITIONS = {
-        "GrayVolume_mm3": ("volume", "volume"),
-        "SurfaceArea_mm2": ("surface_area", "surface_area"),
-        "ThickAvg_mm": ("thickness", "thickness"),
-        "MeanCurv": ("curvature", "curvature"),
-        "GausCurv": ("curvature", "curvature"),
+        "GrayVolume_mm3": {
+            "family": "volume",
+            "semantic": "volume",
+        },
+        "SurfaceArea_mm2": {
+            "family": "surface_area",
+            "semantic": "surface_area",
+        },
+        "ThickAvg_mm": {
+            "family": "thickness",
+            "semantic": "thickness",
+        },
+        "MeanCurv": {
+            "family": "curvature",
+            "semantic": "mean_curvature",
+        },
+        "GausCurv": {
+            "family": "curvature",
+            "semantic": "gaussian_curvature",
+        },
     }
 
+    # Purpose: analytical grouping of metrics
     df_long["metric_family"] = df_long["metric"].map(
-        lambda m: METRIC_DEFINITIONS.get(m, ("other", "morphometry"))[0]
+        lambda m: METRIC_DEFINITIONS.get(m, {"family": "other", "semantic": "morphometry"})["family"]
     )
 
+    # Purpose: semantic categorization of metrics
     df_long["metric_semantic"] = df_long["metric"].map(
-        lambda m: METRIC_DEFINITIONS.get(m, ("other", "morphometry"))[1]
+        lambda m: METRIC_DEFINITIONS.get(m, {"family": "other", "semantic": "morphometry"})["semantic"]
     )
 
     # --------------------------------------------------
     # Step 5: Deviation categorization (vectorized)
     # --------------------------------------------------
-    z = df_long["value"]
+    z = df_long["z_value"]
 
     df_long["deviation"] = np.select(
         [
@@ -139,6 +154,7 @@ def categorize_morphometry_measures(
         "undefined",
         df_long["deviation"] + "_" + df_long["metric_semantic"],
     )
+    df_long["bucket_type"] = "statistical" # explicit, future-proof
 
     # --------------------------------------------------
     # Step 7: Summary metrics
