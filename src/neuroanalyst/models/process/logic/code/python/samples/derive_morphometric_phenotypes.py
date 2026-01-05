@@ -150,6 +150,55 @@ def derive_morphometric_phenotypes(
     # --------------------------------------------------
     # Step 6: Aggregate to ROI-level phenotypes
     # --------------------------------------------------
+    PHENOTYPE_RULES = {
+        "cortical_atrophy": {
+            "roi_type": "cortical",
+            "required": {
+                "any": ["low_thickness", "low_surface_area"],
+            },
+            "evidence_level": "structural_loss",
+        },
+        "cortical_hypertrophy": {
+            "roi_type": "cortical",
+            "required": {
+                "all": ["high_thickness", "high_surface_area"],
+            },
+            "evidence_level": "structural_expansion",
+        },
+        "altered_cortical_folding": {
+            "roi_type": "cortical",
+            "required": {
+                "any": ["curvature_abnormality"],
+            },
+            "evidence_level": "geometry",
+        },
+        "subcortical_atrophy": {
+            "roi_type": "subcortical",
+            "required": {
+                "any": ["low_volume"],
+            },
+            "evidence_level": "volume_loss",
+        },
+        "subcortical_hypertrophy": {
+            "roi_type": "subcortical",
+            "required": {
+                "any": ["high_volume"],
+            },
+            "evidence_level": "volume_expansion",
+        },
+    }
+    
+    def matches_rule(phenos: set[str], rule: dict) -> bool:
+        req = rule["required"]
+
+        if "all" in req:
+            return set(req["all"]).issubset(phenos)
+
+        if "any" in req:
+            return bool(set(req["any"]) & phenos)
+
+        return False
+    
     records = []
 
     grouped = merged.groupby(["roi_name", "roi_type", "hemisphere"])
@@ -157,34 +206,37 @@ def derive_morphometric_phenotypes(
     for (roi, roi_type, hemi), g in grouped:
         phenos = set(g["metric_phenotype"].dropna())
 
-        composite = []
+        matched = []
 
-        if roi_type == "cortical":
-            if {"low_thickness", "low_surface_area"} & phenos:
-                composite.append("cortical_atrophy")
-            if {"high_thickness", "high_surface_area"} <= phenos:
-                composite.append("cortical_hypertrophy")
-            if "curvature_abnormality" in phenos:
-                composite.append("altered_cortical_folding")
+        for phenotype, rule in PHENOTYPE_RULES.items():
+            if rule["roi_type"] != roi_type:
+                continue
 
-        if roi_type == "subcortical":
-            if "low_volume" in phenos:
-                composite.append("subcortical_atrophy")
-            if "high_volume" in phenos:
-                composite.append("subcortical_hypertrophy")
+            if matches_rule(phenos, rule):
+                matched.append({
+                    "roi_name": roi,
+                    "roi_type": roi_type,
+                    "hemisphere": hemi,
+                    "composite_phenotype": phenotype,
+                    "evidence_level": rule["evidence_level"],
+                    "evidence_metrics": sorted(phenos),
+                    "reference_population": REFERENCE_POPULATION,
+                    "z_threshold": Z_THRESHOLD,
+                })
 
-        if not composite:
-            composite.append("morphometrically_typical")
-
-        for p in composite:
-            records.append({
+        if not matched:
+            matched.append({
                 "roi_name": roi,
                 "roi_type": roi_type,
                 "hemisphere": hemi,
-                "composite_phenotype": p,
+                "composite_phenotype": "morphometrically_typical",
+                "evidence_level": "none",
+                "evidence_metrics": [],
                 "reference_population": REFERENCE_POPULATION,
                 "z_threshold": Z_THRESHOLD,
             })
+
+        records.extend(matched)
 
     output_data = pd.DataFrame.from_records(records)
 

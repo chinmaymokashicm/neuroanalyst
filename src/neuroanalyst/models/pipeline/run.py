@@ -4,7 +4,7 @@ Run a Pipeline
 from src.neuroanalyst.utils.constants import get_current_username, NeuroAnalystPaths
 from src.neuroanalyst.models.pipeline.core import NeuPipeline
 
-import json
+import json, traceback
 from pathlib import Path
 from typing import Optional
 
@@ -82,6 +82,6 @@ def start():
         console.print("\n[red]Pipeline run interrupted by user (EOF).[/red]")
     except Exception as e:
         console.print(f"\n[red]An error occurred: {e}[/red]")
-        
+        console.print(traceback.format_exc())
 if __name__ == "__main__":
     app()
