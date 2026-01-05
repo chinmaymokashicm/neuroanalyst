@@ -102,6 +102,10 @@ def main():
                 with patch.dict(os.environ, mock_env):
                     try:
                         console.print("[bold blue]Running the function...[/bold blue]")
+                        console.print(f"[dim]Temporary directory used: {temp_dir}[/dim]")
+                        console.print(f"[dim]Mocked environment variables: {mock_env}[/dim]")
+                        console.print(f"[dim]Input file path: {input_filepath}[/dim]")
+                        console.print(f"[dim]Current working directory: {os.getcwd()}[/dim]")
                         result = function(input_filepath)
                         console.print(Panel.fit(f"[bold green]Function executed successfully![/bold green]\n\n[bold]Result:[/bold] {result}"))
                     except Exception as e:
