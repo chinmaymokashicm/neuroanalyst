@@ -1,27 +1,49 @@
+import os
+
 import pandas as pd
 import numpy as np
-from typing import Tuple, Dict, List
 
 
 def categorize_morphometry_measures(
     input_filepath: str,
-) -> Tuple[pd.DataFrame, Dict, Dict, List]:
+) -> tuple[pd.DataFrame, dict, dict, list]:
     """
-    Categorize normalized morphometric measures from a wide FreeSurfer-style
+    Categorize morphometric measures from a wide FreeSurfer-style
     morphometry table into biologically interpretable semantic buckets.
 
     Expected input columns include:
       - StructName_base
       - LH_*, RH_*, Bilateral_* morphometry measures
 
-    Returns a long-form categorized table.
+    Args:
+        input_filepath (str): Path to morphometry CSV file.
+        
+    Returns:
+        output_data (pd.DataFrame): Categorized morphometry table (long format).
+        metrics (dict): Summary statistics of categorization.
+        output_entities (dict): BIDS-like entities for output file.
+        forced_outputs (list): Non-BIDS outputs (none).
     """
-
-    Z_LOW = -1.96
-    Z_HIGH = 1.96
+    def str_to_bool(s):
+        """Converts a string to a boolean value, handling various representations."""
+        if s.lower() in ('true', '1', 'yes', 'on', 't', 'y'):
+            return True
+        elif s.lower() in ('false', '0', 'no', 'off', 'f', 'n', ''):
+            return False
+        elif s is None:
+            raise ValueError(f"Please set the environment variable {s} to 'true' or 'false'.")
+        else:
+            # Raise an error or handle unexpected values as appropriate
+            raise ValueError(f"Invalid boolean value for environment variable: {s}")
+    
+    DATA_DIR: str = "/data"
+    NORMALIZE: bool = str_to_bool(os.getenv("NORMALIZE_MORPHOMETRY"))
+    
+    Z_LOW = -1.96 # 95% confidence interval lower bound
+    Z_HIGH = 1.96 # 95% confidence interval upper bound
 
     # --------------------------------------------------
-    # Step 1: Load + validate
+    # Step 1: Load input data and validate
     # --------------------------------------------------
     df_wide = pd.read_csv(input_filepath)
 
@@ -41,10 +63,17 @@ def categorize_morphometry_measures(
             id_vars="StructName_base",
             value_vars=metric_cols,
             var_name="raw_metric",
-            value_name="normalized_value",
+            value_name="value",
         )
         .rename(columns={"StructName_base": "roi_name"})
     )
+    if NORMALIZE:
+        # Z-score normalization per metric
+        df_long["value"] = (
+            df_long
+            .groupby("raw_metric")["value"]
+            .transform(lambda x: (x - x.mean()) / x.std(ddof=0) if x.std(ddof=0) > 0 else 0)
+        )
 
     # --------------------------------------------------
     # Step 3: Parse hemisphere + metric name
@@ -86,7 +115,7 @@ def categorize_morphometry_measures(
     # --------------------------------------------------
     # Step 5: Deviation categorization (vectorized)
     # --------------------------------------------------
-    z = df_long["normalized_value"]
+    z = df_long["value"]
 
     df_long["deviation"] = np.select(
         [
@@ -132,6 +161,6 @@ def categorize_morphometry_measures(
         "extension": ".tsv",
     }
 
-    forced_outputs: List = []
+    forced_outputs: list = []
 
     return df_long, metrics, output_entities, forced_outputs
