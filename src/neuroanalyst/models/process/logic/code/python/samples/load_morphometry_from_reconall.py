@@ -123,6 +123,7 @@ def load_morphometry_from_reconall(input_filepath: str):
     output_entities = {
         "desc": "morphometry",
         "space": "fsaverage",
+        "suffix": "morphometry",
         "extension": ".tsv",
     }
 
