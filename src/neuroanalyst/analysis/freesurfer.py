@@ -1664,6 +1664,28 @@ FREESURFER_LUT_TEXT: str = """
 14175  wm_rh_S_temporal_transverse            221  60  60   0
 """
 
+def get_reconall_normative_morphometry() -> pd.DataFrame:
+    """
+    Get normative morphometry data from FreeSurfer recon-all.
+
+    Returns:
+    --------
+    pd.DataFrame
+        DataFrame containing normative morphometry data.
+
+    Example:
+    --------
+    >>> morphometry_df = get_reconall_normative_morphometry()
+    >>> print(morphometry_df.head())
+    """
+    try:
+        project_root = Path(__file__).resolve().parents[3]
+        normative_data_path = os.path.join(project_root, "src", "neuroanalyst", "analysis", "normative_ref_demo.csv")
+        df_morphometry = pd.read_csv(normative_data_path)
+    except:
+        normative_data_path = "normative_ref_demo.csv"
+        df_morphometry = pd.read_csv(normative_data_path)
+    return df_morphometry
 
 def load_freesurfer_color_lut(lut_path: Optional[str] = None) -> pd.DataFrame:
     """
