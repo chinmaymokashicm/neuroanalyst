@@ -1,4 +1,5 @@
 from neuroanalyst.analysis.freesurfer import get_reconall_normative_morphometry
+from neuroanalyst.models.process.logic.core import Metric
 
 import pandas as pd
 import numpy as np
@@ -194,6 +195,22 @@ def derive_morphometric_phenotypes(
         "num_rois": output_data[["roi_name", "hemisphere"]].drop_duplicates().shape[0],
         "num_phenotypes": output_data["composite_phenotype"].nunique(),
         "num_records": len(output_data),
+        "age": Metric(
+            name="age",
+            value=age,
+            unit="years",
+            description="Subject age used for normative comparison",
+            category="demographic",
+            labels=["age"],
+        ),
+        "sex": Metric(
+            name="sex",
+            value=sex,
+            unit=None,
+            description="Subject sex used for normative comparison",
+            category="demographic",
+            labels=["sex"],
+        ),
     }
 
     # --------------------------------------------------
