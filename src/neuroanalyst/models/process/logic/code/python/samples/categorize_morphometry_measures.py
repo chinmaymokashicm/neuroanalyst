@@ -26,11 +26,11 @@ def categorize_morphometry_measures(
     df_wide = pd.read_csv(input_filepath)
 
     if "StructName_base" not in df_wide.columns:
-        raise ValueError("Missing required column: StructName_base")
+        raise ValueError(f"Missing required column: StructName_base. Found columns: {df_wide.columns.tolist()}")
 
     metric_cols = [c for c in df_wide.columns if c != "StructName_base"]
     if not metric_cols:
-        raise ValueError("No morphometry metric columns found")
+        raise ValueError(f"No morphometry metric columns found. Found columns: {df_wide.columns.tolist()}")
 
     # --------------------------------------------------
     # Step 2: Wide → long reshape
