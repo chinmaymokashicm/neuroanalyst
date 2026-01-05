@@ -11,7 +11,7 @@ from src.neuroanalyst.utils.constants import get_current_username, NeuroAnalystP
 
 from pathlib import Path
 from typing import Optional
-import yaml, time
+import yaml, time, traceback
 from datetime import datetime
 
 import typer, questionary
@@ -127,6 +127,7 @@ def start():
         console.print("[yellow]Execution interrupted by user.[/yellow]")
     except Exception as e:
         console.print(f"[red]An unexpected error occurred: {e}[/red]")
+        console.print(traceback.format_exc())
         
 if __name__ == "__main__":
     app()

@@ -83,5 +83,6 @@ def start():
     except Exception as e:
         console.print(f"\n[red]An error occurred: {e}[/red]")
         console.print(traceback.format_exc())
+
 if __name__ == "__main__":
     app()
