@@ -12,6 +12,7 @@ console = Console()
 console.print(f"[dim]Using PYTHONPATH root: {PROJECT_ROOT}[/dim]")
 
 import src.neuroanalyst.models.process.logic.core as core_module
+from src.neuroanalyst.models.process.wrapper.core import _write_output_data
 from src.neuroanalyst.models.process.logic.code.python.decoder import PythonFunctionExtractor
 from src.neuroanalyst.utils.constants import get_current_username
 
@@ -160,10 +161,23 @@ def main():
         with patch.dict(os.environ, mock_env):
             with emulate_container_data_mount(Path(data_root)):
                 console.print("[bold blue]Running the function...[/bold blue]")
-                result = function(input_filepath)
                 try:
                     result = function(input_filepath)
                     console.print(Panel.fit(f"[bold green]Function executed successfully![/bold green]\n\n[bold]Result:[/bold] {result}"))
+                    # Ask if user wants to save output
+                    save_output: bool = questionary.confirm(
+                        "Do you want to save the output data to a file?",
+                        default=True
+                    ).ask()
+                    if save_output:
+                        output_filepath: str = questionary.path(
+                            message="Enter the path to save the output file:"
+                        ).ask()
+                        if output_filepath:
+                            _write_output_data(result[0], output_filepath)
+                            console.print(f"[bold green]Output data saved to {output_filepath}[/bold green]")
+                        else:
+                            console.print("[red]Output file path is required to save data.[/red]")
                 except Exception as e:
                     console.print(f"[red]Error executing function: {e}[/red]")
                     traceback.print_exc()
