@@ -1,8 +1,11 @@
 import pandas as pd
 import numpy as np
+from typing import Tuple, Dict, List
 
 
-def categorize_morphometry_measures(input_filepath: str):
+def categorize_morphometry_measures(
+    input_filepath: str
+) -> Tuple[pd.DataFrame, Dict, Dict, List]:
     """
     Categorize normalized morphometric measures into biologically
     interpretable semantic buckets.
@@ -18,89 +21,116 @@ def categorize_morphometry_measures(input_filepath: str):
     """
 
     # --------------------------------------------------
-    # Step 1: Load data
+    # Step 1: Load + validate
     # --------------------------------------------------
     df = pd.read_csv(input_filepath, sep="\t")
+    Z_LOW: float = -1.96
+    Z_HIGH: float = 1.96
 
     required_cols = {
-        "roi_name", "roi_type", "hemisphere",
-        "metric", "normalized_value"
+        "roi_name",
+        "roi_type",
+        "hemisphere",
+        "metric",
+        "normalized_value",
     }
-    if not required_cols.issubset(df.columns):
-        raise ValueError(f"Missing required columns: {required_cols - set(df.columns)}")
+
+    missing = required_cols - set(df.columns)
+    if missing:
+        raise ValueError(f"Missing required columns: {missing}")
 
     df = df.copy()
 
     # --------------------------------------------------
-    # Step 2: Define metric families
+    # Step 2: Metric → family + semantic label
     # --------------------------------------------------
-    METRIC_FAMILY_MAP = {
+    METRIC_DEFINITIONS = {
         # Volumetric
-        "volume": "volume",
+        "volume": {
+            "family": "volume",
+            "semantic": "volume",
+        },
 
-        # Cortical thickness
-        "ThickAvg_mm": "thickness",
-        "ThickStd_mm": "thickness_variability",
+        # Thickness
+        "ThickAvg_mm": {
+            "family": "thickness",
+            "semantic": "thickness",
+        },
+        "ThickStd_mm": {
+            "family": "thickness_variability",
+            "semantic": "thickness_variability",
+        },
 
-        # Surface / geometry
-        "SurfaceArea_mm2": "surface_area",
+        # Surface
+        "SurfaceArea_mm2": {
+            "family": "surface_area",
+            "semantic": "surface_area",
+        },
 
-        # Curvature
-        "MeanCurv": "curvature",
-        "GausCurv": "curvature",
-        "FoldInd": "gyrification",
-        "CurvInd": "gyrification",
+        # Curvature / folding
+        "MeanCurv": {
+            "family": "curvature",
+            "semantic": "curvature",
+        },
+        "GausCurv": {
+            "family": "curvature",
+            "semantic": "curvature",
+        },
+        "FoldInd": {
+            "family": "gyrification",
+            "semantic": "gyrification",
+        },
+        "CurvInd": {
+            "family": "gyrification",
+            "semantic": "gyrification",
+        },
     }
 
-    # --------------------------------------------------
-    # Step 3: Bucketing logic
-    # --------------------------------------------------
-    def _bucket_value(metric: str, z: float) -> str:
-        if pd.isna(z):
-            return "undefined"
-
-        # Generic deviation buckets
-        if z <= -1.0:
-            level = "low"
-        elif z >= 1.0:
-            level = "high"
-        else:
-            level = "normal"
-
-        # Metric-specific semantics
-        if "Thick" in metric:
-            return f"{level}_thickness"
-        if "SurfaceArea" in metric:
-            return f"{level}_surface_area"
-        if "Curv" in metric:
-            return f"{level}_curvature"
-        if "Fold" in metric or "Gyr" in metric:
-            return f"{level}_gyrification"
-        if metric.lower().startswith("volume"):
-            return f"{level}_volume"
-
-        return f"{level}_morphometry"
-
-    # --------------------------------------------------
-    # Step 4: Apply categorization
-    # --------------------------------------------------
     df["metric_family"] = df["metric"].map(
-        lambda m: METRIC_FAMILY_MAP.get(m, "other")
+        lambda m: METRIC_DEFINITIONS.get(m, {}).get("family", "other")
     )
 
-    df["bucket"] = df.apply(
-        lambda r: _bucket_value(r["metric"], r["normalized_value"]),
-        axis=1
+    df["metric_semantic"] = df["metric"].map(
+        lambda m: METRIC_DEFINITIONS.get(m, {}).get("semantic", "morphometry")
     )
 
     # --------------------------------------------------
-    # Step 5: Metrics summary
+    # Step 3: Deviation level (vectorized)
+    # --------------------------------------------------
+    z = df["normalized_value"]
+
+    df["deviation"] = np.select(
+        [
+            z.isna(),
+            z <= Z_LOW,
+            z >= Z_HIGH,
+        ],
+        [
+            "undefined",
+            "low",
+            "high",
+        ],
+        default="normal",
+    )
+
+    # --------------------------------------------------
+    # Step 4: Final semantic bucket
+    # --------------------------------------------------
+    df["bucket"] = np.where(
+        df["deviation"] == "undefined",
+        "undefined",
+        df["deviation"] + "_" + df["metric_semantic"],
+    )
+
+    # --------------------------------------------------
+    # Step 5: Summary metrics
     # --------------------------------------------------
     metrics = {
-        "num_rois": df["roi_name"].nunique(),
-        "num_metrics": df["metric"].nunique(),
-        "num_metric_families": df["metric_family"].nunique(),
-        "num_buckets": df["bucket"].nunique(),
+        "num_rois": int(df["roi_name"].nunique()),
+        "num_metrics": int(df["metric"].nunique()),
+        "num_metric_families": int(df["metric_family"].nunique()),
+        "num_buckets": int(df["bucket"].nunique()),
+        "num_undefined": int((df["deviation"] == "undefined").sum()),
     }
 
     # --------------------------------------------------
@@ -112,6 +142,6 @@ def categorize_morphometry_measures(input_filepath: str):
         "extension": ".tsv",
     }
 
-    forced_outputs = []
+    forced_outputs: List = []
 
     return df, metrics, output_entities, forced_outputs

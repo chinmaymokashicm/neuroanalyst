@@ -88,7 +88,7 @@ def normalize_morphometry_measures(input_filepath: str):
         "desc": "morphometryNorm",
         "space": "fsaverage",
         "suffix": "morphometry",
-        "extension": ".csv",
+        "extension": ".tsv",
     }
 
     forced_outputs: List = []
