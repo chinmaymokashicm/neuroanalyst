@@ -28,25 +28,23 @@ TARGET_MODULE_PATH: str = "neuroanalyst.models.process.logic.core"
 @contextmanager
 def emulate_container_data_mount(data_root: Path):
     """
-    Emulate a container /data mount by translating /data paths
+    Emulate a container /data mount by mapping /data paths
     to a host directory.
     """
     data_root = Path(data_root).resolve()
 
-    _orig_open = open
+    # Save originals
     _orig_exists = Path.exists
     _orig_is_file = Path.is_file
     _orig_is_dir = Path.is_dir
     _orig_mkdir = Path.mkdir
+    _orig_open = Path.open
     _orig_iterdir = Path.iterdir
 
-    def resolve(p: Path) -> Path:
-        if str(p).startswith("/data"):
-            return data_root / p.relative_to("/data")
-        return p
-
-    def patched_open(file, *args, **kwargs):
-        return _orig_open(resolve(Path(file)), *args, **kwargs)
+    def resolve(self: Path) -> Path:
+        if str(self).startswith("/data"):
+            return data_root / self.relative_to("/data")
+        return self
 
     def patched_exists(self):
         return _orig_exists(resolve(self))
@@ -60,6 +58,9 @@ def emulate_container_data_mount(data_root: Path):
     def patched_mkdir(self, *args, **kwargs):
         return _orig_mkdir(resolve(self), *args, **kwargs)
 
+    def patched_open(self, *args, **kwargs):
+        return _orig_open(resolve(self), *args, **kwargs)
+
     def patched_iterdir(self):
         return _orig_iterdir(resolve(self))
 
@@ -68,17 +69,16 @@ def emulate_container_data_mount(data_root: Path):
         Path.is_file = patched_is_file
         Path.is_dir = patched_is_dir
         Path.mkdir = patched_mkdir
+        Path.open = patched_open
         Path.iterdir = patched_iterdir
-        builtins_open = __builtins__["open"]
-        __builtins__["open"] = patched_open
         yield
     finally:
         Path.exists = _orig_exists
         Path.is_file = _orig_is_file
         Path.is_dir = _orig_is_dir
         Path.mkdir = _orig_mkdir
+        Path.open = _orig_open
         Path.iterdir = _orig_iterdir
-        __builtins__["open"] = builtins_open
 
 app = typer.Typer()
 
