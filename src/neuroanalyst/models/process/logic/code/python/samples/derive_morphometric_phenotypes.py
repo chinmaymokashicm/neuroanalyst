@@ -169,9 +169,20 @@ def derive_morphometric_phenotypes(
             if z >= Z_THRESHOLD:
                 return "high_surface_area"
 
-        if metric in {"mean_curvature", "gaussian_curvature"}:
-            if abs(z) >= Z_THRESHOLD:
-                return "curvature_abnormality"
+        # if metric in {"mean_curvature", "gaussian_curvature"}:
+        #     if abs(z) >= Z_THRESHOLD:
+        #         return "curvature_abnormality"
+        if metric == "mean_curvature":
+            if z <= -Z_THRESHOLD:
+                return "low_mean_curvature"
+            if z >= Z_THRESHOLD:
+                return "high_mean_curvature"
+
+        if metric == "gaussian_curvature":
+            if z <= -Z_THRESHOLD:
+                return "low_gaussian_curvature"
+            if z >= Z_THRESHOLD:
+                return "high_gaussian_curvature"
 
         if metric == "volume":
             if z <= -Z_THRESHOLD:
@@ -222,6 +233,43 @@ def derive_morphometric_phenotypes(
             },
             "evidence_level": "volume_expansion",
         },
+        "cortical_thinning": {
+            "roi_type": "cortical",
+            "required": {"all": ["low_thickness"]},
+            "evidence_level": "laminar_loss",
+        },
+        "cortical_surface_reduction": {
+            "roi_type": "cortical",
+            "required": {"all": ["low_surface_area"]},
+            "evidence_level": "areal_reduction",
+        },
+        "hypogyrification": {
+            "roi_type": "cortical",
+            "required": {"any": ["low_mean_curvature", "low_gaussian_curvature"]},
+            "evidence_level": "folding_reduction",
+        },
+        "hypergyrification": {
+            "roi_type": "cortical",
+            "required": {"any": ["high_mean_curvature", "high_gaussian_curvature"]},
+            "evidence_level": "folding_excess",
+        },
+        "cortical_morphometric_discordance": {
+            "roi_type": "cortical",
+            "required": {
+                "all": [
+                    "high_thickness",
+                    "low_surface_area"
+                ]
+            },
+            "evidence_level": "discordant_scaling",
+        },
+        "borderline_abnormality": {
+            "roi_type": "cortical",
+            "required": {
+                "any": ["borderline_thickness", "borderline_surface_area"]
+            },
+            "evidence_level": "weak_signal",
+        }
     }
     
     def matches_rule(phenos: set[str], rule: dict) -> bool:
@@ -245,6 +293,16 @@ def derive_morphometric_phenotypes(
 
         return False
     
+    def severity_from_z(z: float) -> str:
+        if abs(z) >= 4:
+            return "severe"
+        if abs(z) >= 3:
+            return "moderate"
+        if abs(z) >= 2:
+            return "mild"
+        return "none"
+
+    
     records = []
 
     grouped = merged.groupby(["roi_name", "roi_type", "hemisphere"])
@@ -267,8 +325,16 @@ def derive_morphometric_phenotypes(
                     "roi_type": roi_type,
                     "hemisphere": hemi,
                     "composite_phenotype": phenotype,
+                    "evidence": g.loc[
+                        g["metric_phenotype"].notna(),
+                        ["metric", "metric_phenotype", "z_ref"]
+                        ].to_dict("records"),
                     "evidence_level": rule["evidence_level"],
                     "evidence_metrics": sorted(phenos),
+                    "evidence_severity": {
+                        m: severity_from_z(g.loc[g["metric_phenotype"] == m, "z_ref"].values[0])
+                        for m in phenos
+                    },
                     "z_threshold": Z_THRESHOLD,
                 })
 
@@ -278,8 +344,10 @@ def derive_morphometric_phenotypes(
                 "roi_type": roi_type,
                 "hemisphere": hemi,
                 "composite_phenotype": "morphometrically_typical",
+                "evidence": [],
                 "evidence_level": "none",
                 "evidence_metrics": [],
+                "evidence_severity": {},
                 "z_threshold": Z_THRESHOLD,
             })
 
