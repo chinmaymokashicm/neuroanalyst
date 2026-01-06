@@ -268,6 +268,8 @@ def derive_morphometric_phenotypes(
     if output_data.empty:
         raise ValueError("No ROI-level phenotypes derived; output data is empty.")
     
+    print(output_data.head())
+    
     print(f"Derived phenotypes for {output_data.shape[0]} ROI records.")
 
     # --------------------------------------------------
