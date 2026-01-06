@@ -83,184 +83,145 @@ def split_by_subject_session(
         If 'subject' or 'session' keys are present in bids_filters.
     """
     # Validate input
-    for key in ["subject", "session"]:
+    for key in ("subject", "session"):
         if key in bids_filters:
-            raise ValueError(f"'bids_filters' should not contain '{key}' key. It is handled separately.")
+            raise ValueError(f"'bids_filters' must not include '{key}'")
 
-    subject_session_filters: dict = {}
-    if subjects is not None:
-        subjects = [subject for subject in subjects if subject is not None] # Clean None values
-        if subjects: # Only add if list is not empty
-            subject_session_filters["subject"] = subjects
-            if sessions is not None:
-                sessions = [session for session in sessions if session is not None] # Clean None values
-                if sessions: # Only add if list is not empty
-                    subject_session_filters["session"] = sessions
-            
-    bids_filters = {**bids_filters, **subject_session_filters}
-    
-    # 1. Get all matching files
-    files = bids_layout.get(**bids_filters, return_type="file", target="subject")
+    base_filters = dict(bids_filters)
+
+    if subjects:
+        base_filters["subject"] = [s for s in subjects if s is not None]
+    if sessions:
+        base_filters["session"] = [s for s in sessions if s is not None]
+
+    # ---- Collect files ----------------------------------------------
+    files = bids_layout.get(**base_filters, return_type="file")
     if not files:
-        print("No files found with the given filters.")
-        return [{
-            "bids_filters": bids_filters,
-            "n_files": 0,
-            "subject_session_pair": ([], [])
-        }]
+        return []
 
-    # 2. Get metadata for each file: subject and session
-    grouped = {}
+    # ---- Group by subject → session --------------------------------
+    grouped: dict[str, dict[str, list[str]]] = {}
+
     for f in files:
-        entities = bids_layout.parse_file_entities(f)
-        subject = entities.get("subject")
-        session = entities.get("session")
-        if subject not in grouped:
-            grouped[subject] = {"sessions": {}, "n_files": 0}
-        if session not in grouped[subject]["sessions"]:
-            grouped[subject]["sessions"][session] = {"files": [], "n_files": 0}
-        grouped[subject]["sessions"][session]["files"].append(f)
-        grouped[subject]["sessions"][session]["n_files"] += 1
-        grouped[subject]["n_files"] += 1
-        
-    # 3. Use a bin packing algorithm to efficiently combine subject-session pairs
-    chunks = []
-    
-    # Sort subjects by descending number of files for better bin packing
-    sorted_subjects = sorted(grouped.items(), key=lambda x: x[1]["n_files"], reverse=True)
-    
-    for subject, subject_info in sorted_subjects:
-        if subject_info["n_files"] <= max_chunk_size:
-            # Simple case: subject fits in a chunk
-            # Try to find an existing chunk with enough space
-            added_to_existing = False
-            for chunk in chunks:
-                # Skip chunks that already have sessions split across subjects
-                if "session" in chunk["bids_filters"]:
-                    continue
-                
-                if chunk["n_files"] + subject_info["n_files"] <= max_chunk_size:
-                    # Add subject to this chunk
-                    subjects = chunk["bids_filters"]["subject"]
-                    if isinstance(subjects, str):
-                        chunk["bids_filters"]["subject"] = [subjects, subject]
-                    else:
-                        chunk["bids_filters"]["subject"].append(subject)
-                    chunk["n_files"] += subject_info["n_files"]
-                    added_to_existing = True
-                    break
-            
-            if not added_to_existing:
-                # Create a new chunk for this subject
-                new_chunk = {
-                    "bids_filters": {**bids_filters, "subject": subject},
-                    "n_files": subject_info["n_files"],
-                    "subject_session_pair": ([subject], [ None])
-                }
-                chunks.append(new_chunk)
-        else:
-            # Complex case: subject exceeds max_chunk_size, handle sessions individually
-            sorted_sessions = sorted(subject_info["sessions"].items(), 
-                                   key=lambda x: x[1]["n_files"], 
-                                   reverse=True)
-            
-            # First pass: handle sessions that exceed max_chunk_size on their own
-            remaining_sessions = []
-            for session, session_info in sorted_sessions:
-                if session_info["n_files"] > max_chunk_size:
-                    # This session must be in its own chunk(s)
-                    # Since a session can't be split, put all its files in one chunk
-                    new_chunk = {
-                        "bids_filters": {
-                            **bids_filters,
-                            "subject": subject,
-                            "session": session
-                        },
-                        "n_files": session_info["n_files"],
-                        "subject_session_pair": ([subject], [session])
-                    }
-                    chunks.append(new_chunk)
-                else:
-                    remaining_sessions.append((session, session_info))
-            
-            # Second pass: bin pack remaining sessions
-            current_chunk = {"sessions": [], "n_files": 0}
-            for session, session_info in remaining_sessions:
-                if current_chunk["n_files"] + session_info["n_files"] <= max_chunk_size:
-                    # Add session to current chunk
-                    current_chunk["sessions"].append(session)
-                    current_chunk["n_files"] += session_info["n_files"]
-                else:
-                    # Finalize current chunk and start a new one
-                    if current_chunk["sessions"]:
-                        if len(current_chunk["sessions"]) == 1:
-                            # Just one session
-                            new_chunk = {
-                                "bids_filters": {
-                                    **bids_filters,
-                                    "subject": subject,
-                                    "session": current_chunk["sessions"][0]
-                                },
-                                "n_files": current_chunk["n_files"],
-                                "subject_session_pair": ([subject], [current_chunk["sessions"][0]])
-                            }
-                        else:
-                            # Multiple sessions
-                            new_chunk = {
-                                "bids_filters": {
-                                    **bids_filters,
-                                    "subject": subject,
-                                    "session": current_chunk["sessions"]
-                                },
-                                "n_files": current_chunk["n_files"],
-                                "subject_session_pair": ([subject], current_chunk["sessions"])
-                            }
-                        chunks.append(new_chunk)
-                    
-                    # Start a new chunk with this session
-                    current_chunk = {"sessions": [session], "n_files": session_info["n_files"]}
-            
-            # Don't forget the last chunk
-            if current_chunk["sessions"]:
-                if len(current_chunk["sessions"]) == 1:
-                    # Just one session
-                    new_chunk = {
-                        "bids_filters": {
-                            **bids_filters,
-                            "subject": subject,
-                            "session": current_chunk["sessions"][0]
-                        },
-                        "n_files": current_chunk["n_files"],
-                        "subject_session_pair": ([subject], [current_chunk["sessions"][0]])
-                    }
-                else:
-                    # Multiple sessions
-                    new_chunk = {
-                        "bids_filters": {
-                            **bids_filters,
-                            "subject": subject,
-                            "session": current_chunk["sessions"]
-                        },
-                        "n_files": current_chunk["n_files"],
-                        "subject_session_pair": ([subject], current_chunk["sessions"])
-                    }
-                chunks.append(new_chunk)
-    
-    # Final validation: verify each chunk's file count matches our expectation
-    for chunk in chunks:
-        # Get the actual count of files with these filters
-        actual_count = len(bids_layout.get(**chunk["bids_filters"], return_type="file"))
-        
-        # Update the count in case our calculations were off
-        # chunk["n_files"] = actual_count
-        assert chunk["n_files"] == actual_count, (
-            f"Chunk file count mismatch: expected {chunk['n_files']}, got {actual_count}. "
-            f"Filters: {chunk['bids_filters']}"
+        ent = bids_layout.parse_file_entities(f)
+        subj = ent.get("subject")
+        ses = ent.get("session")
+
+        grouped.setdefault(subj, {}).setdefault(ses, []).append(f)
+
+    # Precompute counts
+    subject_counts = {
+        s: sum(len(v) for v in sessions.values())
+        for s, sessions in grouped.items()
+    }
+
+    chunks: list[dict] = []
+
+    # ---- Phase A: pack whole subjects (no session key) ---------------
+    subject_bins: list[dict] = []
+
+    for subject, n_files in sorted(
+        subject_counts.items(),
+        key=lambda x: x[1],
+        reverse=True
+    ):
+        if n_files > max_chunk_size:
+            continue  # handled in phase B
+
+        placed = False
+        for bin_ in subject_bins:
+            if bin_["n_files"] + n_files <= max_chunk_size:
+                bin_["subjects"].append(subject)
+                bin_["n_files"] += n_files
+                placed = True
+                break
+
+        if not placed:
+            subject_bins.append({
+                "subjects": [subject],
+                "n_files": n_files
+            })
+
+    for bin_ in subject_bins:
+        filters = dict(bids_filters)
+        filters["subject"] = bin_["subjects"]
+
+        chunks.append({
+            "bids_filters": filters,
+            "n_files": bin_["n_files"],
+            "subject_session_pair": (bin_["subjects"], None)
+        })
+
+    # ---- Phase B: split large subjects by session --------------------
+    for subject, sessions_dict in grouped.items():
+        if subject_counts[subject] <= max_chunk_size:
+            continue
+
+        sessions_sorted = sorted(
+            sessions_dict.items(),
+            key=lambda x: len(x[1]),
+            reverse=True
         )
 
-    assert sum([chunk["n_files"] for chunk in chunks]) == len(files), (
-        f"Total file count mismatch: expected {len(files)}, got {sum([chunk['n_files'] for chunk in chunks])}."
-    )
+        current_sessions: list[str] = []
+        current_count = 0
+
+        for session, files_ in sessions_sorted:
+            n = len(files_)
+
+            if n > max_chunk_size:
+                # session alone, even if oversized
+                chunks.append({
+                    "bids_filters": {
+                        **bids_filters,
+                        "subject": subject,
+                        "session": session
+                    },
+                    "n_files": n,
+                    "subject_session_pair": ([subject], [session])
+                })
+                continue
+
+            if current_count + n <= max_chunk_size:
+                current_sessions.append(session)
+                current_count += n
+            else:
+                # flush current
+                chunks.append({
+                    "bids_filters": {
+                        **bids_filters,
+                        "subject": subject,
+                        "session": current_sessions if len(current_sessions) > 1 else current_sessions[0]
+                    },
+                    "n_files": current_count,
+                    "subject_session_pair": ([subject], current_sessions)
+                })
+                current_sessions = [session]
+                current_count = n
+
+        if current_sessions:
+            chunks.append({
+                "bids_filters": {
+                    **bids_filters,
+                    "subject": subject,
+                    "session": current_sessions if len(current_sessions) > 1 else current_sessions[0]
+                },
+                "n_files": current_count,
+                "subject_session_pair": ([subject], current_sessions)
+            })
+
+    # ---- Final validation -------------------------------------------
+    total = 0
+    for c in chunks:
+        actual = len(bids_layout.get(**c["bids_filters"], return_type="file"))
+        assert actual == c["n_files"], (
+            f"Mismatch: expected {c['n_files']}, got {actual} "
+            f"for {c['bids_filters']}"
+        )
+        total += actual
+    
+    if total != len(files):
+        raise RuntimeError(f"Total mismatch: expected {len(files)}, got {total}")
 
     return chunks
 
