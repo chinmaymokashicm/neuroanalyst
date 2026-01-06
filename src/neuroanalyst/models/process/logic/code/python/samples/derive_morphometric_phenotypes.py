@@ -120,6 +120,16 @@ def derive_morphometric_phenotypes(
     # --------------------------------------------------
     # Step 3: Join observed data with reference norms
     # --------------------------------------------------
+    # Drop dashes from roi_name in df_reference to match df_categorized
+    df_reference["roi_name"] = df_reference["roi_name"].str.replace("-", "")
+    # Lowercase hemisphere values in df_categorized to match df_reference
+    df_categorized["hemisphere"] = df_categorized["hemisphere"].str.lower()
+    
+    # Map metric names to reference table conventions
+    df_categorized["metric"] = df_categorized["metric"].astype(str).str.strip().map({
+        "ThickAvg_mm": "thickness",
+    })
+    
     merged = df_categorized.merge(
         df_reference,
         on=["roi_name", "metric", "hemisphere"],
