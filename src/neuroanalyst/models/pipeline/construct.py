@@ -40,7 +40,7 @@ def main():
     while not selected_recipe_path and not cancel:
         recipe_choices: list[str] = [recipe.stem for recipe in available_recipes]
         
-        selected_recipe_choice: str = questionary.select(
+        selected_recipe_choice: str = questionary.autocomplete(
             "Select a pipeline recipe to construct:",
             choices=["CANCEL"] + recipe_choices
         ).ask()
