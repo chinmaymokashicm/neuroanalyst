@@ -26,14 +26,14 @@ def main():
     console.rule("[bold blue]Build Process Environment[/bold blue]")
     console.print(f"Welcome {get_current_username()}!")
     
-    all_process_recipe_paths: list[Path] = list(NeuroAnalystPaths().recipes.glob("process/*.yaml"))
+    all_process_recipe_paths: list[Path] = sorted([p for p in NeuroAnalystPaths().recipes.glob("process/*.yaml") if p.is_file() and not p.name.startswith(".")])
     
     cancel: bool = False
     selected_recipe_path: Optional[Path] = None
     while not selected_recipe_path and not cancel:
-        recipe_choices: list[str] = [path.name for path in all_process_recipe_paths]
+        recipe_choices: list[str] = [path.stem for path in all_process_recipe_paths]
         
-        selected_recipe_choice: str = questionary.select(
+        selected_recipe_choice: str = questionary.autocomplete(
             "Select a process recipe to build environment for:",
             choices=["CANCEL"] + sorted(recipe_choices)
         ).ask()
