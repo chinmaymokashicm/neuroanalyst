@@ -60,6 +60,9 @@ def derive_morphometric_phenotypes(
     # --------------------------------------------------
     DATA_DIR: str = "/data"
     REFERENCE_CSV_NAME: str = os.getenv("REFERENCE_CSV_NAME")
+    AGE_COL: str = os.getenv("AGE_COL") # Age column in participants.tsv
+    if AGE_COL is None:
+        raise EnvironmentError("AGE_COL environment variable is not set.")
     df_categorized: pd.DataFrame = pd.read_csv(input_filepath, sep="\t")
     if not REFERENCE_CSV_NAME:
         raise EnvironmentError("REFERENCE_CSV_NAME environment variable is not set.")
@@ -81,8 +84,7 @@ def derive_morphometric_phenotypes(
     try:
         df_participants: pd.DataFrame = pd.read_csv(f"{DATA_DIR}/participants.tsv", sep="\t")
         subject: str = parse_file_entities(input_filepath).get("subject")
-        age_col: str = [col for col in df_participants.columns if col.startswith("age")][0]
-        age: int = int(df_participants.loc[df_participants["participant_id"] == f"sub-{subject}", age_col].values[0])
+        age: int = int(df_participants.loc[df_participants["participant_id"] == f"sub-{subject}", AGE_COL].values[0])
         sex_col: str = [col for col in df_participants.columns if col.startswith("sex")][0]
         sex: str = df_participants.loc[df_participants["participant_id"] == f"sub-{subject}", sex_col].values[0]
         print(f"Subject {subject}: age={age}, sex={sex}")
@@ -223,6 +225,16 @@ def derive_morphometric_phenotypes(
     }
     
     def matches_rule(phenos: set[str], rule: dict) -> bool:
+        """
+        Check if a set of metric phenotypes matches the criteria of a rule.
+        
+        Args:
+            phenos (set[str]): Set of metric-level phenotypes observed for an ROI.
+            rule (dict): Phenotype rule with 'required' criteria.
+            
+        Returns:
+            bool: True if the phenotypes match the rule, False otherwise.
+        """
         req = rule["required"]
 
         if "all" in req:
