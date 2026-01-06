@@ -51,14 +51,14 @@ def main():
     
     while not selected_recipe_path and not cancel:
         recipe_dir: Path = recipes_root / recipe_type
-        available_recipes: list[Path] = list(recipe_dir.glob("*.yaml"))
+        available_recipes: list[Path] = sorted([p for p in recipe_dir.glob("*.yaml") if p.is_file() and not p.name.startswith(".")])
         if not available_recipes:
             console.print(f"[red]No recipes found for type '{recipe_type}'. Exiting.[/red]")
             return
         
         # Ask for recipe selection
-        recipe_choices: list[str] = [recipe.name for recipe in available_recipes]
-        selected_recipe_name: str = questionary.select(
+        recipe_choices: list[str] = [recipe.stem for recipe in available_recipes]
+        selected_recipe_name: str = questionary.autocomplete(
             "Select a recipe to create the component from:",
             choices=["CANCEL"] + recipe_choices
         ).ask()

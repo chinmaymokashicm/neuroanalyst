@@ -64,7 +64,7 @@ def main():
     console.print(Panel.fit(f"[bold green]Process Directory Created for:[/bold green] {selected_process_dir.logic.about.name}"))
         
     # Select environment type to build
-    env_type: str = questionary.select(
+    env_type: str = questionary.autocomplete(
         "Select the type of environment to build:",
         choices=["Singularity Image", "Virtual Environment"]
     ).ask()

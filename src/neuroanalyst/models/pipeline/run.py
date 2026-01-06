@@ -31,7 +31,7 @@ def main():
     selected_pipeline: Optional[NeuPipeline] = None
     cancel: bool = False
     while not selected_pipeline and not cancel:
-        selected_pipeline_choice: str = questionary.select(
+        selected_pipeline_choice: str = questionary.autocomplete(
             "Select a pipeline to run:",
             choices=["CANCEL"] + pipeline_choices
         ).ask()
