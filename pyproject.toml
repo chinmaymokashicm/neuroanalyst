@@ -6,6 +6,9 @@ authors = ["Mokashi,Chinmay <CMokashi@mdanderson.org>", "Mokashi,Chinmay <chinma
 readme = "README.md"
 packages = [{ include = "neuroanalyst", from = "src" }]
 
+[tool.setuptools.package-data]
+neuroanalyst = ["analysis/*.csv"]
+
 [tool.poetry.dependencies]
 python = "^3.12"
 acres = "0.5.0"

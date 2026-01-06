@@ -3,6 +3,7 @@ from ..utils.data import convert_string_to_number
 import os, json
 from pathlib import Path
 from typing import Optional, Union, Literal
+from importlib import resources
 
 import numpy as np
 import pandas as pd
@@ -1678,14 +1679,10 @@ def get_reconall_normative_morphometry() -> pd.DataFrame:
     >>> morphometry_df = get_reconall_normative_morphometry()
     >>> print(morphometry_df.head())
     """
-    try:
-        project_root = Path(__file__).resolve().parents[3]
-        normative_data_path = os.path.join(project_root, "src", "neuroanalyst", "analysis", "normative_ref_demo.csv")
-        df_morphometry = pd.read_csv(normative_data_path)
-    except:
-        normative_data_path = "normative_ref_demo.csv"
-        df_morphometry = pd.read_csv(normative_data_path)
-    return df_morphometry
+    with resources.files("neuroanalyst.analysis").joinpath(
+            "normative_ref_demo.csv"
+        ).open("r") as f:
+            return pd.read_csv(f)
 
 def load_freesurfer_color_lut(lut_path: Optional[str] = None) -> pd.DataFrame:
     """
