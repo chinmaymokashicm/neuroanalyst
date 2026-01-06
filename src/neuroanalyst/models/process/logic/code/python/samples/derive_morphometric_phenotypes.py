@@ -73,6 +73,7 @@ def derive_morphometric_phenotypes(
     }
     if not required_cols.issubset(df_categorized.columns):
         raise ValueError(f"Missing required columns: {required_cols - set(df_categorized.columns)}")
+    print(f"Columns in categorized data: {df_categorized.columns.tolist()}")
     
     # Get demographic data from participants.tsv
     try:
@@ -82,6 +83,7 @@ def derive_morphometric_phenotypes(
         age: int = int(df_participants.loc[df_participants["participant_id"] == f"sub-{subject}", age_col].values[0])
         sex_col: str = [col for col in df_participants.columns if col.startswith("sex")][0]
         sex: str = df_participants.loc[df_participants["participant_id"] == f"sub-{subject}", sex_col].values[0]
+        print(f"Subject {subject}: age={age}, sex={sex}")
     except Exception as e:
         raise ValueError(f"Error retrieving demographic data from participants.tsv: {e}")
 
@@ -94,6 +96,10 @@ def derive_morphometric_phenotypes(
         & (df_reference["age_min"] <= age)
         & (df_reference["age_max"] >= age)
     ]
+    if df_reference.empty:
+        raise ValueError("No matching reference data found for the subject's demographics.")
+    
+    print(f"Reference data filtered to {df_reference.shape[0]} rows for population {REFERENCE_POPULATION}, sex={sex}, age={age}.")
 
     # --------------------------------------------------
     # Step 3: Join observed data with reference norms
