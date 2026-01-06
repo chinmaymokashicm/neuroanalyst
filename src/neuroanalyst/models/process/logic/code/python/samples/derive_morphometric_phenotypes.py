@@ -226,6 +226,9 @@ def derive_morphometric_phenotypes(
     records = []
 
     grouped = merged.groupby(["roi_name", "roi_type", "hemisphere"])
+    
+    if grouped.ngroups == 0:
+        raise ValueError("No ROIs found after grouping for phenotype derivation.")
 
     for (roi, roi_type, hemi), g in grouped:
         phenos = set(g["metric_phenotype"].dropna())
@@ -261,6 +264,11 @@ def derive_morphometric_phenotypes(
         records.extend(matched)
 
     output_data = pd.DataFrame.from_records(records)
+    
+    if output_data.empty:
+        raise ValueError("No ROI-level phenotypes derived; output data is empty.")
+    
+    print(f"Derived phenotypes for {output_data.shape[0]} ROI records.")
 
     # --------------------------------------------------
     # Step 7: Metrics
