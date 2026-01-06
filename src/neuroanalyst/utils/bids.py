@@ -149,7 +149,7 @@ def split_by_subject_session(
         chunks.append({
             "bids_filters": filters,
             "n_files": bin_["n_files"],
-            "subject_session_pair": (bin_["subjects"], None)
+            "subject_session_pair": (bin_["subjects"], [None])
         })
 
     # ---- Phase B: split large subjects by session --------------------
