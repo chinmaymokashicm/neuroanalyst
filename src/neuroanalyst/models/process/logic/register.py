@@ -27,7 +27,7 @@ def main():
     logic_recipes_root: Path = paths.recipes / "logic"
     
     # Load available logic recipes
-    available_recipes: list[Path] = list(logic_recipes_root.glob("*.yaml"))
+    available_recipes: list[Path] = [p for p in logic_recipes_root.glob("*.yaml") if p.is_file() and not p.name.startswith(".")]
     if not available_recipes:
         console.print(f"[red]No process logic recipes found in {logic_recipes_root}. Exiting.[/red]")
         return
