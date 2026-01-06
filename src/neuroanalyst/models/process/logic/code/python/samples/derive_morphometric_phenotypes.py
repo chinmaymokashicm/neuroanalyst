@@ -66,7 +66,8 @@ def derive_morphometric_phenotypes(
     df_reference: pd.DataFrame = pd.read_csv(os.path.join(DATA_DIR, REFERENCE_CSV_NAME))
     POPULATION_PRIORITY = [
         "HCP",
-        "ADNI"
+        "ADNI",
+        "BrainChart"
     ] # Extendable list of preferred reference populations - first match used
     Z_THRESHOLD: float = 2.0
     required_cols = {
@@ -243,7 +244,6 @@ def derive_morphometric_phenotypes(
                     "composite_phenotype": phenotype,
                     "evidence_level": rule["evidence_level"],
                     "evidence_metrics": sorted(phenos),
-                    "reference_population": REFERENCE_POPULATION,
                     "z_threshold": Z_THRESHOLD,
                 })
 
@@ -255,7 +255,6 @@ def derive_morphometric_phenotypes(
                 "composite_phenotype": "morphometrically_typical",
                 "evidence_level": "none",
                 "evidence_metrics": [],
-                "reference_population": REFERENCE_POPULATION,
                 "z_threshold": Z_THRESHOLD,
             })
 
