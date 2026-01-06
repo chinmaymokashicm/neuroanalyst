@@ -65,9 +65,11 @@ def derive_morphometric_phenotypes(
     if not REFERENCE_CSV_NAME:
         raise EnvironmentError("REFERENCE_CSV_NAME environment variable is not set.")
     df_reference: pd.DataFrame = pd.read_csv(os.path.join(DATA_DIR, REFERENCE_CSV_NAME))
-    REFERENCE_POPULATION: str = "HCP"
+    POPULATION_PRIORITY = [
+        "HCP",
+        "ADNI"
+    ] # Extendable list of preferred reference populations - first match used
     Z_THRESHOLD: float = 2.0
-
     required_cols = {
         "roi_name", "hemisphere", "metric", "value", "roi_type"
     }
@@ -91,11 +93,25 @@ def derive_morphometric_phenotypes(
     # Step 2: Filter reference table
     # --------------------------------------------------
     df_reference = df_reference[
-        (df_reference["reference_population"] == REFERENCE_POPULATION)
-        & (df_reference["sex"] == sex)
+        (df_reference["sex"] == sex)
         & (df_reference["age_min"] <= age)
         & (df_reference["age_max"] >= age)
     ]
+    
+    priority_map = {p: i for i, p in enumerate(POPULATION_PRIORITY)}
+    df_reference["population_rank"] = (
+        df_reference["reference_population"]
+        .map(priority_map)
+        .fillna(len(priority_map))  # unknown populations go last
+    )
+    KEY_COLS = ["roi_name", "metric", "hemisphere"]
+    df_reference = (
+        df_reference
+        .sort_values("population_rank")
+        .drop_duplicates(subset=KEY_COLS, keep="first")
+        .drop(columns=["population_rank"])
+    ) # Keep highest priority population entry per ROI+metric+hemisphere
+    
     if df_reference.empty:
         raise ValueError("No matching reference data found for the subject's demographics.")
     
