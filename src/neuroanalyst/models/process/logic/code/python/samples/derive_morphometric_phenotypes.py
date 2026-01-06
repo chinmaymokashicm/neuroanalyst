@@ -115,7 +115,7 @@ def derive_morphometric_phenotypes(
     if df_reference.empty:
         raise ValueError("No matching reference data found for the subject's demographics.")
     
-    print(f"Reference data filtered to {df_reference.shape[0]} rows for population {REFERENCE_POPULATION}, sex={sex}, age={age}.")
+    print(f"Columns in reference data: {df_reference.columns.tolist()}")
 
     # --------------------------------------------------
     # Step 3: Join observed data with reference norms
