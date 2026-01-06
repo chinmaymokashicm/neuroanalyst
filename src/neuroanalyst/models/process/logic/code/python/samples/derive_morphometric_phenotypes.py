@@ -6,7 +6,6 @@ import numpy as np
 
 from bids.layout import parse_file_entities
 
-
 def derive_morphometric_phenotypes(
     input_filepath: str,
 ) -> tuple[pd.DataFrame, dict, dict, list]:
