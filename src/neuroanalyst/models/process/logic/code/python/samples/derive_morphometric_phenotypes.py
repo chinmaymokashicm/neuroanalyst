@@ -9,7 +9,6 @@ from bids.layout import parse_file_entities
 
 def derive_morphometric_phenotypes(
     input_filepath: str,
-    z_threshold: float = 2.0,
 ) -> tuple[pd.DataFrame, dict, dict, list]:
     """
     Derive composite morphometric phenotypes using a normative
@@ -122,25 +121,25 @@ def derive_morphometric_phenotypes(
         metric = row["metric"]
 
         if metric == "thickness":
-            if z <= -z_threshold:
+            if z <= -Z_THRESHOLD:
                 return "low_thickness"
-            if z >= z_threshold:
+            if z >= Z_THRESHOLD:
                 return "high_thickness"
 
         if metric == "surface_area":
-            if z <= -z_threshold:
+            if z <= -Z_THRESHOLD:
                 return "low_surface_area"
-            if z >= z_threshold:
+            if z >= Z_THRESHOLD:
                 return "high_surface_area"
 
         if metric in {"mean_curvature", "gaussian_curvature"}:
-            if abs(z) >= z_threshold:
+            if abs(z) >= Z_THRESHOLD:
                 return "curvature_abnormality"
 
         if metric == "volume":
-            if z <= -z_threshold:
+            if z <= -Z_THRESHOLD:
                 return "low_volume"
-            if z >= z_threshold:
+            if z >= Z_THRESHOLD:
                 return "high_volume"
 
         return None
