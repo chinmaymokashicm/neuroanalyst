@@ -29,7 +29,7 @@ def main():
     pipeline_recipes_root: Path = paths.recipes / "pipeline"
     
     # Load available pipeline recipes
-    available_recipes: list[Path] = list(pipeline_recipes_root.glob("*.yaml"))
+    available_recipes: list[Path] = sorted([p for p in pipeline_recipes_root.glob("*.yaml") if p.is_file() and not p.name.startswith(".")])
     if not available_recipes:
         console.print(f"[red]No pipeline recipes found in {pipeline_recipes_root}. Exiting.[/red]")
         return
@@ -38,7 +38,7 @@ def main():
     cancel: bool = False
     selected_recipe_path: Optional[Path] = None
     while not selected_recipe_path and not cancel:
-        recipe_choices: list[str] = [recipe.name for recipe in available_recipes]
+        recipe_choices: list[str] = [recipe.stem for recipe in available_recipes]
         
         selected_recipe_choice: str = questionary.select(
             "Select a pipeline recipe to construct:",
