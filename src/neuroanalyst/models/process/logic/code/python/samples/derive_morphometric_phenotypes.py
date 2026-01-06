@@ -1,5 +1,5 @@
-from neuroanalyst.analysis.freesurfer import get_reconall_normative_morphometry
 from neuroanalyst.models.process.logic.core import Metric
+import os
 
 import pandas as pd
 import numpy as np
@@ -60,8 +60,11 @@ def derive_morphometric_phenotypes(
     # Step 1: Load data
     # --------------------------------------------------
     DATA_DIR: str = "/data"
+    REFERENCE_CSV_NAME: str = os.getenv("REFERENCE_CSV_NAME")
     df_categorized: pd.DataFrame = pd.read_csv(input_filepath, sep="\t")
-    df_reference: pd.DataFrame = get_reconall_normative_morphometry()
+    if not REFERENCE_CSV_NAME:
+        raise EnvironmentError("REFERENCE_CSV_NAME environment variable is not set.")
+    df_reference: pd.DataFrame = pd.read_csv(os.path.join(DATA_DIR, REFERENCE_CSV_NAME))
     REFERENCE_POPULATION: str = "HCP"
     Z_THRESHOLD: float = 2.0
 
