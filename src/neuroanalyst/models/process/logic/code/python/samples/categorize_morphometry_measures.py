@@ -172,8 +172,8 @@ def categorize_morphometry_measures(
     # Step 8: Output entities
     # --------------------------------------------------
     output_entities = {
-        "desc": "morphometryCategorized",
-        "space": "fsaverage",
+        "desc": "morphometryMeasures",
+        "suffix": "stats",
         "extension": ".tsv",
     }
 

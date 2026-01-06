@@ -269,7 +269,7 @@ def derive_morphometric_phenotypes(
     # --------------------------------------------------
     output_entities = {
         "desc": "morphometryPhenotypes",
-        "space": "fsaverage",
+        "suffix": "stats",
         "extension": ".tsv",
     }
 
