@@ -43,7 +43,7 @@ def prepare_dual_channel_from_reconall(input_filepath: str):
     subject_session_id: str = subject_id + (f"_{session_id}" if session_id else "")
     fs_subject_session_results_root_dir: Path = Path(DATA_DIR) / "derivatives" / RECON_ALL_PIPELINE_NAME / "tmp" / "freesurfer_subjects" / subject_session_id
     
-    image_path: Path = fs_subject_session_results_root_dir / "mri" / "norm.nii.gz"
+    image_path: Path = fs_subject_session_results_root_dir / "mri" / "norm.mgz"
     labelmap_filename_priority_list: list = [
         "aparc+aseg",
         "aseg",
@@ -64,7 +64,7 @@ def prepare_dual_channel_from_reconall(input_filepath: str):
         raise FileNotFoundError("No suitable labelmap file found in recon-all outputs.")
     
     # Load image and labelmap data
-    image_nifti: nib.Nifti1Image = nib.load(str(image_path))
+    image_nifti: nib.Nifti1Image = nib.Nifti1Image(nib.load(str(image_path)).get_fdata(), np.eye(4))
     labelmap_nifti: nib.Nifti1Image = nib.Nifti1Image(nib.load(str(labelmap_path)).get_fdata(), image_nifti.affine, image_nifti.header)
     image_data: np.ndarray = image_nifti.get_fdata()
     labelmap_data: np.ndarray = labelmap_nifti.get_fdata()
