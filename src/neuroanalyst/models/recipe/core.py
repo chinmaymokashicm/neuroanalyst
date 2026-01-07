@@ -94,6 +94,15 @@ def create_mock_recipe(
     try:
         class Factory(ModelFactory[RECIPE_FACTORIES[recipe_type]]): ...
         mock_recipe: LogicRecipe | ProcessDirRecipe | PipelineRecipe = Factory.build()
+        if isinstance(mock_recipe, LogicRecipe):
+            mock_recipe.path = f"/path/to/{name}_logic.py"
+        elif isinstance(mock_recipe, ProcessDirRecipe):
+            mock_recipe.logic = f"{name}_logic"
+        elif isinstance(mock_recipe, PipelineRecipe):
+            mock_recipe.name = name
+            for step in mock_recipe.steps:
+                for process_exec in step.processes:
+                    process_exec.process_id = f"{name}_process"
         if save:
             return save_recipe_to_yaml(mock_recipe, name)
         return mock_recipe

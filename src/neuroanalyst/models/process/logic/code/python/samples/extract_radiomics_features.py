@@ -2,6 +2,7 @@ from neuroanalyst.models.process.logic.core import Metric
 from neuroanalyst.analysis.freesurfer import load_freesurfer_color_lut
 
 from pathlib import Path
+from typing import Optional
 import os
 import json
 
@@ -13,7 +14,7 @@ from radiomics import featureextractor
 
 def extract_radiomics_features(input_filepath: str):
     """
-    Extract radiomics features from preprocessed dual-channel image data.
+    Extract radiomics features by ROI from preprocessed dual-channel image data.
     The mask, if multi-label, will be itertively processed for each label by binarizing the mask.
     
     Args:
@@ -21,21 +22,134 @@ def extract_radiomics_features(input_filepath: str):
         
     Returns:
         output_data (pd.DataFrame): DataFrame containing extracted radiomics features.
+            Columns include:
+                - label_id
+                - mask_filename
+                - roi_namespace
+                - roi_label
+                - roi_type
+                - roi_hemisphere
+                - roi_region
+                - [radiomics features...]
         metrics (dict): Dictionary of relevant metrics.
         output_entities (dict): Dictionary of BIDS entities for the output file.
         forced_outputs (list): List of file paths that are saved as outputs but not BIDS-compliant. These will be deleted.
     """
+    def _to_sitk(array: np.ndarray, affine: np.ndarray) -> sitk.Image:
+        sitk_img = sitk.GetImageFromArray(array)
+
+        spacing = np.sqrt((affine[:3, :3] ** 2).sum(axis=0))
+        direction = tuple(np.eye(3).flatten())
+        origin = affine[:3, 3]
+
+        sitk_img.SetSpacing(tuple(spacing[::-1]))
+        sitk_img.SetDirection(tuple(direction))
+        sitk_img.SetOrigin(tuple(origin[::-1]))
+
+        return sitk_img
+    
+    def _extract_features_for_label(label):
+        binary_mask = (mask_data == label).astype(np.uint8)
+        mask_sitk = _to_sitk(binary_mask, dual_channel_image.affine)
+        features = extractor.execute(image_sitk, mask_sitk)
+        return features
+    
+    def str_to_bool(s: str) -> Optional[bool]:
+        if s is None:
+            return None
+        elif s.lower() in ['true', '1', 'yes']:
+            return True
+        elif s.lower() in ['false', '0', 'no']:
+            return False
+        else:
+            return None
+    
+    df_lut: pd.DataFrame = load_freesurfer_color_lut()
+    def _infer_roi_metadata(label: int) -> dict:
+        row = df_lut[df_lut["Index"] == label]
+
+        if row.empty:
+            return {
+                "roi_namespace": "freesurfer",
+                "roi_label": f"unknown_{label}",
+                "roi_type": "unknown",
+                "roi_hemisphere": "unknown",
+                "roi_region": "unknown",
+            }
+
+        label_name = row.iloc[0]["StructName"].strip()
+        lname = label_name.lower()
+
+        # Hemisphere
+        if lname.startswith("left"):
+            hemisphere = "lh"
+        elif lname.startswith("right"):
+            hemisphere = "rh"
+        else:
+            hemisphere = "midline"
+
+        # Broad anatomical region
+        if "cerebellum" in lname:
+            region = "cerebellum"
+        elif "brainstem" in lname:
+            region = "brainstem"
+        else:
+            region = "cerebrum"
+
+        # Tissue / ROI type
+        if "cortex" in lname:
+            roi_type = "cortical_gm"
+        elif "white-matter" in lname:
+            roi_type = "wm"
+        elif "ventricle" in lname or "vent" in lname:
+            roi_type = "csf"
+        elif any(k in lname for k in [
+            "thalamus", "caudate", "putamen", "pallidum",
+            "hippocampus", "amygdala", "accumbens"
+        ]):
+            roi_type = "subcortical_gm"
+        else:
+            roi_type = "other"
+
+        return {
+            "roi_namespace": "freesurfer",
+            "roi_label": label_name,
+            "roi_type": roi_type,
+            "roi_hemisphere": hemisphere,
+            "roi_region": region,
+        }
+        
+    # Get mask file name from input
+    # Check if normalization was applied
+    # Check if resampling was applied
+    try:
+        input_sidecar_path = input_filepath.split(".")[0] + ".json"
+        with open(input_sidecar_path, 'r') as f:
+            sidecar_data = json.load(f)
+            mask_filename = sidecar_data.get("metrics", {}).get("labelmap_filename", None)
+            if mask_filename is None:
+                mask_filename = sidecar_data.get("metrics", {}).get("mask_filename", None)
+            if mask_filename is None:
+                raise ValueError("Mask filename not found in sidecar JSON.")
+            normalization_info = sidecar_data.get("metrics", {}).get("normalization", None)
+            resampling_info = sidecar_data.get("metrics", {}).get("resampling", None)
+    except Exception as e:
+        raise ValueError(f"Error reading sidecar JSON for mask filename: {e}")
+    
     dual_channel_image: nib.Nifti1Image = nib.load(input_filepath)
     data: np.ndarray = dual_channel_image.get_fdata()
     if data.shape[-1] != 2:
         raise ValueError("Input data must have exactly two channels.")
     
     image_data = data[..., 0]
-    mask_data = data[..., 1]
+    mask_data = data[..., 1].astype(np.int32)
+    image_sitk = _to_sitk(image_data.astype(np.float32), dual_channel_image.affine)
+    
+    unique_labels = np.unique(mask_data)
     
     parameters = {
         "binWidth": 25,
-        "resampledPixelSpacing": None,
+        "resampledPixelSpacing": [1.0, 1.0, 1.0] if resampling_info is not None else None,
         "interpolator": "sitkBSpline",
         "enableCExtensions": True
     }
@@ -60,59 +174,6 @@ def extract_radiomics_features(input_filepath: str):
             "SmallAreaEmphasis", "LargeAreaEmphasis", "ZoneEntropy",
         ],
     )
-    image_sitk = sitk.GetImageFromArray(image_data.astype(np.float32))
-    spacing = [float(x) for x in dual_channel_image.header.get_zooms()[:3]]
-    image_sitk.SetSpacing(spacing)
-    
-    def _extract_features_for_label(label):
-        binary_mask = (mask_data == label).astype(np.uint8)
-        mask_sitk = sitk.GetImageFromArray(binary_mask)
-        mask_sitk.SetSpacing(spacing)
-        features = extractor.execute(image_sitk, mask_sitk)
-        return features
-    
-    unique_labels = np.unique(mask_data)
-    # Get mask file name from input
-    try:
-        input_sidecar_path = input_filepath.split(".")[0] + ".json"
-        with open(input_sidecar_path, 'r') as f:
-            sidecar_data = json.load(f)
-            mask_filename = sidecar_data.get("metrics", {}).get("mask_filename", None)["value"]
-    except:
-        mask_filename = "aseg"
-    
-    df_lut: pd.DataFrame = load_freesurfer_color_lut()
-    
-    def _infer_roi_metadata(label: int):
-        """
-        Infer ROI namespace, type, and hemisphere from FreeSurfer label ID.
-        """
-        struct_name: str = df_lut.loc[df_lut['Index'] == label, 'StructName'].values[0]
-        if len(struct_name) == 0:
-            label_name: str = "unknown"
-        else:
-            label_name: str = struct_name
-        
-        hemisphere: str = "none"
-        if "left" in label_name.lower():
-            hemisphere = "L"
-        elif "right" in label_name.lower():
-            hemisphere = "R"
-        
-        roi_type: str = "unknown"
-        if label in [2, 3, 4, 5, 7, 8, 10, 11, 12, 13, 17, 18, 26, 28, 60]:  # Cortical GM labels
-            roi_type = "cortical_gm"
-        elif label in [14, 15, 16, 24, 25, 41, 42, 43, 44, 46, 47, 49, 50, 51, 52, 53, 54]:  # Subcortical GM labels
-            roi_type = "subcortical_gm"
-        elif label in [4, 5, 14, 15, 24, 43, 44]:  # WM labels
-            roi_type = "wm"
-        elif label in [77, 78]:  # CSF labels
-            roi_type = "csf"
-        return {
-            "roi_namespace": "freesurfer",
-            "roi_type": roi_type,
-            "roi_hemisphere": hemisphere
-        }
     
     all_features = []
     for label in unique_labels:
@@ -132,24 +193,34 @@ def extract_radiomics_features(input_filepath: str):
         
     output_data = pd.DataFrame(all_features)
     
-    df_props: pd.DataFrame = output_data[["label_id", "mask_filename", "roi_namespace", "roi_type", "roi_hemisphere"]]
-    prop_metrics: list[Metric] = []
-    props: list[dict] = df_props.to_dict(orient="records")
-    for prop in props:
-        for non_label_key in ["mask_filename", "roi_namespace", "roi_type", "roi_hemisphere"]:
-            metric: Metric = Metric(
-                name=prop["label_id"],
-                value=prop[non_label_key],
-                description=f"{non_label_key} for label {prop['label_id']}",
-                unit=None
-            )
-            prop_metrics.append(metric)
-    prop_metrics = list(set(prop_metrics))  # Deduplicate
-    prop_metrics.sort(key=lambda x: x.name)
+    roi_namespaces = []
+    try:
+        roi_namespaces = sorted(output_data["roi_namespace"].unique().tolist())
+    except Exception as e:
+        roi_namespaces = []
+        print(f"Error extracting roi_namespaces: {e}")
+    
+    roi_types = []
+    try:
+        roi_types = sorted(output_data["roi_type"].unique().tolist())
+    except Exception as e:
+        roi_types = []
+        print(f"Error extracting roi_types: {e}")
+        
+    roi_hemispheres = []
+    try:
+        roi_hemispheres = sorted(output_data["roi_hemisphere"].unique().tolist())
+    except Exception as e:
+        roi_hemispheres = []
+        print(f"Error extracting roi_hemispheres: {e}")
     
     metrics = {
         "num_labels": len(unique_labels) - 1,  # Exclude background
-        **{f"{metric.name}+{metric.description}": metric for metric in prop_metrics}
+        "labelmap_filename": mask_filename,
+        "normalization": normalization_info,
+        "roi_namespaces": roi_namespaces,
+        "roi_types": roi_types,
+        "roi_hemispheres": roi_hemispheres,
     }
     
     output_entities = {

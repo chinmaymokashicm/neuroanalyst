@@ -10,9 +10,11 @@ from bids.layout import parse_file_entities
 def prepare_dual_channel_from_reconall(input_filepath: str):
     """
     Prepare dual-channel image from recon-all output for radiomics feature extraction.
-    The first channel contains the preprocessed T1-weighted image, and the second channel contains the segmentation mask (FreeSurfer anatomical labels).
+    The first channel contains the preprocessed T1-weighted image, and the second channel contains the segmentation labelmap (FreeSurfer anatomical labels).
     
-    Preprocessed T1w mask in priority of availability:
+    Purpose of dual-channel image - to provide both intensity and anatomical context for radiomics analysis.
+    
+    Preprocessed T1w labelmap in priority of availability:
         1. aparc+aseg
         2. aseg
         3. aseg.auto
@@ -42,39 +44,56 @@ def prepare_dual_channel_from_reconall(input_filepath: str):
     fs_subject_session_results_root_dir: Path = Path(DATA_DIR) / "derivatives" / RECON_ALL_PIPELINE_NAME / "tmp" / "freesurfer_subjects" / subject_session_id
     
     image_path: Path = fs_subject_session_results_root_dir / "mri" / "norm.nii.gz"
-    mask_filename_priority_list: list = [
+    labelmap_filename_priority_list: list = [
         "aparc+aseg",
         "aseg",
         "aseg.auto",
         "wmparc",
         # "brainmask"
     ]
-    mask_path: Path = None
-    for mask_filename in mask_filename_priority_list:
-        candidate_mask_path: Path = fs_subject_session_results_root_dir / "mri" / (mask_filename + ".mgz")
-        if candidate_mask_path.exists():
-            mask_path = candidate_mask_path
+    labelmap_path: Path = None
+    labelmap_type: str = ""
+    for labelmap_filename in labelmap_filename_priority_list:
+        candidate_labelmap_path: Path = fs_subject_session_results_root_dir / "mri" / (labelmap_filename + ".mgz")
+        if candidate_labelmap_path.exists():
+            labelmap_path = candidate_labelmap_path
+            labelmap_type = labelmap_filename
             break
         
-    if mask_path is None:
-        raise FileNotFoundError("No suitable mask file found in recon-all outputs.")
+    if labelmap_path is None:
+        raise FileNotFoundError("No suitable labelmap file found in recon-all outputs.")
     
-    # Load image and mask data
-    image_nifti = nib.load(str(image_path))
-    mask_nifti = nib.load(str(mask_path))
-    image_data = image_nifti.get_fdata()
-    mask_data = mask_nifti.get_fdata()
+    # Load image and labelmap data
+    image_nifti: nib.Nifti1Image = nib.load(str(image_path))
+    labelmap_nifti: nib.Nifti1Image = nib.Nifti1Image(nib.load(str(labelmap_path)).get_fdata(), image_nifti.affine, image_nifti.header)
+    image_data: np.ndarray = image_nifti.get_fdata()
+    labelmap_data: np.ndarray = labelmap_nifti.get_fdata()
     
-    if image_data.shape != mask_data.shape:
-        raise ValueError("Image and mask dimensions do not match.")
+    if image_data.shape != labelmap_data.shape:
+        raise ValueError("Image and labelmap voxel dimensions do not match.")
+
+    if not np.allclose(image_nifti.affine, labelmap_nifti.affine):
+        raise ValueError("Image and labelmap affines do not match.")
     
     # Create dual-channel data
-    output_data = np.stack([image_data, mask_data], axis=-1)
+    output_data = np.stack([image_data, labelmap_data], axis=-1)
     
+    CATEGORY: str = "anatomical"
+    
+    SEGMENTATION_COVERAGE = {
+        "aparc+aseg": "cortical+subcortical",
+        "aseg": "subcortical",
+        "wmparc": "white_matter",
+        "aseg.auto": "subcortical_auto"
+    }
+    coverage = SEGMENTATION_COVERAGE.get(labelmap_type, "unknown")
+
     metrics = {
-        "image_shape": Metric(name="image_shape", value=image_data.shape, description="Shape of the input image", unit="voxels"),
-        "mask_shape": Metric(name="mask_shape", value=mask_data.shape, description="Shape of the segmentation mask", unit="voxels"),
-        "mask_filename": Metric(name="mask_filename", value=mask_filename, description="Filename of the segmentation mask", unit=None)
+        "image_shape": image_data.shape,
+        "labelmap_shape": labelmap_data.shape,
+        "labelmap_filename": labelmap_path.name,
+        "labelmap_type": Metric(name="labelmap_type", value=labelmap_type, description="Type of the segmentation labelmap used", unit=None, category=CATEGORY, labels=["labelmap", "type"]),
+        "segmentation_coverage": Metric(name="segmentation_coverage", value=coverage, description="Anatomical coverage of the segmentation labelmap", unit=None, category=CATEGORY, labels=["labelmap", "coverage"]),
     }
     output_entities = {
         "desc": "dual",

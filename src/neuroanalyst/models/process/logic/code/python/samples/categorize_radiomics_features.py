@@ -22,8 +22,6 @@ def categorize_radiomics_features(input_filepath: str):
         output_entities (dict): Dictionary of BIDS entities for the output file.
         forced_outputs (list): List of file paths that are saved as outputs but not BIDS-compliant. These will be deleted.
     """
-    df = pd.read_csv(input_filepath, sep="\t")
-
     FEATURE_FAMILY_MAP = {
         # Shape
         "original_shape_VoxelVolume": "shape",
@@ -172,14 +170,18 @@ def categorize_radiomics_features(input_filepath: str):
         return "uncategorized"
 
 
+    df_features = pd.read_csv(input_filepath, sep="\t")
     records = []
-
-    for _, row in df.iterrows():
+    
+    required_columns = ["label_id", "roi_type", "roi_hemisphere", "mask_filename"]
+    missing_columns = required_columns - set(df_features.columns)
+    if missing_columns:
+        raise ValueError(f"Input data is missing required columns: {missing_columns}")
+    
+    for _, row in df_features.iterrows():
         for feature_name, family in FEATURE_FAMILY_MAP.items():
             if feature_name not in row:
                 continue
-
-            bucket = _bucket_feature(feature_name, row[feature_name])
 
             records.append({
                 "label_id": row["label_id"],
@@ -188,32 +190,17 @@ def categorize_radiomics_features(input_filepath: str):
                 "mask_filename": row["mask_filename"],
                 "feature_family": family,
                 "feature_name": feature_name,
-                "bucket": bucket,
+                "bucket": _bucket_feature(feature_name, row[feature_name]),
                 "value": row[feature_name],
             })
 
-    categorized_df = pd.DataFrame.from_records(records)
-    
-    df_props: pd.DataFrame = categorized_df[["label_id", "roi_type", "roi_hemisphere", "mask_filename", "feature_family", "feature_name", "bucket", "value"]]
-    props: list[dict] = df_props.to_dict(orient="records")
-    prop_metrics: list[Metric] = []
-    for prop in props:
-        for non_prop_name_key in ["label_id", "roi_type", "roi_hemisphere", "mask_filename", "feature_family", "bucket", "value"]:
-            metric: Metric = Metric(
-                name=prop["feature_name"],
-                value=prop[non_prop_name_key],
-                description=f"{non_prop_name_key} for feature {prop['feature_name']}",
-                unit=None
-            )
-            prop_metrics.append(metric)
-    prop_metrics = list(set(prop_metrics))  # Deduplicate
-    prop_metrics.sort(key=lambda x: x.name)
+    output_data = pd.DataFrame.from_records(records)
 
     metrics = {
-        "num_rois": categorized_df["label_id"].nunique(),
-        "num_features": categorized_df["feature_name"].nunique(),
-        "num_buckets": categorized_df["bucket"].nunique(),
-        **{f"{metric.name}+{metric.description}": metric for metric in prop_metrics}
+        "num_rois": output_data["label_id"].nunique(),
+        "num_features": output_data["feature_name"].nunique(),
+        "num_feature_families": output_data["feature_family"].nunique(),
+        "num_buckets": output_data["bucket"].nunique(),
     }
     
     output_entities = {
@@ -222,4 +209,4 @@ def categorize_radiomics_features(input_filepath: str):
         "extension": ".tsv"
     }
 
-    return categorized_df, metrics, output_entities, []
+    return output_data, metrics, output_entities, []
