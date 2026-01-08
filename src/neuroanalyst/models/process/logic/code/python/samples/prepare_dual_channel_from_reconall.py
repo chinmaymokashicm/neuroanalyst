@@ -97,7 +97,7 @@ def prepare_dual_channel_from_reconall(input_filepath: str):
     }
     output_entities = {
         "desc": "dual",
-        "modality": "T1w",
+        "suffix": "T1w",
         "extension": ".nii.gz"
     }
     forced_outputs = [] # No forced outputs in this case
