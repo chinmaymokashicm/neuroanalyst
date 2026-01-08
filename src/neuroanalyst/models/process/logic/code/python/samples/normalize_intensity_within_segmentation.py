@@ -66,7 +66,7 @@ def normalize_intensity_within_segmentation(input_filepath: str):
     
     output_entities = {
         "desc": "normalized",
-        "modality": "T1w",
+        "suffix": "T1w",
         "extension": ".nii.gz"
     }
     

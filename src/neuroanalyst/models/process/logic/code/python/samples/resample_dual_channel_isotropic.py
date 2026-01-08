@@ -116,7 +116,7 @@ def resample_dual_channel_isotropic(input_filepath: str):
 
     output_entities = {
         "desc": "resampled",
-        "modality": "T1w",
+        "suffix": "T1w",
         "extension": ".nii.gz",
     }
 

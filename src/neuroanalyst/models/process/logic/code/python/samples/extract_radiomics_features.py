@@ -225,7 +225,7 @@ def extract_radiomics_features(input_filepath: str):
     
     output_entities = {
         "desc": "radiomics",
-        "modality": "T1w",
+        "suffix": "T1w",
         "extension": ".tsv"
     }
     
