@@ -44,15 +44,25 @@ def resample_dual_channel_isotropic(input_filepath: str):
     def _to_sitk(array: np.ndarray, affine: np.ndarray) -> sitk.Image:
         sitk_img = sitk.GetImageFromArray(array)
 
+        # Compute spacing (voxel size)
         spacing = np.sqrt((affine[:3, :3] ** 2).sum(axis=0))
+
+        # Compute direction cosines
         direction = (affine[:3, :3] / spacing).flatten()
+        
+        # Validate direction cosines (should be orthogonal)
+        if not np.allclose(np.dot(direction.reshape(3,3), direction.reshape(3,3).T), np.eye(3), atol=1e-3):
+            raise ValueError("Affine contains shear; cannot safely convert to SimpleITK.")
+
+        # Origin
         origin = affine[:3, 3]
 
-        sitk_img.SetSpacing(tuple(spacing[::-1]))
-        sitk_img.SetDirection(tuple(direction))
-        sitk_img.SetOrigin(tuple(origin[::-1]))
+        sitk_img.SetSpacing(tuple(float(s) for s in spacing[::-1]))     # z, y, x
+        sitk_img.SetDirection(tuple(float(d) for d in direction))
+        sitk_img.SetOrigin(tuple(float(o) for o in origin[::-1]))       # z, y, x
 
         return sitk_img
+
 
     def _resample(sitk_img: sitk.Image, spacing: tuple[float, float, float], is_label: bool = False) -> sitk.Image:
         original_spacing = sitk_img.GetSpacing()
