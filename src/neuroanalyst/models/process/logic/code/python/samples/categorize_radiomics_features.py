@@ -180,7 +180,7 @@ def categorize_radiomics_features(input_filepath: str):
     
     for _, row in df_features.iterrows():
         for feature_name, family in FEATURE_FAMILY_MAP.items():
-            if feature_name not in row:
+            if feature_name not in row or pd.isna(row[feature_name]):
                 continue
 
             records.append({

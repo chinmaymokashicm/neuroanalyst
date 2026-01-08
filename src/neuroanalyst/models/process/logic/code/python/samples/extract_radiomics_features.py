@@ -54,6 +54,20 @@ def extract_radiomics_features(input_filepath: str):
         features = extractor.execute(image_sitk, mask_sitk)
         return features
     
+    def _safe_enable_features(extractor: featureextractor.RadiomicsFeatureExtractor, feature_class: str, feature_names: list[str]) -> list[str]:
+        """
+        Enable PyRadiomics features safely.
+        Returns list of successfully enabled features.
+        """
+        enabled = []
+        for name in feature_names:
+            try:
+                extractor.enableFeaturesByName(**{feature_class: [name]})
+                enabled.append(name)
+            except LookupError:
+                print(f"[radiomics] Skipping missing feature: {feature_class}.{name}")
+        return enabled
+    
     def str_to_bool(s: str) -> Optional[bool]:
         if s is None:
             return None
@@ -154,26 +168,39 @@ def extract_radiomics_features(input_filepath: str):
         "enableCExtensions": True
     }
     extractor = featureextractor.RadiomicsFeatureExtractor(**parameters)
-    extractor.enableFeaturesByName(
-        shape=[
-            "VoxelVolume", "SurfaceArea", "Sphericity",
-            "Elongation", "MajorAxisLength",
-        ],
-        firstorder=[
-            "Mean", "Median", "StandardDeviation",
-            "Skewness", "Kurtosis", "Entropy", "Energy",
-        ],
-        glcm=[
-            # "Contrast", "Correlation", "Homogeneity", "Energy",
-            "Contrast", "Correlation", "Homogeneity",
-        ],
-        glrlm=[
-            "ShortRunEmphasis", "LongRunEmphasis", "RunEntropy",
-        ],
-        glszm=[
-            "SmallAreaEmphasis", "LargeAreaEmphasis", "ZoneEntropy",
-        ],
+    enabled_features = {}
+
+    enabled_features["shape"] = _safe_enable_features(
+        extractor, "shape",
+        ["VoxelVolume", "SurfaceArea", "Sphericity", "Elongation", "MajorAxisLength"]
     )
+
+    enabled_features["firstorder"] = _safe_enable_features(
+        extractor, "firstorder",
+        ["Mean", "Median", "StandardDeviation", "Skewness", "Kurtosis", "Entropy", "Energy"]
+    )
+
+    enabled_features["glcm"] = _safe_enable_features(
+        extractor, "glcm",
+        [
+            "Contrast",
+            "Correlation",
+            "Homogeneity1",
+            "JointEntropy",
+            "JointEnergy",
+        ]
+    )
+
+    enabled_features["glrlm"] = _safe_enable_features(
+        extractor, "glrlm",
+        ["ShortRunEmphasis", "LongRunEmphasis", "RunEntropy"]
+    )
+
+    enabled_features["glszm"] = _safe_enable_features(
+        extractor, "glszm",
+        ["SmallAreaEmphasis", "LargeAreaEmphasis", "ZoneEntropy"]
+    )
+
     
     all_features = []
     for label in unique_labels:
@@ -221,6 +248,7 @@ def extract_radiomics_features(input_filepath: str):
         "roi_namespaces": roi_namespaces,
         "roi_types": roi_types,
         "roi_hemispheres": roi_hemispheres,
+        "enabled_features": enabled_features,
     }
     
     output_entities = {
