@@ -62,7 +62,7 @@ def main():
     # Ask for window size (number of parallel processes at the same time)
     window_size: int = int(questionary.text(
         "Enter the window size (number of parallel processes to run at the same time):",
-        default="1",
+        default="6",
         validate=lambda text: text.isdigit() and int(text) in range(1, 31) or "Please enter a positive integer."
     ).ask())
     console.print(f"[blue]Running pipeline '{selected_pipeline.about.name}'...[/blue]")
