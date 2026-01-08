@@ -94,6 +94,14 @@ def main():
                 console.print(f"[green]Process '{process.logic.about.name}' environment is built.[/green]")
             else:
                 console.print(f"[yellow]Process '{process.logic.about.name}' environment is NOT built.[/yellow]")
+                console.print(f"[yellow]Do you want to wait for it to be built later?[/yellow]")
+                wait_later: bool = questionary.confirm(
+                    f"Wait for process '{process.logic.about.name}' to be built later?",
+                    default=True
+                ).ask()
+                if wait_later:
+                    console.print(f"[blue]Will recheck process '{process.logic.about.name}' later.[/blue]")
+                    continue
                 console.print(f"[blue]Do you want to build the environment for process '{process.logic.about.name}' now?[/blue]")
                 build_now: bool = questionary.confirm(
                     f"Build environment for process '{process.logic.about.name}'?",
