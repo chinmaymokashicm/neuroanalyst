@@ -48,8 +48,14 @@ def extract_radiomics_features(input_filepath: str):
 
         return sitk_img
     
-    def _extract_features_for_label(label):
+    def _extract_features_for_label(label) -> Optional[dict]:
         binary_mask = (mask_data == label).astype(np.uint8)
+        
+        voxel_count = np.sum(binary_mask)
+        if voxel_count < 2:
+            print(f"[radiomics] Skipping label {label} due to insufficient voxel count: {voxel_count}")
+            return None
+        
         mask_sitk = _to_sitk(binary_mask, dual_channel_image.affine)
         features = extractor.execute(image_sitk, mask_sitk)
         return features
@@ -203,10 +209,14 @@ def extract_radiomics_features(input_filepath: str):
 
     
     all_features = []
+    skipped_labels = []
     for label in unique_labels:
         if label == 0:
             continue  # Skip background
-        features = _extract_features_for_label(label)
+        features: Optional[dict] = _extract_features_for_label(label)
+        if features is None:
+            skipped_labels.append(label)
+            continue
         # Remove diagnostic features
         features = {k: v for k, v in features.items() if not k.startswith("diagnostics_")}
         # Add label-specific metadata
@@ -249,6 +259,7 @@ def extract_radiomics_features(input_filepath: str):
         "roi_types": roi_types,
         "roi_hemispheres": roi_hemispheres,
         "enabled_features": enabled_features,
+        "skipped_labels": skipped_labels,
     }
     
     output_entities = {
