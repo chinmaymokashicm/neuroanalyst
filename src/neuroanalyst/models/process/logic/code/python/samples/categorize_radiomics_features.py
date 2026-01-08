@@ -140,7 +140,7 @@ def categorize_radiomics_features(input_filepath: str):
         if "Correlation" in feature_name:
             return "high_texture_correlation" if value > 0.8 else "low_texture_correlation"
 
-        if "Homogeneity" in feature_name:
+        if "Homogeneity1" in feature_name:
             return "homogeneous_texture" if value > 0.5 else "heterogeneous_texture"
 
         # ------------------
