@@ -21,6 +21,40 @@ def derive_composite_phenotypes(input_filepath: str):
         output_entities (dict): Dictionary of BIDS entities for the output file.
         forced_outputs (list): List of file paths that are saved as outputs but not BIDS-compliant. These will be deleted.
     """
+    PHENOTYPE_RULES = [
+        {
+            "name": "large_irregular_structure",
+            "requires": {"large_volume", "irregular_shape"},
+            "family": "shape",
+        },
+        {
+            "name": "diffuse_structure",
+            "requires": {"large_extent", "high_surface_area"},
+            "family": "shape",
+        },
+        {
+            "name": "heterogeneous_high_entropy_roi",
+            "requires": {"high_entropy", "heterogeneous_texture"},
+            "family": "texture",
+        },
+        {
+            "name": "fine_grained_complex_texture",
+            "requires": {"fine_texture", "complex_texture"},
+            "family": "texture",
+        },
+        {
+            "name": "asymmetric_intensity_distribution",
+            "requires": {"right_skewed_intensity", "high_intensity_variance"},
+            "family": "intensity",
+        },
+        {
+            "name": "high_signal_dominant_roi",
+            "requires": {"high_signal_energy", "high_mean_intensity"},
+            "family": "intensity",
+        },
+    ]
+
+    
     bucketed_df = pd.read_csv(input_filepath, sep="\t")
     
     records = []
@@ -31,74 +65,42 @@ def derive_composite_phenotypes(input_filepath: str):
 
     for roi_keys, df_roi in grouped:
         buckets = set(df_roi["bucket"].values)
-        matched = False
+        matched_any = False
 
-        def has(*args):
-            return all(a in buckets for a in args)
+        for rule in PHENOTYPE_RULES:
+            if rule["requires"].issubset(buckets):
+                records.append({
+                    "label_id": roi_keys[0],
+                    "roi_type": roi_keys[1],
+                    "roi_hemisphere": roi_keys[2],
+                    "mask_filename": roi_keys[3],
+                    "composite_phenotype": rule["name"],
+                    "phenotype_family": rule["family"],
+                    "evidence_buckets": sorted(rule["requires"]),
+                })
+                matched_any = True
 
-        # Shape composites
-        if has("large_volume", "irregular_shape"):
-            records.append((*roi_keys, "large_irregular_structure"))
-            matched = True
+        # Fallback
+        if not matched_any:
+            records.append({
+                "label_id": roi_keys[0],
+                "roi_type": roi_keys[1],
+                "roi_hemisphere": roi_keys[2],
+                "mask_filename": roi_keys[3],
+                "composite_phenotype": "no_composite_phenotype",
+                "phenotype_family": "none",
+                "evidence_buckets": [],
+            })
 
-        if has("large_extent", "high_surface_area"):
-            records.append((*roi_keys, "diffuse_structure"))
-            matched = True
-
-        # Texture composites
-        if has("high_entropy", "heterogeneous_texture"):
-            records.append((*roi_keys, "heterogeneous_high_entropy_roi"))
-            matched = True
-
-        if has("fine_texture", "complex_texture"):
-            records.append((*roi_keys, "fine_grained_complex_texture"))
-            matched = True
-
-        # Intensity composites
-        if has("right_skewed_intensity", "high_intensity_variance"):
-            records.append((*roi_keys, "asymmetric_intensity_distribution"))
-            matched = True
-
-        if has("high_signal_energy", "high_mean_intensity"):
-            records.append((*roi_keys, "high_signal_dominant_roi"))
-            matched = True
-
-        # Fallback phenotype
-        if not matched:
-            records.append((*roi_keys, "no_composite_phenotype"))
-
-    output_data = pd.DataFrame(
-        records,
-        columns=[
-            "label_id",
-            "roi_type",
-            "roi_hemisphere",
-            "mask_filename",
-            "composite_phenotype",
-        ],
-    )
+    output_data = pd.DataFrame.from_records(records)
     output_data["composite_phenotype"] = output_data["composite_phenotype"].astype("category")
-    
-    df_label_phenotypes: pd.DataFrame = output_data[["label_id", "composite_phenotype"]]
-    prop_metrics: list[Metric] = []
-    props: list[dict] = df_label_phenotypes.to_dict(orient="records")
-    for prop in props:
-        metric: Metric = Metric(
-            name=prop["label_id"],
-            value=prop["composite_phenotype"],
-            description=f"composite_phenotype for label {prop['label_id']}",
-            unit=None
-        )
-        prop_metrics.append(metric)
-    prop_metrics = list(set(prop_metrics))  # Deduplicate
-    prop_metrics.sort(key=lambda x: x.name)
-    
+
     metrics = {
         "num_rois": output_data["label_id"].nunique(),
         "num_composite_phenotypes": output_data["composite_phenotype"].nunique(),
-        **{f"{metric.name}+{metric.description}": metric for metric in prop_metrics}
+        "phenotype_families": sorted(output_data["phenotype_family"].unique().tolist()),
     }
-    
+
     output_entities = {
         "desc": "radiomicsPhenotypes",
         "modality": "T1w",
