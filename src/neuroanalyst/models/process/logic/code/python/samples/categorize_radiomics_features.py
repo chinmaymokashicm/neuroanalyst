@@ -174,7 +174,7 @@ def categorize_radiomics_features(input_filepath: str):
     records = []
     
     required_columns = ["label_id", "roi_type", "roi_hemisphere", "mask_filename"]
-    missing_columns = required_columns - set(df_features.columns)
+    missing_columns = set(required_columns) - set(df_features.columns)
     if missing_columns:
         raise ValueError(f"Input data is missing required columns: {missing_columns}")
     
