@@ -374,7 +374,10 @@ Error message: {str(func_error)}
                             return {
                                 "value": make_json_serializable(obj.value),
                                 "unit": obj.unit,
-                                "description": obj.description
+                                "name": obj.name,
+                                "description": obj.description,
+                                "category": obj.category,
+                                "labels": make_json_serializable(obj.labels)
                             }
                         else:
                             try:
