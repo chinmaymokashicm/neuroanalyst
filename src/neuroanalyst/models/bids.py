@@ -45,7 +45,7 @@ class BIDSDatasetDescription(BaseModel):
     EthicsApprovals: Optional[List[str]] = Field(default=None, description="List of ethics committee approvals")
     ReferencesAndLinks: Optional[List[str]] = Field(default=None, description="List of references and links")
     DatasetDOI: Optional[str] = Field(default=None, description="The DOI of the dataset if available")
-    PipelineDescription: PipelineDescriptionSpec = Field(..., description="Description of the processing pipeline applied to the dataset")
+    PipelineDescription: Optional[PipelineDescriptionSpec] = Field(default=None, description="Description of the processing pipeline applied to the dataset")
     PipelineSteps: Optional[List[Any]] = Field(default=None, description="Description of the processing steps applied to the dataset")
     
     class Config:

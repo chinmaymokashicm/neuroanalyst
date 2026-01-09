@@ -184,7 +184,7 @@ pykwalify==1.8.0
 pymongo==4.14.1
 pyparsing==3.2.3
 pyperclip==1.11.0
-pyradiomics @ git+https://github.com/AIM-Harvard/pyRadiomics.git@8ed579383b44806651c463d5e691f3b2b57522ab
+# pyradiomics @ git+https://github.com/AIM-Harvard/pyRadiomics.git@8ed579383b44806651c463d5e691f3b2b57522ab
 pytest==8.4.2
 pytest-watch==4.2.0
 python-dateutil==2.9.0.post0

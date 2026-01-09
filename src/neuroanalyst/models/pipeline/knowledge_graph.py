@@ -8,7 +8,7 @@ Steps-
     - Transfer the graph to Neo4j for persistent storage and querying
 """
 
-from ..ontology.core import axonome_ontology
+from ..ontology.old import axonome_ontology
 from ..process.logic.core import Metric
 from .core import NeuPipeline
 from ..process import NeuProcess, NeuProcessExec, NeuProcessLogic
