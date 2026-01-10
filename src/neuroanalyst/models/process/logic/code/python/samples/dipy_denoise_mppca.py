@@ -85,7 +85,7 @@ def dipy_denoise_mppca(input_filepath: str):
     if PIPELINE_NAME is None:
         raise EnvironmentError("PIPELINE_NAME environment variable is not set.")
     img: nib.Nifti1Image = nib.load(input_filepath)
-    img_data: np.ndarray = img.get_fdata()
+    img_data: np.ndarray = img.get_fdata(dtype=np.float32)
     affine: np.ndarray = img.affine
     header: nib.Nifti1Header = img.header
     
@@ -103,28 +103,28 @@ def dipy_denoise_mppca(input_filepath: str):
     # ============================
     denoised_data: np.ndarray = mppca(img_data, patch_radius=2, return_sigma=False)
     denoised_img: nib.Nifti1Image = nib.Nifti1Image(denoised_data, affine, header)
-    output_data: np.ndarray = denoised_img.get_fdata()
+    output_data: np.ndarray = denoised_img.get_fdata(dtype=np.float32)
     
     # ============================
     # Step 3: Prepare Outputs
     # ============================
-    # Save bvals and bvecs for reference in downstream processing if needed
-    try:
-        bval, bvec = read_bvals_bvecs(input_bval_filepath, input_bvec_filepath)
-        output_dir: str = os.path.join(DATA_DIR, "derivatives", PIPELINE_NAME, "tmp")
-        os.makedirs(output_dir, exist_ok=True)
-        input_file_stem: str = "denoised_mppca_" + input_filepath.split("/")[-1].split(".")[0]
-        bval_filepath, bvec_filepath = save_bval_bvec_files(bval, bvec, output_dir, input_file_stem)
-    except Exception as e:
-        print(f"Error saving bval and bvec files: {e}")
-        bval_filepath, bvec_filepath = None, None
+    # # Save bvals and bvecs for reference in downstream processing if needed
+    # try:
+    #     bval, bvec = read_bvals_bvecs(input_bval_filepath, input_bvec_filepath)
+    #     output_dir: str = os.path.join(DATA_DIR, "derivatives", PIPELINE_NAME, "tmp")
+    #     os.makedirs(output_dir, exist_ok=True)
+    #     input_file_stem: str = "denoised_mppca_" + input_filepath.split("/")[-1].split(".")[0]
+    #     bval_filepath, bvec_filepath = save_bval_bvec_files(bval, bvec, output_dir, input_file_stem)
+    # except Exception as e:
+    #     print(f"Error saving bval and bvec files: {e}")
+    #     bval_filepath, bvec_filepath = None, None
     
     metrics: dict = {
         "denoising_method": "MP-PCA",
         "input_shape": img_data.shape,
         "output_shape": output_data.shape,
-        "bval_filepath": bval_filepath,
-        "bvec_filepath": bvec_filepath
+        "bval_filepath": input_bval_filepath,
+        "bvec_filepath": input_bvec_filepath
     }
 
     output_entities: dict = {

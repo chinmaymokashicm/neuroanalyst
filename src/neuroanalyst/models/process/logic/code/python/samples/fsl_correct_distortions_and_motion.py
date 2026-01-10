@@ -191,25 +191,23 @@ def fsl_correct_distortions_and_motion(input_filepath: str):
         print(f"Error loading corrected image: {e}")
         raise e
     
-    # Save bvals and bvecs for reference in downstream processing if needed
+    # Save bvecs for reference in downstream processing if needed
     try:
         input_file_stem: str = "motion_corrected_" + input_filepath.split("/")[-1].split(".")[0]
-        bval_filepath = os.path.join(output_dir, f"{input_file_stem}.bval")
         bvec_filepath = os.path.join(output_dir, f"{input_file_stem}.bvec")
-        # Copy updated bvals and bvecs from eddy output to output directory
+        # Copy updated bvecs from eddy output to output directory
         corrected_bvec_path = os.path.join(temp_fsl_dir, "eddy_corrected.eddy_rotated_bvecs")
         shutil.copyfile(corrected_bvec_path, bvec_filepath)
-        shutil.copyfile(input_bval_filepath, bval_filepath)
     except Exception as e:
-        print(f"Error saving bval and bvec files: {e}")
-        bval_filepath, bvec_filepath = None, None
+        print(f"Error saving bvec file: {e}")
+        bvec_filepath = None
 
     metrics: dict = {
         "correction_method": "FSL Eddy",
         "num_volumes": n_volumes,
         "note": "Eddy correction applied for motion and eddy currents.",
         "bvecs_updated": True,
-        "bval_filepath": bval_filepath,
+        "bval_filepath": input_bval_filepath,
         "bvec_filepath": bvec_filepath,
     }
 

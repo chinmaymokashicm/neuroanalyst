@@ -26,41 +26,33 @@ def convert_string_to_number(s: str) -> any:
     except ValueError:
         return None
 
-def identify_instance_from_dict(
-    data: Any, 
-    cls: type, 
-    path: str = "",
-    visited: Set[int] = None
-) -> Generator[Tuple[str, Any], None, None]:
-    """
-    Yields (path, instance) tuples for every instance of 'cls' found.
-    Uses a 'visited' set of object IDs to safely handle circular references.
-    """
+def find_and_transform_instances(data: Any, cls: type, path: str = "",visited: Set[int] = None) -> Generator[Tuple[str, type], None, None]:
     if visited is None:
         visited = set()
 
-    # Get unique ID of current container to check for circularity
-    data_id = id(data)
-    if data_id in visited:
+    # Prevent infinite loops
+    if id(data) in visited:
         return
-    visited.add(data_id)
-
-    # Determine iteration strategy
-    if isinstance(data, dict):
-        iterator = data.items()
-    elif isinstance(data, list):
-        iterator = enumerate(data)
+    
+    # We only care about dicts and lists for traversal
+    if isinstance(data, (dict, list)):
+        visited.add(id(data))
     else:
         return
 
+    # Check if this specific dictionary is an instance of the target class
+    if isinstance(data, dict):
+        try:
+            instance = cls(**data)
+            yield (path, instance)
+        except Exception:
+            pass
+        # Note: We usually don't recurse inside an instance once found
+
+    # Otherwise, keep searching deeper
+    iterator = data.items() if isinstance(data, dict) else enumerate(data)
     for key, value in iterator:
-        # Format path
-        current_path = f"{path}[{key}]" if isinstance(data, list) else (f"{path}.{key}" if path else str(key))
+        new_path = f"{path}[{key}]" if isinstance(data, list) else (f"{path}.{key}" if path else str(key))
         
-        # Yield the instance if it matches the class
-        if isinstance(value, cls):
-            yield (current_path, value)
-        
-        # Recurse if the value is a container
         if isinstance(value, (dict, list)):
-            yield from identify_instance_from_dict(value, cls, current_path, visited)
+            yield from find_and_transform_instances(value, cls, new_path, visited)

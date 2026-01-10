@@ -108,23 +108,23 @@ def dipy_remove_gibbs_ringing(input_filepath: str):
     # ============================
     # Step 3: Prepare Outputs
     # ============================
-    # Save bvals and bvecs for reference in downstream processing if needed
-    try:
-        bval, bvec = read_bvals_bvecs(input_bval_filepath, input_bvec_filepath)
-        output_dir: str = os.path.join(DATA_DIR, "derivatives", PIPELINE_NAME, "tmp")
-        os.makedirs(output_dir, exist_ok=True)
-        input_file_stem: str = "gibbs_corrected_" + input_filepath.split("/")[-1].split(".")[0]
-        bval_filepath, bvec_filepath = save_bval_bvec_files(bval, bvec, output_dir, input_file_stem)
-    except Exception as e:
-        print(f"Error saving bval and bvec files: {e}")
-        bval_filepath, bvec_filepath = None, None
+    # # Save bvals and bvecs for reference in downstream processing if needed
+    # try:
+    #     bval, bvec = read_bvals_bvecs(input_bval_filepath, input_bvec_filepath)
+    #     output_dir: str = os.path.join(DATA_DIR, "derivatives", PIPELINE_NAME, "tmp")
+    #     os.makedirs(output_dir, exist_ok=True)
+    #     input_file_stem: str = "gibbs_corrected_" + input_filepath.split("/")[-1].split(".")[0]
+    #     bval_filepath, bvec_filepath = save_bval_bvec_files(bval, bvec, output_dir, input_file_stem)
+    # except Exception as e:
+    #     print(f"Error saving bval and bvec files: {e}")
+    #     bval_filepath, bvec_filepath = None, None
     
     metrics: dict = {
         "correction_method": "Gibbs ringing removal",
         "input_shape": img_data.shape,
         "output_shape": output_data.shape,
-        "bval_filepath": bval_filepath,
-        "bvec_filepath": bvec_filepath,
+        "bval_filepath": input_bval_filepath,
+        "bvec_filepath": input_bvec_filepath,
     }
 
     output_entities: dict = {

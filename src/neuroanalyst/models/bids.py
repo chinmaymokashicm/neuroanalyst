@@ -5,7 +5,7 @@ from pydantic import BaseModel, Field, ConfigDict
 class BIDSGeneratedByToolInfo(BaseModel):
     """Tool information for BIDS dataset_description.json GeneratedBy field."""
     Name: str = Field(..., description="Name of the tool that generated this dataset")
-    Version: str = Field(..., description="Version of the tool")
+    Version: Optional[str] = Field(default=None, description="Version of the tool")
     CodeURL: Optional[str] = Field(default=None, description="URL where the code for the tool can be found")
     Container: Optional[Dict[str, str]] = Field(default=None, description="Container information")
     
