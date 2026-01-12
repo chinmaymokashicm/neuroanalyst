@@ -39,12 +39,8 @@ def dti_tensor_fit(input_filepath: str):
         try:
             with open(sidecar_path, 'r') as f:
                 sidecar_data = json.load(f)
-                bval_info = sidecar_data.get("DWI", {}).get("bval", None)
-                bvec_info = sidecar_data.get("DWI", {}).get("bvec", None)
-                if bval_info and "value" in bval_info:
-                    bval_filepath = bval_info["value"]
-                if bvec_info and "value" in bvec_info:
-                    bvec_filepath = bvec_info["value"]
+            bval_filepath = sidecar_data.get("metrics", {}).get("bval_filepath", None)
+            bvec_filepath = sidecar_data.get("metrics", {}).get("bvec_filepath", None)
         except Exception as e:
             print(f"Error reading sidecar JSON: {e}. Attempting to infer from input filepath.")
         
@@ -83,7 +79,7 @@ def dti_tensor_fit(input_filepath: str):
         np.savetxt(bval_filepath, bval, fmt="%.6f")
         np.savetxt(bvec_filepath, bvec.T, fmt="%.6f")  # Transpose to match expected shape
         return bval_filepath, bvec_filepath
-
+    
     # ============================
     # Step 1: Load Data
     # ============================
