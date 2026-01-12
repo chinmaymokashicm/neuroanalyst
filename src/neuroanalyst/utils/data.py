@@ -26,33 +26,46 @@ def convert_string_to_number(s: str) -> any:
     except ValueError:
         return None
 
-def find_and_transform_instances(data: Any, cls: type, path: str = "",visited: Set[int] = None) -> Generator[Tuple[str, type], None, None]:
+def find_and_transform_instances(data: Any, cls: type, path: str = "", visited: Set[int] = None) -> Generator[Tuple[str, type], None, None]:
+    """
+    Recursively search through nested dictionaries and lists to find instances of a specified class.
+    When an instance is found, it is transformed into the specified class.
+    
+    Args:
+        data (Any): The input data structure (dicts/lists) to search.
+        cls (type): The class type to search for and transform into.
+        path (str): The current path in the data structure (for tracking).
+        visited (Set[int]): Set of visited object ids to prevent infinite loops.
+        
+    Yields:
+        Tuple[str, type]: A tuple containing the path to the instance and the transformed instance.
+    """
     if visited is None:
         visited = set()
 
-    # Prevent infinite loops
     if id(data) in visited:
         return
-    
-    # We only care about dicts and lists for traversal
-    if isinstance(data, (dict, list)):
-        visited.add(id(data))
-    else:
+
+    if not isinstance(data, (dict, list)):
         return
 
-    # Check if this specific dictionary is an instance of the target class
-    if isinstance(data, dict):
-        try:
-            instance = cls(**data)
-            yield (path, instance)
-        except Exception:
-            pass
-        # Note: We usually don't recurse inside an instance once found
+    visited.add(id(data))
 
-    # Otherwise, keep searching deeper
-    iterator = data.items() if isinstance(data, dict) else enumerate(data)
-    for key, value in iterator:
-        new_path = f"{path}[{key}]" if isinstance(data, list) else (f"{path}.{key}" if path else str(key))
-        
-        if isinstance(value, (dict, list)):
+    if isinstance(data, dict):
+        # Strict schema gate
+        required = set(cls.model_fields.keys())
+        if required.intersection(data.keys()):
+            try:
+                instance = cls(**data)
+                yield path, instance
+                return  # do NOT recurse into a valid instance
+            except Exception:
+                pass
+
+        for key, value in data.items():
+            new_path = f"{path}.{key}" if path else key
             yield from find_and_transform_instances(value, cls, new_path, visited)
+
+    else:  # list
+        for i, item in enumerate(data):
+            yield from find_and_transform_instances(item, cls, f"{path}[{i}]", visited)

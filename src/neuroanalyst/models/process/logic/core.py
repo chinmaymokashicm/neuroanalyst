@@ -7,6 +7,7 @@ Purpose-
 """
 from ...about import About
 from ....utils.constants import NeuroAnalystPaths
+from ....utils.data import find_and_transform_instances
 
 from pathlib import Path
 from typing import Self, Optional, Any
@@ -90,6 +91,43 @@ class Metric(BaseModel):
         
     def __ne__(self, other: Any) -> bool:
         return not self.__eq__(other)
+    
+    @classmethod
+    def from_dict(cls, data: dict, sub_key: str = "metrics") -> list[Self]:
+        """
+        Create a list of Metric instances from a dictionary.
+        
+        Args:
+            data (dict): The input dictionary containing metric data.
+            sub_key (str): The key in the dictionary where metrics are stored.
+        Returns:
+            list[Metric]: A list of Metric instances.
+        """
+        metrics_dict = data.get(sub_key, {}) if sub_key else data
+        if not isinstance(metrics_dict, dict):
+            return []
+
+        metrics: list[Metric] = []
+
+        for _, value in metrics_dict.items():
+            if not isinstance(value, dict):
+                continue
+
+            if "value" not in value or "name" not in value:
+                continue
+
+            value = value.copy()
+
+            labels = value.get("labels")
+            if isinstance(labels, dict):
+                value["labels"] = list(labels.values())
+
+            try:
+                metrics.append(cls(**value))
+            except Exception as e:
+                continue
+
+        return metrics
 
 class ProgrammingLanguage(str, Enum):
     PYTHON = "python"
