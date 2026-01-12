@@ -104,8 +104,13 @@ def dti_tensor_fit(input_filepath: str):
     if input_bval_filepath is None or input_bvec_filepath is None:
         print("Bval or Bvec file paths not found in sidecar JSON or inferred from input filepath.")
 
-    bval, bvec = read_bvals_bvecs(input_bval_filepath, input_bvec_filepath)
-    gtab = gradient_table(bval, bvec)
+    try:
+        bval, bvec = read_bvals_bvecs(input_bval_filepath, input_bvec_filepath)
+        gtab = gradient_table(bval, bvec)
+    except Exception as e:
+        print(f"Error reading BVAL or BVECS files: {e}")
+        print("Cannot proceed with tensor fitting without valid gradient information. Exiting gracefully.")
+        return None, {}, {}, []
 
     # ============================
     # Step 2: Fit Tensor Model
