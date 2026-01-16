@@ -38,8 +38,8 @@ def fsl_register_dti_maps_to_mni(input_filepath: str):
     output_dir = Path(DATA_DIR) / "derivatives" / PIPELINE_NAME / "tmp"
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    img = nib.load(input_filepath)
-    img_data = img.get_fdata()
+    img: nib.Nifti1Image = nib.load(input_filepath)
+    img_data: np.ndarray = img.get_fdata()
     affine = img.affine
     header = img.header
 
@@ -87,11 +87,11 @@ def fsl_register_dti_maps_to_mni(input_filepath: str):
         "# 2) Apply transform to remaining scalars",
         "for scalar in md rd ad; do",
         f"  flirt \\",
-        f"    -in {output_dir}/$scalar.nii.gz \\",
+        f"    -in {output_dir}/${{scalar}}.nii.gz \\",
         f"    -ref $MNI_REF \\",
         f"    -applyxfm \\",
         f"    -init {fa2mni_mat} \\",
-        f"    -out {output_dir}/$scalar\"_mni.nii.gz\" \\",
+        f"    -out {output_dir}/${{scalar}}_mni.nii.gz \\",
         f"    -interp trilinear",
         "done",
         "",
@@ -103,20 +103,23 @@ def fsl_register_dti_maps_to_mni(input_filepath: str):
         f"  {output_dir / 'ad_mni.nii.gz'}"
     ])
 
+
     try:
         cmd = [
             "apptainer", "exec",
             fsl_img_path,
             "bash", "-c", internal_bash_command
         ]
+        print(f"Running FSL FLIRT registration with command: {' '.join(cmd)}")
         subprocess.run(cmd, check=True)
+        print("FSL FLIRT registration completed successfully.")
     except Exception as e:
         raise RuntimeError(f"FSL FLIRT registration failed: {e}")
 
     # ============================
     # Step 4: Load output & return
     # ============================
-    output_data = nib.load(str(temp_output_path))
+    output_data: nib.Nifti1Image = nib.load(str(temp_output_path))
 
     metrics = {
         "registration_tool": "FSL FLIRT",
@@ -126,7 +129,7 @@ def fsl_register_dti_maps_to_mni(input_filepath: str):
         "reference_scalar": "FA",
     }
 
-    output_entities = {
+    output_entities: dict = {
         "suffix": "map",
         "desc": "registeredToMNI",
         "extension": ".nii.gz",
