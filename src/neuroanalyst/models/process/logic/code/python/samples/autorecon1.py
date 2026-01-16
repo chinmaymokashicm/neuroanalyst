@@ -5,7 +5,7 @@ import os, subprocess, traceback
 import nibabel as nib
 import numpy as np
 from bids.layout import parse_file_entities
-
+from skimage.filters import threshold_otsu
 
 def autorecon1(input_filepath: str):
     """
@@ -33,16 +33,91 @@ def autorecon1(input_filepath: str):
         output_entities (dict): Dictionary of BIDS entities for the output file.
         forced_outputs (list): List of file paths that are saved as outputs but not BIDS-compliant.
     """
+    def pre_autorecon1_basic_checks(img: nib.Nifti1Image):
+        """
+        Perform basic checks on the input T1 image before running FreeSurfer Autorecon1.
+        
+        Args:
+            img (nib.Nifti1Image): Input T1 NIfTI image.
+        Raises:
+            ValueError: If any of the checks fail.
+        """
+        data = img.get_fdata()
+        zooms = img.header.get_zooms()[:3]
+
+        if data.ndim != 3:
+            raise ValueError("T1 image is not 3D")
+
+        if np.any(np.isnan(data)) or np.any(np.isinf(data)):
+            raise ValueError("T1 image contains NaNs or Infs")
+
+        if np.max(data) <= 0:
+            raise ValueError("T1 image has no positive intensities")
+
+        if not all(0.5 <= z <= 2.0 for z in zooms):
+            raise ValueError(f"Unexpected voxel size for T1: {zooms}")
+
+    def foreground_fraction(data: np.ndarray) -> float:
+        """
+        Calculate the fraction of foreground voxels in the image using Otsu's thresholding.
+        
+        Args:
+            data (np.ndarray): Input image data.
+        Returns:
+            float: Fraction of foreground voxels.
+        """
+        thresh = threshold_otsu(data[data > 0])
+        fg = data > thresh
+        return np.mean(fg)
+    
+    def cnr_proxy(data: np.ndarray) -> float:
+        """
+        Calculate a proxy for the contrast-to-noise ratio (CNR) in the image.
+        
+        Args:
+            data (np.ndarray): Input image data.
+        Returns:
+            float: CNR proxy value.
+        """
+        nonzero = data[data > 0]
+        p30, p70 = np.percentile(nonzero, [30, 70])
+        low = nonzero[nonzero < p30]
+        high = nonzero[nonzero > p70]
+        return (np.mean(high) - np.mean(low)) / np.std(nonzero)
+        
     # Step 1: Prepare environment and paths
     DATA_DIR: str = "/data"  # shared data dir bind
     PIPELINE_NAME: str = os.getenv("PIPELINE_NAME", "default_pipeline")
     FREESURFER_HOME: str = os.getenv("FREESURFER_HOME", None)
+    FOREGROUND_FRACTION_MIN: float = float(os.getenv("FOREGROUND_FRACTION_MIN", 0.1))
+    print("FOREGROUND_FRACTION_MIN:", FOREGROUND_FRACTION_MIN)
+    FOREGROUND_FRACTION_MAX: float = float(os.getenv("FOREGROUND_FRACTION_MAX", 0.7))
+    print("FOREGROUND_FRACTION_MAX:", FOREGROUND_FRACTION_MAX)
+    CNR_THRESHOLD: float = float(os.getenv("CNR_THRESHOLD", 0.6))
+    print("CNR_THRESHOLD:", CNR_THRESHOLD)
     if not FREESURFER_HOME:
         raise EnvironmentError("FREESURFER_HOME environment variable is not set.")
     freesurfer_outputs_dir: str = os.path.join(DATA_DIR, "derivatives", PIPELINE_NAME, "tmp")  #! Temporary directory for outputs; which would be usually be cleaned up by NeuroAnalyst wrapper, but here we keep it for FreeSurfer's intermediate files.
     os.makedirs(freesurfer_outputs_dir, exist_ok=True)
     
-    # Step 2: Prepare FreeSurfer command
+    # Step 2: Validate input image
+    img: nib.Nifti1Image = nib.load(input_filepath)
+    try:
+        pre_autorecon1_basic_checks(img)
+    except Exception as e:
+        print(f"Pre-Autorecon1 basic checks failed: {e}")
+        print(traceback.format_exc())
+        raise e
+    
+    if not (FOREGROUND_FRACTION_MIN <= foreground_fraction(img.get_fdata()) <= FOREGROUND_FRACTION_MAX):
+        raise ValueError(f"T1 image foreground fraction is outside acceptable range for FreeSurfer processing. Calculated: {foreground_fraction(img.get_fdata())}, Expected: [{FOREGROUND_FRACTION_MIN}, {FOREGROUND_FRACTION_MAX}]")
+    
+    cnr_proxy_value = cnr_proxy(img.get_fdata())
+    print("CNR Proxy Value:", cnr_proxy_value)
+    if cnr_proxy_value < CNR_THRESHOLD:
+        raise ValueError(f"T1 image CNR proxy is below acceptable threshold for FreeSurfer processing. Calculated: {cnr_proxy_value}, Threshold: {CNR_THRESHOLD}")
+    
+    # Step 3: Prepare FreeSurfer command
     entities: dict = parse_file_entities(input_filepath)
     subject_dirname: str = ""
     subject_id, session_id = None, None
@@ -69,11 +144,11 @@ def autorecon1(input_filepath: str):
         """
     ]
     
-    # Step 3: Prepare outputs
+    # Step 4: Prepare outputs
     skull_stripped_filepath: str = os.path.join(fs_subjects_dir, subject_dirname, "mri", "brainmask.mgz")
     t1_filepath: str = os.path.join(fs_subjects_dir, subject_dirname, "mri", "T1.mgz")
 
-    # Step 4: Run the FreeSurfer command if the outputs do not already exist
+    # Step 5: Run the FreeSurfer command if the outputs do not already exist
     if not os.path.exists(skull_stripped_filepath) or not os.path.exists(t1_filepath):
         print(f"Running command: {cmd}")
         try:
@@ -134,6 +209,13 @@ def autorecon1(input_filepath: str):
             description="Mean intensity within the brain mask",
             category=CATEGORY,
             labels=["qc", "intensity"]
+        ),
+        "contrast_to_noise_proxy": Metric(
+            name="contrast_to_noise_proxy",
+            value=cnr_proxy_value,
+            description="Proxy measure for contrast-to-noise ratio in the T1 image",
+            category=CATEGORY,
+            labels=["qc", "cnr"]
         ),
         "channels": ["T1", "brainmask"],
         "freesurfer_version": FREESURFER_HOME.split("/")[-1],

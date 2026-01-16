@@ -380,9 +380,9 @@ class KGGraph(BaseModel):
             g.add_edge(edge.source, edge.target, key=edge.relation, **edge.properties)
         return g
 
-    def to_pyvis(self, output: Optional[str]="bids_graph.html") -> Network:
+    def to_pyvis(self, output: Optional[str]="bids_graph.html", heading: Optional[str]="") -> Network:
         g = self.to_networkx()
-        net = Network(height="750px", width="100%", directed=True, notebook=True)
+        net = Network(height="750px", width="100%", directed=True, notebook=True, heading=heading)
         
         # === Add nodes ===
         

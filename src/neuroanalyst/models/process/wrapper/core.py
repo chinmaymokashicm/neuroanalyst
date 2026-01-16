@@ -460,7 +460,7 @@ def _extract_bids_entities(input_path: Path, config: NeuProcessDecoratorConfig) 
 def _construct_output_path(
     input_path: str | Path, 
     config: NeuProcessDecoratorConfig,
-    output_entities: Dict[str, str] = {}
+    output_entities: Dict[str, str] = None
     
 ) -> Path:
     """

@@ -93,12 +93,6 @@ def autorecon3(input_filepath: str):
     fs_subjects_dir: str = os.path.join(tmp_dir, "freesurfer_subjects")
     os.makedirs(fs_subjects_dir, exist_ok=True)
     
-    # Check if surf/lh or surf/rh exists from autorecon2 step - if not, raise error
-    # lh_surf_path: str = os.path.join(fs_subjects_dir, subject_dirname, "surf", "lh.white")
-    # rh_surf_path: str = os.path.join(fs_subjects_dir, subject_dirname, "surf", "rh.white")
-    # if not os.path.exists(lh_surf_path) or not os.path.exists(rh_surf_path):
-    #     raise FileNotFoundError(f"Expected surface files from autorecon2 step not found: {lh_surf_path}, {rh_surf_path}. Please run autorecon2 first.")
-    
     # Check if mri/aseg.presurf.mgz, mri/wm.mgz, and mri/filled.mgz exist from autorecon2 step - if not, raise error
     aseg_presurf_path: str = os.path.join(fs_subjects_dir, subject_dirname, "mri", "aseg.presurf.mgz")
     wm_mgz_path: str = os.path.join(fs_subjects_dir, subject_dirname, "mri", "wm.mgz")

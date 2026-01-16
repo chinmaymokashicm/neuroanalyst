@@ -59,8 +59,20 @@ def autorecon2(input_filepath: str):
         raise EnvironmentError("FREESURFER_HOME environment variable is not set.")
     freesurfer_outputs_dir: str = os.path.join(DATA_DIR, "derivatives", PIPELINE_NAME, "tmp")  #! Temporary directory for outputs; which would be usually be cleaned up by NeuroAnalyst wrapper, but here we keep it for FreeSurfer's intermediate files.
     os.makedirs(freesurfer_outputs_dir, exist_ok=True)
+    
+    # Step 2: Perform pre-checks on the input image
+    input_sidecar_path: str = input_filepath.split(".")[0] + ".json"
+    if not os.path.exists(input_sidecar_path):
+        raise FileNotFoundError(f"Input sidecar JSON file not found: {input_sidecar_path}. This is required to verify that autorecon1 has been run.")
+    with open(input_sidecar_path, 'r') as f:
+        sidecar_data = json.load(f)
+    mask_ratio: Optional[float] = sidecar_data.get("metrics", {}).get("mask_ratio", None).get("value", None)
+    if mask_ratio is None:
+        raise ValueError("Mask ratio metric not found in sidecar JSON. Please ensure that autorecon1 has been run successfully.")
+    if not (0.2 <= mask_ratio <= 0.8):
+        raise ValueError(f"Mask ratio from autorecon1 is outside acceptable range for FreeSurfer processing. Calculated: {mask_ratio}, Expected: [0.2, 0.8]")
         
-    # Step 2: Prepare FreeSurfer command
+    # Step 3: Prepare FreeSurfer command
     entities: dict = parse_file_entities(input_filepath)
     subject_dirname: str = ""
     subject_id, session_id = None, None
@@ -91,11 +103,11 @@ def autorecon2(input_filepath: str):
         """
     ]
 
-    # Step 3: Prepare outputs
+    # Step 4: Prepare outputs
     aseg_filepath: str = os.path.join(fs_subjects_dir, subject_dirname, "mri", "aseg.presurf.mgz")
     
     if not os.path.exists(aseg_filepath):
-        # Step 4: Run the FreeSurfer command
+        # Step 5: Run the FreeSurfer command
         print(f"Running command: {cmd_autorecon2}")
         try:
             result = subprocess.run(cmd_autorecon2, check=True, capture_output=True, text=True)
@@ -118,9 +130,15 @@ def autorecon2(input_filepath: str):
     # Load the aseg file and convert to NIfTI
     output_data: nib.Nifti1Image = nib.Nifti1Image.from_image(nib.load(aseg_filepath))
     
-    # Step 5: Prepare metrics and output entities
+    # Step 6: Prepare metrics and output entities
     metrics = {
-        "brain_volume": int(np.sum(output_data.get_fdata() > 0)),
+        "aseg_volume": Metric(
+            name="aseg_volume",
+            value=np.prod(output_data.shape) * output_data.header.get_zooms()[0] * output_data.header.get_zooms()[1] * output_data.header.get_zooms()[2],
+            description="Total volume of the aseg segmentation in cubic millimeters",
+            category="freesurfer",
+            labels=["segmentation", "volume"]
+        ),
         "parameters": {
             "FreeSurfer_version": FREESURFER_HOME.split("/")[-1],
         },
