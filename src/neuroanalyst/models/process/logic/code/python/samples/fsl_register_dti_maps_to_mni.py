@@ -20,7 +20,13 @@ def fsl_register_dti_maps_to_mni(input_filepath: str):
         output_entities (dict): Dictionary of BIDS entities for the output file.
         forced_outputs (list): Temporary files/directories to be cleaned up.
     """
-
+    def run_apptainer(cmd: list, step_name: str):
+        print(f"\n=== Running step: {step_name} ===")
+        print(" ".join(cmd))
+        try:
+            subprocess.run(cmd, check=True)
+        except subprocess.CalledProcessError as e:
+            raise RuntimeError(f"{step_name} failed with exit code {e.returncode}")
     # ============================
     # Step 1: Environment & I/O
     # ============================
@@ -67,55 +73,89 @@ def fsl_register_dti_maps_to_mni(input_filepath: str):
     fa2mni_mat = output_dir / "fa2mni.mat"
     temp_output_path = output_dir / "dti_scalars_mni.nii.gz"
     
-    internal_bash_command = "\n".join([
-        "set -e",
-        "",
-        ". ${FSLDIR}/etc/fslconf/fsl.sh",
-        "",
-        "MNI_REF=${FSLDIR}/data/standard/MNI152_T1_1mm.nii.gz",
-        "",
-        "# 1) Estimate transform using FA",
-        f"flirt \\",
-        f"  -in {scalar_paths['fa']} \\",
-        f"  -ref $MNI_REF \\",
-        f"  -omat {fa2mni_mat} \\",
-        f"  -out {output_dir / 'fa_mni.nii.gz'} \\",
-        f"  -dof 12 \\",
-        f"  -interp trilinear",
-        "",
-        "# 2) Apply transform to remaining scalars",
-        "for scalar in md rd ad; do",
-        f"  flirt \\",
-        f"    -in {output_dir}/${{scalar}}.nii.gz \\",
-        f"    -ref $MNI_REF \\",
-        f"    -applyxfm \\",
-        f"    -init {fa2mni_mat} \\",
-        f"    -out {output_dir}/${{scalar}}_mni.nii.gz \\",
-        f"    -interp trilinear",
-        "done",
-        "",
-        "# 3) Merge back into a single 4D image (FA, MD, RD, AD)",
-        f"fslmerge -t {temp_output_path} \\",
-        f"  {output_dir / 'fa_mni.nii.gz'} \\",
-        f"  {output_dir / 'md_mni.nii.gz'} \\",
-        f"  {output_dir / 'rd_mni.nii.gz'} \\",
-        f"  {output_dir / 'ad_mni.nii.gz'}"
-    ])
+    check_env_cmd = [
+        "apptainer", "exec",
+        fsl_img_path,
+        "bash", "-c",
+        "\n".join([
+            "set -e",
+            ". ${FSLDIR}/etc/fslconf/fsl.sh",
+            "echo FSLDIR=$FSLDIR",
+            "which flirt",
+            "flirt -version",
+            "ls -lh ${FSLDIR}/data/standard/MNI152_T1_1mm.nii.gz",
+        ])
+    ]
+    
+    fa_register_cmd = [
+        "apptainer", "exec",
+        fsl_img_path,
+        "bash", "-c",
+        "\n".join([
+            "set -e",
+            ". ${FSLDIR}/etc/fslconf/fsl.sh",
+            "MNI_REF=${FSLDIR}/data/standard/MNI152_T1_1mm.nii.gz",
+            f"flirt \\",
+            f"  -in {scalar_paths['fa']} \\",
+            f"  -ref $MNI_REF \\",
+            f"  -omat {fa2mni_mat} \\",
+            f"  -out {output_dir / 'fa_mni.nii.gz'} \\",
+            f"  -dof 12 \\",
+            f"  -interp trilinear",
+            f"test -f {fa2mni_mat}",
+            f"test -f {output_dir / 'fa_mni.nii.gz'}",
+        ])
+    ]
+    
+    apply_cmds = []
+    for scalar in ["md", "rd", "ad"]:
+        apply_cmds.extend([
+            f"flirt \\",
+            f"  -in {output_dir}/{scalar}.nii.gz \\",
+            f"  -ref $MNI_REF \\",
+            f"  -applyxfm \\",
+            f"  -init {fa2mni_mat} \\",
+            f"  -out {output_dir}/{scalar}_mni.nii.gz \\",
+            f"  -interp trilinear",
+            f"test -f {output_dir}/{scalar}_mni.nii.gz",
+            ""
+        ])
 
-
-    try:
-        cmd = [
-            "apptainer", "exec",
-            fsl_img_path,
-            "bash", "-c", internal_bash_command
-        ]
-        print(f"Running FSL FLIRT registration with command: {' '.join(cmd)}")
-        subprocess.run(cmd, check=True)
-        print("FSL FLIRT registration completed successfully.")
-    except Exception as e:
-        print(f"Error during FSL FLIRT registration: {e}")
-        print(traceback.format_exc())
-        raise RuntimeError(f"FSL FLIRT registration failed: {e}")
+    apply_transform_cmd = [
+        "apptainer", "exec",
+        fsl_img_path,
+        "bash", "-c",
+        "\n".join([
+            "set -e",
+            ". ${FSLDIR}/etc/fslconf/fsl.sh",
+            "MNI_REF=${FSLDIR}/data/standard/MNI152_T1_1mm.nii.gz",
+            *apply_cmds,
+        ])
+    ]
+    
+    merge_cmd = [
+        "apptainer", "exec",
+        fsl_img_path,
+        "bash", "-c",
+        "\n".join([
+            "set -e",
+            ". ${FSLDIR}/etc/fslconf/fsl.sh",
+            f"fslmerge -t {temp_output_path} \\",
+            f"  {output_dir / 'fa_mni.nii.gz'} \\",
+            f"  {output_dir / 'md_mni.nii.gz'} \\",
+            f"  {output_dir / 'rd_mni.nii.gz'} \\",
+            f"  {output_dir / 'ad_mni.nii.gz'}",
+            f"test -f {temp_output_path}",
+        ])
+    ]
+    
+    for cmd, step in [
+        (check_env_cmd, "Check FSL Environment"),
+        (fa_register_cmd, "Register FA to MNI"),
+        (apply_transform_cmd, "Apply Transform to MD, RD, AD"),
+        (merge_cmd, "Merge Registered Scalars"),
+    ]:
+        run_apptainer(cmd, step)
 
     # ============================
     # Step 4: Load output & return
