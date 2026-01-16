@@ -25,6 +25,7 @@ def fsl_register_dti_maps_to_mni(input_filepath: str):
         print(" ".join(cmd))
         try:
             subprocess.run(cmd, check=True)
+            print(f"=== Step '{step_name}' completed successfully ===\n")
         except subprocess.CalledProcessError as e:
             raise RuntimeError(f"{step_name} failed with exit code {e.returncode}")
     # ============================
@@ -78,7 +79,6 @@ def fsl_register_dti_maps_to_mni(input_filepath: str):
         fsl_img_path,
         "bash", "-c",
         "\n".join([
-            "set -e",
             ". ${FSLDIR}/etc/fslconf/fsl.sh",
             "echo FSLDIR=$FSLDIR",
             "which flirt",
@@ -92,7 +92,6 @@ def fsl_register_dti_maps_to_mni(input_filepath: str):
         fsl_img_path,
         "bash", "-c",
         "\n".join([
-            "set -e",
             ". ${FSLDIR}/etc/fslconf/fsl.sh",
             "MNI_REF=${FSLDIR}/data/standard/MNI152_T1_1mm.nii.gz",
             f"flirt \\",
@@ -126,7 +125,6 @@ def fsl_register_dti_maps_to_mni(input_filepath: str):
         fsl_img_path,
         "bash", "-c",
         "\n".join([
-            "set -e",
             ". ${FSLDIR}/etc/fslconf/fsl.sh",
             "MNI_REF=${FSLDIR}/data/standard/MNI152_T1_1mm.nii.gz",
             *apply_cmds,
@@ -138,7 +136,6 @@ def fsl_register_dti_maps_to_mni(input_filepath: str):
         fsl_img_path,
         "bash", "-c",
         "\n".join([
-            "set -e",
             ". ${FSLDIR}/etc/fslconf/fsl.sh",
             f"fslmerge -t {temp_output_path} \\",
             f"  {output_dir / 'fa_mni.nii.gz'} \\",
