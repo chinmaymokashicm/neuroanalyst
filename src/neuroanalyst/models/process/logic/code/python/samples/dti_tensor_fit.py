@@ -95,7 +95,9 @@ def dti_tensor_fit(input_filepath: str):
     if img_data.ndim < 4:
         raise ValueError("Input image must be a 4D DWI image.")
     
-    input_sidecar_path: str = input_filepath.split(".")[0] + ".json"
+    input_sidecar_path: str = Path(input_filepath).parent / Path(input_filepath).name.replace(".nii.gz", ".json").replace(".nii", ".json")
+    if not os.path.exists(input_sidecar_path):
+        raise FileNotFoundError(f"Sidecar JSON file not found: {input_sidecar_path}")
     input_bval_filepath, input_bvec_filepath = get_input_bval_bvec_paths(input_sidecar_path, input_filepath)
     if input_bval_filepath is None or input_bvec_filepath is None:
         print("Bval or Bvec file paths not found in sidecar JSON or inferred from input filepath.")
