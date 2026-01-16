@@ -88,7 +88,7 @@ def render_step(step: NeuPipelineStepStatus) -> Panel:
     MAX_DISPLAY = 20
     if total >= MAX_DISPLAY and not show_all:
         # Show only running processes if too many
-        running_processes = [p for p in step.processes if p.status == ProcessStatus.RUNNING] + [p for p in step.processes if p.status != ProcessStatus.RUNNING]
+        running_processes = [p for p in step.processes if p.status == ProcessStatus.RUNNING] + [p for p in step.processes if p.status == ProcessStatus.COMPLETE] + [p for p in step.processes if p.status not in {ProcessStatus.RUNNING, ProcessStatus.COMPLETE}]
         
         processes_to_show = running_processes[:MAX_DISPLAY]
 
