@@ -85,21 +85,12 @@ def render_step(step: NeuPipelineStepStatus) -> Panel:
     processes_to_show = step.processes
     hidden_count = 0
     
-    if total >= 50:
-        # Show only running processes if there are 50+ total
-        running_processes = [p for p in step.processes if p.status == ProcessStatus.RUNNING]
+    MAX_DISPLAY = 20
+    if total >= MAX_DISPLAY and not show_all:
+        # Show only running processes if too many
+        running_processes = [p for p in step.processes if p.status == ProcessStatus.RUNNING] + [p for p in step.processes if p.status != ProcessStatus.RUNNING]
         
-        if len(running_processes) > 50:
-            # If even running processes exceed 50, limit to first 50
-            processes_to_show = running_processes[:50]
-            hidden_count = len(running_processes) - 50
-        elif len(running_processes) > 0:
-            processes_to_show = running_processes
-            hidden_count = total - len(running_processes)
-        else:
-            # No running processes, show first 50
-            processes_to_show = step.processes[:50]
-            hidden_count = total - 50
+        processes_to_show = running_processes[:MAX_DISPLAY]
 
     proc_table = Table(
         box=box.SIMPLE,
