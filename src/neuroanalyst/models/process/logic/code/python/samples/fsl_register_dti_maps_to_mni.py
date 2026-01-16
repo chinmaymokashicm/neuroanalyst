@@ -1,7 +1,6 @@
 from neuroanalyst.models.process.logic.core import Metric
 
-import os
-import subprocess
+import os, subprocess, traceback
 from pathlib import Path
 
 import numpy as np
@@ -114,6 +113,8 @@ def fsl_register_dti_maps_to_mni(input_filepath: str):
         subprocess.run(cmd, check=True)
         print("FSL FLIRT registration completed successfully.")
     except Exception as e:
+        print(f"Error during FSL FLIRT registration: {e}")
+        print(traceback.format_exc())
         raise RuntimeError(f"FSL FLIRT registration failed: {e}")
 
     # ============================
