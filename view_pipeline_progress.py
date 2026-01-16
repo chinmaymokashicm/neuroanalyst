@@ -81,6 +81,26 @@ def render_step(step: NeuPipelineStepStatus) -> Panel:
     )
     task = bar.add_task("", total=total, completed=completed)
 
+    # Filter processes to display
+    processes_to_show = step.processes
+    hidden_count = 0
+    
+    if total >= 50:
+        # Show only running processes if there are 50+ total
+        running_processes = [p for p in step.processes if p.status == ProcessStatus.RUNNING]
+        
+        if len(running_processes) > 50:
+            # If even running processes exceed 50, limit to first 50
+            processes_to_show = running_processes[:50]
+            hidden_count = len(running_processes) - 50
+        elif len(running_processes) > 0:
+            processes_to_show = running_processes
+            hidden_count = total - len(running_processes)
+        else:
+            # No running processes, show first 50
+            processes_to_show = step.processes[:50]
+            hidden_count = total - 50
+
     proc_table = Table(
         box=box.SIMPLE,
         show_header=True,
@@ -94,7 +114,7 @@ def render_step(step: NeuPipelineStepStatus) -> Panel:
     proc_table.add_column("Completed At")
     proc_table.add_column("Duration")
 
-    for p in step.processes:
+    for p in processes_to_show:
         process_exec: NeuProcessExec = NeuProcessExec.from_exec_id(p.exec_id)
         bids_filters: dict = process_exec.bids_filters
         started_at: datetime = datetime.fromisoformat(p.started_at.replace('Z', '+00:00')) if p.started_at else None
@@ -116,6 +136,13 @@ def render_step(step: NeuPipelineStepStatus) -> Panel:
             started_at.strftime("%Y-%m-%d %H:%M:%S") if started_at else "-",
             completed_at.strftime("%Y-%m-%d %H:%M:%S") if completed_at else "-",
             prettify_duration(duration),
+        )
+
+    # Add notice about hidden processes
+    if hidden_count > 0:
+        proc_table.add_row(
+            f"[dim]... {hidden_count} more process(es) hidden[/dim]",
+            "", "", "", "", "", ""
         )
 
     content_grid = Table.grid()
