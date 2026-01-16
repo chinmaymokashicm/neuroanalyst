@@ -57,36 +57,37 @@ def fsl_register_dti_maps_to_mni(input_filepath: str):
     fa_img: nib.Nifti1Image = nib.Nifti1Image(fa_data, affine)
     nib.save(fa_img, temp_fa_input_filepath)
     
-    internal_bash_command: str = f"""
-set -e
-
-. ${{FSLDIR}}/etc/fslconf/fsl.sh
-
-# Reference MNI template
-MNI_REF=${{FSLDIR}}/data/standard/MNI152_T1_1mm.nii.gz
-
-# 1) Register FA to MNI (estimate transform)
-flirt \\
-  -in {temp_fa_input_filepath} \\
-  -ref $MNI_REF \\
-  -omat {temp_fa2mni_mat_filepath} \\
-  -out {temp_fa_output_filepath} \\
-  -dof 12 \\
-  -interp trilinear
-
-# 2) Apply the same transform to the stacked DTI maps
-fslsplit {input_filepath} vol_
-for vol in vol_*.nii.gz; do
-  flirt \\
-    -in $vol \\
-    -ref $MNI_REF \\
-    -applyxfm \\
-    -init {temp_fa2mni_mat_filepath} \\
-    -out mni_$vol \\
-    -interp trilinear
-done
-fslmerge -t {temp_output_filepath} mni_vol_*.nii.gz
-"""
+    internal_bash_command: str = "\n".join([
+        "set -e",
+        "",
+        ". ${FSLDIR}/etc/fslconf/fsl.sh",
+        "",
+        "# Reference MNI template",
+        "MNI_REF=${FSLDIR}/data/standard/MNI152_T1_1mm.nii.gz",
+        "",
+        "# 1) Register FA to MNI (estimate transform)",
+        f"flirt \\",
+        f"  -in {temp_fa_input_filepath} \\",
+        f"  -ref $MNI_REF \\",
+        f"  -omat {temp_fa2mni_mat_filepath} \\",
+        f"  -out {temp_fa_output_filepath} \\",
+        f"  -dof 12 \\",
+        f"  -interp trilinear",
+        "",
+        "# 2) Apply the same transform to the stacked DTI maps",
+        f"fslsplit {input_filepath} vol_",
+        "for vol in vol_*.nii.gz; do",
+        f"  flirt \\",
+        f"    -in $vol \\",
+        f"    -ref $MNI_REF \\",
+        f"    -applyxfm \\",
+        f"    -init {temp_fa2mni_mat_filepath} \\",
+        f"    -out mni_$vol \\",
+        f"    -interp trilinear",
+        "done",
+        f"fslmerge -t {temp_output_filepath} mni_vol_*.nii.gz"
+    ])
+    
     try:
         cmd = [
             "apptainer", "exec",
