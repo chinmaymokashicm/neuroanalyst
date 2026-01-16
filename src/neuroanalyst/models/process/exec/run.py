@@ -24,8 +24,18 @@ def main():
     console.rule("[bold blue]Test Process Function")
     console.print(f"Welcome {get_current_username()}!")
     
+    # Get all processes and their names
+    all_processes: list[NeuProcess] = NeuProcess.get_all_processes()
+    process_choices: dict[str, str] = {
+        f"{proc.logic.about.name} (ID: {proc.process_id})": proc.process_id for proc in all_processes
+    }
+    
     # Ask for process ID
-    process_id: str = questionary.text("Enter the Process ID to test:").ask()
+    process_selection: str = questionary.select(
+        "Select a Process to test:",
+        choices=list(process_choices.keys())
+    ).ask()
+    process_id: Optional[str] = process_choices.get(process_selection, None)
     if not process_id:
         console.print("[red]Process ID is required. Exiting.[/red]")
         return
