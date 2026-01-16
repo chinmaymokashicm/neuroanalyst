@@ -1,6 +1,6 @@
 from neuroanalyst.models.process.logic.core import Metric
 
-import os, json
+import os, json, traceback
 from pathlib import Path
 from typing import Optional
 
@@ -106,6 +106,7 @@ def dti_tensor_fit(input_filepath: str):
     except Exception as e:
         print(f"Error reading BVAL or BVECS files: {e}")
         print("Cannot proceed with tensor fitting without valid gradient information. Exiting gracefully.")
+        print(traceback.format_exc())
         return None, {}, {}, []
 
     # ============================
