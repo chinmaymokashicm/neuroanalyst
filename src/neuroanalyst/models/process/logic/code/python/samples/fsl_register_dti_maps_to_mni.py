@@ -1,122 +1,137 @@
 from neuroanalyst.models.process.logic.core import Metric
 
-import os, json, subprocess
+import os
+import subprocess
 from pathlib import Path
-from typing import Optional
 
 import numpy as np
 import nibabel as nib
-from dipy.io.gradients import read_bvals_bvecs
-from dipy.core.gradients import gradient_table
 
 
 def fsl_register_dti_maps_to_mni(input_filepath: str):
-    """Register DTI scalar maps to MNI space.
+    """Register DTI scalar maps (FA, MD, RD, AD) to MNI space using FSL FLIRT.
 
     Args:
-        input_filepath (str): Path to the input NifTi image with multi-channel DTI scalar maps (FA, MD, RD, AD).
+        input_filepath (str): Path to a 4D NIfTI image with channels ordered as
+                              [FA, MD, RD, AD].
 
     Returns:
-        output_data (nib.Nifti1Image): Stacked Nifti image registered to MNI (FA, MD, RD, AD).
+        output_data (nib.Nifti1Image): 4D NIfTI image registered to MNI space.
         metrics (dict): Dictionary of relevant metrics.
         output_entities (dict): Dictionary of BIDS entities for the output file.
-        forced_outputs (list): List of file paths that are saved as outputs but not BIDS-compliant. These will be deleted.
+        forced_outputs (list): Temporary files/directories to be cleaned up.
     """
+
     # ============================
-    # Step 1: Load Input Data
+    # Step 1: Environment & I/O
     # ============================
-    DATA_DIR: str = "/data"
-    PIPELINE_NAME: str = os.getenv("PIPELINE_NAME", None)
+    DATA_DIR = "/data"
+    PIPELINE_NAME = os.getenv("PIPELINE_NAME")
     if PIPELINE_NAME is None:
         raise EnvironmentError("PIPELINE_NAME environment variable is not set.")
+
     fsl_img_name = os.getenv("FSL_IMG_NAME")
-    fsl_img_path = f"/opt/fsl_images/{fsl_img_name}"  # path to FSL Singularity image inside container
-    output_dir: str = os.path.join(DATA_DIR, "tmp")  # Temporary directory for outputs; will be cleaned up by the framework's wrapper
-    os.makedirs(output_dir, exist_ok=True)
-    
-    img: nib.Nifti1Image = nib.load(input_filepath)
-    img_data: np.ndarray = img.get_fdata()
-    affine: np.ndarray = img.affine
-    header: nib.Nifti1Header = img.header
-    
+    if fsl_img_name is None:
+        raise EnvironmentError("FSL_IMG_NAME environment variable is not set.")
+
+    fsl_img_path = f"/opt/fsl_images/{fsl_img_name}"
+    output_dir = Path(DATA_DIR) / "derivatives" / PIPELINE_NAME / "tmp"
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    img = nib.load(input_filepath)
+    img_data = img.get_fdata()
+    affine = img.affine
+    header = img.header
+
     if img_data.ndim != 4 or img_data.shape[-1] != 4:
-        raise ValueError("Input image must be a 4D DWI image.")
-    
+        raise ValueError(
+            "Input image must be 4D with exactly 4 volumes (FA, MD, RD, AD)."
+        )
+
     # ============================
-    # Step 2: Register DTI Maps to MNI - register a reference map (FA) and apply the same transform to other maps
+    # Step 2: Save scalar maps explicitly
     # ============================
-    # Register the FA map to MNI space using FSL FLIRT and save the transformation matrix
-    # Apply the same transformation to MD, RD, and AD maps
+    scalar_names = ["fa", "md", "rd", "ad"]
+    scalar_paths = {}
+
+    for i, name in enumerate(scalar_names):
+        path = output_dir / f"{name}.nii.gz"
+        nib.save(
+            nib.Nifti1Image(img_data[..., i], affine, header),
+            path
+        )
+        scalar_paths[name] = path
+
+    # ============================
+    # Step 3: FSL FLIRT registration
+    # ============================
+    fa2mni_mat = output_dir / "fa2mni.mat"
+    temp_output_path = output_dir / "dti_scalars_mni.nii.gz"
     
-    temp_fa_input_filepath: str = os.path.join(output_dir, "fa_map.nii.gz")
-    temp_fa_output_filepath: str = os.path.join(output_dir, "temp_fa_map.nii.gz")
-    temp_fa2mni_mat_filepath: str = os.path.join(output_dir, "fa2mni.mat")
-    temp_output_filepath: str = os.path.join(output_dir, "dti_scalars_mni.nii.gz")
-    
-    fa_data: np.ndarray = img_data[..., 0]
-    fa_img: nib.Nifti1Image = nib.Nifti1Image(fa_data, affine)
-    nib.save(fa_img, temp_fa_input_filepath)
-    
-    internal_bash_command: str = "\n".join([
+    internal_bash_command = "\n".join([
         "set -e",
         "",
         ". ${FSLDIR}/etc/fslconf/fsl.sh",
         "",
-        "# Reference MNI template",
         "MNI_REF=${FSLDIR}/data/standard/MNI152_T1_1mm.nii.gz",
         "",
-        "# 1) Register FA to MNI (estimate transform)",
+        "# 1) Estimate transform using FA",
         f"flirt \\",
-        f"  -in {temp_fa_input_filepath} \\",
+        f"  -in {scalar_paths['fa']} \\",
         f"  -ref $MNI_REF \\",
-        f"  -omat {temp_fa2mni_mat_filepath} \\",
-        f"  -out {temp_fa_output_filepath} \\",
+        f"  -omat {fa2mni_mat} \\",
+        f"  -out {output_dir / 'fa_mni.nii.gz'} \\",
         f"  -dof 12 \\",
         f"  -interp trilinear",
         "",
-        "# 2) Apply the same transform to the stacked DTI maps",
-        f"fslsplit {input_filepath} vol_",
-        "for vol in vol_*.nii.gz; do",
+        "# 2) Apply transform to remaining scalars",
+        "for scalar in md rd ad; do",
         f"  flirt \\",
-        f"    -in $vol \\",
+        f"    -in {output_dir}/$scalar.nii.gz \\",
         f"    -ref $MNI_REF \\",
         f"    -applyxfm \\",
-        f"    -init {temp_fa2mni_mat_filepath} \\",
-        f"    -out mni_$vol \\",
+        f"    -init {fa2mni_mat} \\",
+        f"    -out {output_dir}/$scalar\"_mni.nii.gz\" \\",
         f"    -interp trilinear",
         "done",
-        f"fslmerge -t {temp_output_filepath} mni_vol_*.nii.gz"
+        "",
+        "# 3) Merge back into a single 4D image (FA, MD, RD, AD)",
+        f"fslmerge -t {temp_output_path} \\",
+        f"  {output_dir / 'fa_mni.nii.gz'} \\",
+        f"  {output_dir / 'md_mni.nii.gz'} \\",
+        f"  {output_dir / 'rd_mni.nii.gz'} \\",
+        f"  {output_dir / 'ad_mni.nii.gz'}"
     ])
-    
+
     try:
         cmd = [
             "apptainer", "exec",
             fsl_img_path,
             "bash", "-c", internal_bash_command
         ]
-        print(f"Running command: {' '.join(cmd)}")
-        result = subprocess.run(cmd, check=True)
-        print(f"FSL FLIRT command finished with return code {result.returncode}")
-        
-        if result.returncode != 0:
-            raise RuntimeError(f"FSL FLIRT command failed with return code {result.returncode}")
+        subprocess.run(cmd, check=True)
     except Exception as e:
-        raise RuntimeError(f"FSL FLIRT command failed: {e}")
-    
-    output_data: nib.Nifti1Image = nib.load(temp_output_filepath)
+        raise RuntimeError(f"FSL FLIRT registration failed: {e}")
 
-    metrics: dict = {
+    # ============================
+    # Step 4: Load output & return
+    # ============================
+    output_data = nib.load(str(temp_output_path))
+
+    metrics = {
         "registration_tool": "FSL FLIRT",
+        "reference_space": "MNI152_T1_1mm",
         "input_shape": img_data.shape,
-        "output_shape": output_data.shape
+        "output_shape": output_data.shape,
+        "reference_scalar": "FA",
     }
 
-    output_entities: dict = {
+    output_entities = {
         "suffix": "map",
         "desc": "registeredToMNI",
-        "extension": ".nii.gz"
+        "extension": ".nii.gz",
     }
 
-    forced_outputs: list = [output_dir]
+    forced_outputs = [str(output_dir)]
 
     return output_data, metrics, output_entities, forced_outputs
