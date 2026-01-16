@@ -76,7 +76,7 @@ def main():
     
     # Choose sample pipeline details (for environment variables)
     sample_pipeline_id: str = questionary.text("Enter a sample Pipeline ID for testing (default: PL-000000):", default="PL-000000").ask()
-    sample_pipeline_name: str = questionary.text("Enter a sample Pipeline Name for testing (default: Test Pipeline):", default="Test Pipeline").ask()
+    sample_pipeline_name: str = questionary.text("Enter a sample Pipeline Name for testing (default: test_pipeline):", default="test_pipeline").ask()
     
     # Ask for scheduler flags
     scheduler_flags: dict[str, str] = {}
