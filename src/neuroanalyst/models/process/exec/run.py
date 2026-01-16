@@ -29,6 +29,8 @@ def main():
     process_choices: dict[str, str] = {
         f"{proc.logic.about.name} (ID: {proc.process_id})": proc.process_id for proc in all_processes
     }
+    # Sort choices alphabetically
+    process_choices = dict(sorted(process_choices.items(), key=lambda item: item[0].lower()))
     
     # Ask for process ID
     process_selection: str = questionary.select(
