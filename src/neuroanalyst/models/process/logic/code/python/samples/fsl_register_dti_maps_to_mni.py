@@ -181,21 +181,10 @@ def fsl_register_dti_maps_to_mni(input_filepath: str):
     img_data: np.ndarray = output_data.get_fdata()
     # Compute overlap metrics for FA map
     fa_mni_img = nib.Nifti1Image(img_data[..., 0], output_data.affine, output_data.header)
-    try:
-        dice_fa = compute_mni_overlap(fa_mni_img, mni_resolution=1, threshold=0.2, metric="dice")
-    except ValueError as ve:
-        print(f"Skipping Dice computation for FA map: {ve}")
-        dice_fa = None
-    try:
-        jaccard_fa = compute_mni_overlap(fa_mni_img, mni_resolution=1, threshold=0.2, metric="jaccard")
-    except ValueError as ve:
-        print(f"Skipping Jaccard computation for FA map: {ve}")
-        jaccard_fa = None
-    try:
-        mi_fa = compute_mni_overlap(fa_mni_img, mni_resolution=1, metric="mi")
-    except ValueError as ve:
-        print(f"Skipping MI computation for FA map: {ve}")
-        mi_fa = None
+    overlap_scores = compute_mni_overlap(fa_mni_img, mni_resolution=1, threshold=0.2)
+    dice_fa = overlap_scores["dice"]
+    jaccard_fa = overlap_scores["jaccard"]
+    mi_fa = overlap_scores["mi"]
 
     metrics = {
         "registration_tool": "FSL FLIRT",
