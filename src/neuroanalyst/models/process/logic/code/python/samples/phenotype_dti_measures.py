@@ -43,9 +43,9 @@ def phenotype_dti_measures(input_filepath: str):
     if not Path(participants_tsv).is_file():
         raise FileNotFoundError(f"Participants TSV file not found: {participants_tsv}")
     
-    df_meas = pd.read_csv(input_filepath, sep="\t")
-    df_norm = pd.read_csv(normative_filepath, sep="\t")
-    df_part = pd.read_csv(participants_tsv, sep="\t")
+    df_measures = pd.read_csv(input_filepath, sep="\t")
+    df_normative = pd.read_csv(normative_filepath)
+    df_participants = pd.read_csv(participants_tsv, sep="\t")
 
     # ----------------------------
     # Validate required columns
@@ -60,7 +60,7 @@ def phenotype_dti_measures(input_filepath: str):
         "expected_mean",
         "expected_sd",
     }
-    missing = required_norm_cols - set(df_norm.columns)
+    missing = required_norm_cols - set(df_normative.columns)
     if missing:
         raise ValueError(f"Normative table missing columns: {missing}")
 
@@ -73,7 +73,7 @@ def phenotype_dti_measures(input_filepath: str):
     if subject is None:
         raise ValueError("Could not determine subject from input filename")
 
-    subj_row = df_part[df_part["participant_id"] == f"sub-{subject}"]
+    subj_row = df_participants[df_participants["participant_id"] == f"sub-{subject}"]
     if subj_row.empty:
         raise ValueError(f"Subject {subject} not found in participants.tsv")
 
@@ -89,9 +89,9 @@ def phenotype_dti_measures(input_filepath: str):
 
     long_records = []
 
-    for _, row in df_meas.iterrows():
+    for _, row in df_measures.iterrows():
         for scalar, col in value_cols.items():
-            if col not in df_meas.columns:
+            if col not in df_measures.columns:
                 continue
             long_records.append({
                 "roi_name": row["region_name"],
@@ -113,12 +113,12 @@ def phenotype_dti_measures(input_filepath: str):
         metric = row["metric"]
         value = row["value"]
 
-        df_normative_matches: pd.DataFrame = df_norm[
-            (df_norm["roi_name"] == roi)
-            & (df_norm["metric"] == metric)
-            & (df_norm["age_min"] <= age)
-            & (df_norm["age_max"] >= age)
-            & ((df_norm["sex"].str.lower() == sex) | (df_norm["sex"] == "any"))
+        df_normative_matches: pd.DataFrame = df_normative[
+            (df_normative["roi_name"] == roi)
+            & (df_normative["metric"] == metric)
+            & (df_normative["age_min"] <= age)
+            & (df_normative["age_max"] >= age)
+            & ((df_normative["sex"].str.lower() == sex) | (df_normative["sex"] == "any"))
         ]
 
         if df_normative_matches.empty:
