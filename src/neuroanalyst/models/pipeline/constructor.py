@@ -17,6 +17,7 @@ from pydantic import BaseModel, Field, model_validator, field_validator
 import networkx as nx
 from matplotlib import pyplot as plt
 from bids.layout import BIDSLayout
+from networkx.drawing.nx_agraph import to_agraph
 
 class ProcessConstructorConfig(BaseModel, validate_assignment=True):
     """Configuration for passing a NeuProcess to a NeuPipeline constructor."""
@@ -615,7 +616,102 @@ class PipelineConstructorConfig(BaseModel):
 
         if return_fig:
             return fig
+        
+    def display_ascii_graph(self) -> None:
+        """
+        Display an ASCII representation of the DAG.
+        Steps are rendered top-down with processes in the same step aligned horizontally.
+        """
 
+        if not self.graph:
+            print("Graph not constructed yet. Run `construct_graph()` first.")
+            return
+
+        # --- 1. Group nodes by step ---
+        step_nodes: dict[int, list[str]] = {}
+        for node, data in self.graph.nodes(data=True):
+            step_nodes.setdefault(data["step_idx"], []).append(node)
+
+        # Stable ordering
+        for step in step_nodes:
+            step_nodes[step] = sorted(step_nodes[step])
+
+        # --- 2. Build labels (same logic as matplotlib version) ---
+        labels: dict[str, str] = {}
+        for step_idx, step_config in enumerate(self.steps):
+            for process_config in step_config.process_configs:
+                node_name = self.get_node_name(process_config)
+                n_execs = len(
+                    process_config.generate_process_execs(
+                        DEFAULT_SCHEDULER_FLAGS[self.scheduler]
+                    )
+                )
+                labels[node_name] = (
+                    f"{process_config.process_id} | "
+                    f"{process_config.process.process_name} x{n_execs}"
+                )
+
+        # --- 3. Compute box width ---
+        max_label_len = max(len(lbl) for lbl in labels.values())
+        box_width = max_label_len + 4  # padding
+
+        def render_box(text: str) -> str:
+            return f"[ {text.ljust(max_label_len)} ]"
+
+        # --- 4. Render steps ---
+        print()
+        print("=" * (box_width + 20))
+        print(f"{self.about.name}")
+        print(f"Author: {self.about.author}")
+        print("=" * (box_width + 20))
+        print()
+
+        previous_step_nodes: list[str] = []
+
+        for step_idx in sorted(step_nodes):
+            step_name = self.steps[step_idx].name
+            nodes = step_nodes[step_idx]
+
+            print(f"Step {step_idx + 1}: {step_name}")
+            print("-" * (len(step_name) + 14))
+
+            # --- Node row ---
+            row = "   ".join(render_box(labels[n]) for n in nodes)
+            print(row)
+
+            # --- Edge connectors from previous step ---
+            if previous_step_nodes:
+                connectors = []
+                for node in nodes:
+                    preds = list(self.graph.predecessors(node))
+                    if any(p in previous_step_nodes for p in preds):
+                        connectors.append("   " + "│".center(box_width))
+                    else:
+                        connectors.append(" " * (box_width + 3))
+
+                print("".join(connectors))
+
+                arrows = []
+                for node in nodes:
+                    preds = list(self.graph.predecessors(node))
+                    if any(p in previous_step_nodes for p in preds):
+                        arrows.append("   " + "└─▶".ljust(box_width))
+                    else:
+                        arrows.append(" " * (box_width + 3))
+
+                print("".join(arrows))
+
+            print()
+            previous_step_nodes = nodes
+
+        # --- 5. Optional status legend ---
+        if self.pipeline:
+            print("Process Status Legend")
+            print("---------------------")
+            for status in ProcessStatus:
+                print(f"[{status.value}]")
+
+        print()
         
     def set_descendant_subject_session_pairs(self, root_node: str) -> None:
         """Set subject-session pairs for all descendant process configs based on the root node."""
