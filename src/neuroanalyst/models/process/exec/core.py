@@ -14,7 +14,7 @@ import json
 import subprocess
 from enum import Enum
 from pathlib import Path
-from typing import Optional, List, Dict, Any, Union, ClassVar
+from typing import Optional, List, Dict, Any, Union, ClassVar, Self
 
 from pydantic import BaseModel, Field, field_validator, model_validator, ConfigDict
 from bids import BIDSLayout
@@ -157,7 +157,46 @@ class NeuProcessExec(BaseModel):
         return len(missing_bind_paths) == 0 and len(missing_env_vars) == 0 and command_generated and container_built
     
     @classmethod
-    def generate_from_process(cls, process: NeuProcess, **kwargs) -> "NeuProcessExec":
+    def get_by_process_id(cls, process_id: str) -> List[Self]:
+        """
+        Retrieve all NeuProcessExec instances associated with a given process ID.
+        
+        Args:
+            process_id: Process ID to filter by
+            
+        Returns:
+            List of NeuProcessExec instances
+        """
+        execs: List[Self] = []
+        paths = NeuroAnalystPaths()
+        exec_base_dir = paths.process_execs
+        
+        if not exec_base_dir.exists():
+            print(f"Execution base directory does not exist: {exec_base_dir}")
+            return execs
+        
+        for exec_dir in exec_base_dir.iterdir():
+            if not exec_dir.is_dir():
+                continue
+            model_path = exec_dir / "model.json"
+            if not model_path.exists():
+                print(f"Model file does not exist: {model_path}")
+                continue
+            try:
+                with open(model_path, "r") as f:
+                    model_data = json.load(f)
+                exec_instance: Self = cls.model_validate(model_data)
+                if exec_instance.process.process_id == process_id:
+                    execs.append(exec_instance)
+            except Exception:
+                continue
+        if len(execs) == 0:
+            print(f"No NeuProcessExec instances found for process ID: {process_id}")
+        
+        return execs
+    
+    @classmethod
+    def generate_from_process(cls, process: NeuProcess, **kwargs) -> Self:
         """
         Create a NeuProcessExec from a NeuProcess instance.
         
@@ -166,12 +205,12 @@ class NeuProcessExec(BaseModel):
             **kwargs: Additional arguments to pass to the NeuProcessExec constructor
             
         Returns:
-            NeuProcessExec instance
+            Self: NeuProcessExec instance
         """
         return cls(process=process, **kwargs)
     
     @classmethod
-    def generate_from_process_id(cls, process_id: str, **kwargs) -> "NeuProcessExec":
+    def generate_from_process_id(cls, process_id: str, **kwargs) -> Self:
         """
         Create a NeuProcessExec from a process ID.
         
@@ -180,13 +219,13 @@ class NeuProcessExec(BaseModel):
             **kwargs: Additional arguments to pass to the NeuProcessExec constructor
             
         Returns:
-            NeuProcessExec instance
+            Self: NeuProcessExec instance
         """
         process = NeuProcess.from_process_id(process_id)
         return cls(process=process, **kwargs)
     
     @classmethod
-    def generate_from_process_dir_path(cls, dir_path: Path, **kwargs) -> "NeuProcessExec":
+    def generate_from_process_dir_path(cls, dir_path: Path, **kwargs) -> Self:
         """
         Create a NeuProcessExec from a path to a process directory.
         
@@ -195,13 +234,13 @@ class NeuProcessExec(BaseModel):
             **kwargs: Additional arguments to pass to the NeuProcessExec constructor
             
         Returns:
-            NeuProcessExec instance
+            Self: NeuProcessExec instance
         """
         process = NeuProcess.from_dir_path(dir_path)
         return cls(process=process, **kwargs)
     
     @classmethod
-    def from_exec_id(cls, exec_id: str) -> "NeuProcessExec":
+    def from_exec_id(cls, exec_id: str) -> Self:
         """
         Create a NeuProcessExec from a saved execution ID.
         
@@ -209,7 +248,7 @@ class NeuProcessExec(BaseModel):
             exec_id: Execution ID of a previously saved NeuProcessExec
             
         Returns:
-            NeuProcessExec instance
+            Self: NeuProcessExec instance
             
         Raises:
             FileNotFoundError: If the execution directory or model.json file does not exist

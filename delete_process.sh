@@ -1,0 +1,1 @@
+python -m src.neuroanalyst.models.process.process.delete

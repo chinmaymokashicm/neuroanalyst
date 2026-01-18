@@ -20,6 +20,14 @@ def summarize_dti_measures(input_filepath: str):
     Assumes:
         - DTI scalar maps are already registered to FreeSurfer space
         - Channel order is [FA, MD, RD, AD]
+        
+    Args:
+        input_filepath (str): Path to 4D NIfTI image with DTI scalar maps.
+    Returns:
+        output_data (pd.DataFrame): DataFrame with regional DTI metrics.
+        metrics (dict): Metadata about the computation.
+        output_entities (dict): BIDS entities for the output file.
+        forced_outputs (list): List of forced outputs (empty).
     """
 
     # ============================
@@ -116,6 +124,9 @@ def summarize_dti_measures(input_filepath: str):
             "region_id": label,
             "region_name": name,
             "voxel_count": voxel_count,
+            "valid_fraction": float(np.sum(region_mask) / np.prod(fa_data.shape)),
+            "low_coverage_fraction": float(np.sum((aparc_data == label) & (~valid_dti_mask)) / np.prod(fa_data.shape)), # Low coverage defined as FA <= 0.2 or non-finite
+            "suspicious_fraction": float(np.sum((aparc_data == label) & (fa_data <= 0.1)) / np.prod(fa_data.shape)), # Suspiciously low FA <= 0.1
         }
 
         for scalar in scalar_names:
@@ -135,6 +146,17 @@ def summarize_dti_measures(input_filepath: str):
     # ============================
     # Step 6: Outputs
     # ============================
+    n_total = np.prod(fa_data.shape)
+    n_valid = int(np.sum(valid_dti_mask))
+
+    qc_metrics = {
+        "n_voxels_total": int(n_total),
+        "n_voxels_valid_fa": n_valid,
+        "valid_fa_fraction": n_valid / n_total,
+        "mean_fa_global": float(np.mean(fa_data[valid_dti_mask])),
+        "std_fa_global": float(np.std(fa_data[valid_dti_mask])),
+    }
+
     output_data = pd.DataFrame.from_records(records)
 
     metrics = {
@@ -144,6 +166,9 @@ def summarize_dti_measures(input_filepath: str):
         "parcellation": "FreeSurfer aparc+aseg",
         "valid_fa_threshold": 0.2,
         "space": "FreeSurfer / registered DTI space",
+        **qc_metrics,
+        "low_global_coverage": qc_metrics["valid_fa_fraction"] < 0.3,
+        "many_empty_regions": int(np.sum(output_data["voxel_count"] == 0)) > (0.5 * len(output_data)), # More than 50% regions empty
     }
 
     output_entities: dict = {
