@@ -53,7 +53,7 @@ def phenotype_dti_measures(input_filepath: str):
             base_name = "-".join(parts[2:])
             return base_name.replace("-", "").strip(), "cortical"
         else:
-            base_name = roi_name.replace("Left-", "").replace("Right-", "").replace("-", "").strip()
+            base_name = roi_name.replace("Left-", "").replace("Right-", "").replace("-", "").lower().strip()
             return base_name, "subcortical"
 
     # ============================
@@ -174,9 +174,16 @@ def phenotype_dti_measures(input_filepath: str):
             continue
 
         # If multiple matches exist, pick the most specific (narrowest age range)
-        norm_row = df_normative_matches.sort_values(
-            by=(df_normative_matches["age_max"] - df_normative_matches["age_min"])
-        ).iloc[0]
+        df_normative_matches["age_range"] = (
+            df_normative_matches["age_max"] - df_normative_matches["age_min"]
+        )
+
+        norm_row = (
+            df_normative_matches
+            .sort_values("age_range")
+            .iloc[0]
+        )
+        df_normative_matches.drop(columns=["age_range"], inplace=True)
 
         mu = float(norm_row["expected_mean"])
         sd = float(norm_row["expected_sd"])
