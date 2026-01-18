@@ -44,10 +44,11 @@ def main():
     console.print(Panel.fit(f"[bold green]Loaded Process:[/bold green] {process.logic.about.name} (ID: {process.process_id})"))
     ask_details: bool = questionary.confirm(
         "Do you want to see process details before deletion?",
-        default=False
+        default=True
     ).ask()
     if ask_details:
         console.print(process.logic)
+        console.print(process.logic.code)
     confirm_delete: bool = questionary.confirm(
         f"Are you sure you want to DELETE process '{process.logic.about.name}' (ID: {process.process_id})? This action cannot be undone.",
         default=False
