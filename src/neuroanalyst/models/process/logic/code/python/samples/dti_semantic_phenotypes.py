@@ -137,7 +137,7 @@ def dti_semantic_phenotypes(input_filepath: str):
 
     output_entities = {
         "suffix": "dti",
-        "desc": "phenotyped",
+        "desc": "dtiSemanticPhenotypes",
         "extension": ".tsv",
     }
 

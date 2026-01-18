@@ -8,12 +8,11 @@ import numpy as np
 from bids.layout import parse_file_entities
 
 
-def phenotype_dti_measures(input_filepath: str):
+def compare_dti_measures_to_normative(input_filepath: str):
     """
-    Phenotype regional DTI measures by comparing subject-level values
-    to a normative reference dataset and computing z-scores.
+    Compare regional DTI measures to a normative reference table and compute z-scores.
 
-    This function performs *normative comparison*, not bucketing.
+    This function performs normative comparison.
 
     Args:
         input_filepath (str): TSV with regional DTI summaries (wide format).
@@ -223,7 +222,7 @@ def phenotype_dti_measures(input_filepath: str):
 
     output_entities = {
         "suffix": "stats",
-        "desc": "dtiPhenotyped",
+        "desc": "dtiNormativeComparison",
         "extension": ".tsv",
     }
 
