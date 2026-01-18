@@ -102,6 +102,8 @@ def phenotype_dti_measures(input_filepath: str):
             })
 
     df_long = pd.DataFrame.from_records(long_records)
+    if df_long.empty:
+        raise ValueError("No valid DTI measures found in input data.")
 
     # ============================
     # Step 4: Match to normative data
@@ -156,6 +158,8 @@ def phenotype_dti_measures(input_filepath: str):
     # Step 5: Outputs
     # ============================
     output_data = pd.DataFrame.from_records(phenotypes)
+    if output_data.empty:
+        raise ValueError("No phenotyped DTI measures could be computed.")
 
     metrics = {
         "n_regions": output_data["roi_name"].nunique(),
