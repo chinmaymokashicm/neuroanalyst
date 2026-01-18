@@ -238,7 +238,7 @@ if __name__ == "__main__":
     # Get all pipelines and their names and their statuses
     all_pipelines: list[NeuPipeline] = NeuPipeline.get_all_pipelines()
     pipeline_choices: dict[str, str] = {
-        f"{pl.about.name} (ID: {pl.pipeline_id}) (Status: {pl.get_pipeline_status().status.value})": pl.pipeline_id for pl in all_pipelines
+        f"{pl.about.name} (ID: {pl.pipeline_id}) (Status: {pl.get_pipeline_status().status.value}) (Created at: {datetime.fromisoformat(pl.get_pipeline_status().created_at)})": pl.pipeline_id for pl in all_pipelines
     }
     # Sort choices alphabetically
     pipeline_choices = dict(sorted(pipeline_choices.items(), key=lambda item: item[0].lower()))
