@@ -27,7 +27,7 @@ def main():
     if not all_pipelines:
         console.print(f"[red]No pipelines found in {paths.pipelines}. Exiting.[/red]")
         return
-    pipeline_choices: list[str] = [f"{pl.about.name} (ID: {pl.pipeline_id})" for pl in all_pipelines]
+    pipeline_choices: list[str] = [f"{pl.about.name} (ID: {pl.pipeline_id}) (Dataset: {pl.bids_root.name})" for pl in all_pipelines]
     selected_pipeline: Optional[NeuPipeline] = None
     cancel: bool = False
     while not selected_pipeline and not cancel:
@@ -44,7 +44,7 @@ def main():
         selected_pipeline = all_pipelines[selected_index]
         
         # Display selected pipeline info
-        console.print(f"[bold green]Selected Pipeline:[/bold green] {selected_pipeline.about.name} (ID: {selected_pipeline.pipeline_id})")
+        console.print(f"[bold green]Selected Pipeline:[/bold green] {selected_pipeline.about.name} (ID: {selected_pipeline.pipeline_id}) (Dataset: {selected_pipeline.bids_root.name})")
         console.print(selected_pipeline)
         
         # Confirm selection
