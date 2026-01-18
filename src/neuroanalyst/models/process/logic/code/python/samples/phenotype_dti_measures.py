@@ -125,6 +125,8 @@ def phenotype_dti_measures(input_filepath: str):
     df_long = pd.DataFrame.from_records(long_records)
     if df_long.empty:
         raise ValueError("No valid DTI measures found in input data.")
+    print(f"Converted to long format with {len(df_long)} rows.")
+    print(df_long.head())
 
     # ============================
     # Step 4: Match to normative data
