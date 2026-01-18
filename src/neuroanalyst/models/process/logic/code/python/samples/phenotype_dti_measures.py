@@ -159,8 +159,6 @@ def phenotype_dti_measures(input_filepath: str):
         metric = row["metric"]
         value = row["value"]
         
-        print(f"Phenotyping ROI: {roi}, Metric: {metric}, Value: {value}, Age: {age}, Sex: {sex}, Hemi: {hemi}")
-
         df_normative_matches: pd.DataFrame = df_normative[
             (df_normative["roi_name"] == roi)
             & (df_normative["metric"] == metric)
@@ -225,7 +223,7 @@ def phenotype_dti_measures(input_filepath: str):
 
     output_entities = {
         "suffix": "stats",
-        "desc": "dtiNormative",
+        "desc": "dtiPhenotyped",
         "extension": ".tsv",
     }
 
