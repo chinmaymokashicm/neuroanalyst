@@ -267,4 +267,7 @@ if __name__ == "__main__":
     def fetch_status():
         return pipeline.get_pipeline_status()
     
-    live_pipeline_view(fetch_status)
+    try:
+        live_pipeline_view(fetch_status)
+    except KeyboardInterrupt:
+        console.print("\n[red]Pipeline view interrupted by user.[/red]")
