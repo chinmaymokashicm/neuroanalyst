@@ -24,6 +24,19 @@ def phenotype_dti_measures(input_filepath: str):
         output_entities (dict): BIDS-like entities.
         forced_outputs (list): Non-BIDS outputs (none).
     """
+    def split_roi_hemi(region_name: str):
+        """
+        Converts FreeSurfer-style region name to base ROI + hemisphere code.
+        Example: 'Left-Thalamus' → ('Thalamus', 'lh')
+                'Right-Putamen' → ('Putamen', 'rh')
+        """
+        region_name = region_name.strip()
+        if region_name.startswith("Left-"):
+            return region_name.replace("Left-", ""), "lh"
+        elif region_name.startswith("Right-"):
+            return region_name.replace("Right-", ""), "rh"
+        else:
+            return region_name, None
 
     # ============================
     # Step 1: Load inputs
@@ -46,6 +59,8 @@ def phenotype_dti_measures(input_filepath: str):
     df_measures = pd.read_csv(input_filepath, sep="\t")
     df_normative = pd.read_csv(normative_filepath)
     df_participants = pd.read_csv(participants_tsv, sep="\t")
+    
+    df_normative["metric"] = df_normative["metric"].str.upper()
 
     # ----------------------------
     # Validate required columns
@@ -79,7 +94,13 @@ def phenotype_dti_measures(input_filepath: str):
 
     age = float(subj_row.iloc[0][AGE_COL])
     sex = str(subj_row.iloc[0]["sex"]).lower()
-    print(f"Using sex: {sex}")
+    sex_raw = str(subj_row.iloc[0]["sex"]).strip().lower()
+    sex_map = {"m": "m", "male": "m", "f": "f", "female": "f"}
+    sex = sex_map.get(sex_raw)
+
+    if sex is None:
+        raise ValueError(f"Unrecognized sex value: {sex_raw}")
+    print(f"Subject {subject}: age={age}, sex={sex}")
 
     # ============================
     # Step 3: Convert wide → long
@@ -95,7 +116,7 @@ def phenotype_dti_measures(input_filepath: str):
                 continue
             long_records.append({
                 "roi_name": row["region_name"],
-                "metric": scalar,
+                "metric": scalar.upper(),
                 "value": float(row[col]),
                 "voxel_count": int(row.get("voxel_count", np.nan)),
                 "valid_fraction": float(row.get("valid_fraction", np.nan)),
@@ -111,7 +132,8 @@ def phenotype_dti_measures(input_filepath: str):
     phenotypes = []
 
     for _, row in df_long.iterrows():
-        roi = row["roi_name"]
+        roi_full = row["roi_name"]
+        roi, hemi = split_roi_hemi(roi_full)
         metric = row["metric"]
         value = row["value"]
 
@@ -121,6 +143,7 @@ def phenotype_dti_measures(input_filepath: str):
             & (df_normative["age_min"] <= age)
             & (df_normative["age_max"] >= age)
             & ((df_normative["sex"].str.lower() == sex) | (df_normative["sex"] == "any"))
+            & ((hemi is None) | (df_normative["hemisphere"] == hemi))
         ]
 
         if df_normative_matches.empty:
