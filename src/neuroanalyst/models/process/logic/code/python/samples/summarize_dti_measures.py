@@ -30,11 +30,11 @@ def summarize_dti_measures(input_filepath: str):
     if FS_PIPELINE_NAME is None:
         raise EnvironmentError("FS_PIPELINE_NAME environment variable is not set.")
 
-    dti_img = nib.load(input_filepath)
-    dti_data = dti_img.get_fdata()  # (X, Y, Z, 4)
+    dti_img: nib.Nifti1Image = nib.load(input_filepath)
+    dti_data: np.ndarray = dti_img.get_fdata()  # (X, Y, Z, 4)
 
     if dti_data.ndim != 4 or dti_data.shape[-1] != 4:
-        raise ValueError("DTI input must be 4D with exactly 4 volumes (FA, MD, RD, AD).")
+        raise ValueError(f"DTI input must be 4D with exactly 4 volumes (FA, MD, RD, AD). Got shape: {dti_data.shape}")
 
     scalar_names = ["FA", "MD", "RD", "AD"]
     scalar_index = dict(zip(scalar_names, range(4)))
@@ -45,33 +45,39 @@ def summarize_dti_measures(input_filepath: str):
     entities = parse_file_entities(input_filepath)
     subject = entities.get("subject")
     session = entities.get("session")
-
-    subject_session = subject + (f"_{session}" if session else "")
-
-    fs_root = (
+    
+    # Try to build subject_session string - if exact match does not exist, pick any session from the subject
+    
+    fs_all_subjects_dir = (
         Path(DATA_DIR)
         / "derivatives"
         / FS_PIPELINE_NAME
         / "tmp"
         / "freesurfer_subjects"
-        / subject_session
     )
+    
+    matched_subject_dirs = [d for d in fs_all_subjects_dir.iterdir() if d.is_dir() and d.name.startswith(subject)]
+    
+    if not matched_subject_dirs:
+        raise FileNotFoundError(f"No FreeSurfer subject directory found for subject: {subject} in {fs_all_subjects_dir}")
+    
+    fs_root = matched_subject_dirs[0]  # Pick the first matched subject directory
 
     aparc_path = fs_root / "mri" / "aparc+aseg.mgz"
     if not aparc_path.exists():
         raise FileNotFoundError(f"Missing FreeSurfer segmentation: {aparc_path}")
 
     aparc_img = nib.load(str(aparc_path))
-    aparc_data = aparc_img.get_fdata()
+    aparc_data: np.ndarray = aparc_img.get_fdata()
 
     # ============================
     # Step 3: Space validation
     # ============================
     if dti_data.shape[:3] != aparc_data.shape:
-        raise ValueError("DTI maps and aparc+aseg have different dimensions.")
+        raise ValueError(f"DTI maps and aparc+aseg have different dimensions. DTI shape: {dti_data.shape[:3]}, aparc+aseg shape: {aparc_data.shape}")
 
     if not np.allclose(dti_img.affine, aparc_img.affine, atol=1e-3):
-        raise ValueError("DTI maps and aparc+aseg affines do not match.")
+        raise ValueError(f"DTI maps and aparc+aseg affines do not match. DTI affine: {dti_img.affine}, aparc+aseg affine: {aparc_img.affine}")
 
     # ============================
     # Step 4: Valid DTI mask (FA-based)
