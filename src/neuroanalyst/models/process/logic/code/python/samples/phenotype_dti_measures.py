@@ -138,6 +138,8 @@ def phenotype_dti_measures(input_filepath: str):
         roi, hemi = split_roi_hemi(roi_full)
         metric = row["metric"]
         value = row["value"]
+        
+        print(f"Phenotyping ROI: {roi}, Metric: {metric}, Value: {value}, Age: {age}, Sex: {sex}, Hemi: {hemi}")
 
         df_normative_matches: pd.DataFrame = df_normative[
             (df_normative["roi_name"] == roi)
