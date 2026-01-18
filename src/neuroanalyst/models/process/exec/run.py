@@ -151,6 +151,32 @@ def main():
                 ).ask()
             sessions.append(session)
             available_sessions.remove(session)
+            
+    # Check how many files match the criteria
+    if subjects:
+        if sessions:
+            matched_files = bids_layout.get(
+                scope=bids_scope,
+                subject=subjects,
+                session=sessions,
+                **process_constructor_config.input_bids_filters
+            )
+        else:
+            matched_files = bids_layout.get(
+                scope=bids_scope,
+                subject=subjects,
+                **process_constructor_config.input_bids_filters
+            )
+    else:
+        matched_files = bids_layout.get(
+            scope=bids_scope,
+            **process_constructor_config.input_bids_filters
+        )
+    num_matched_files: int = len(matched_files)
+    console.print(f"[blue]Number of BIDS files matching the criteria: {num_matched_files}[/blue]")
+    if num_matched_files == 0:
+        console.print("[red]No files match the specified BIDS criteria. Exiting.[/red]")
+        return
     
     process_exec: NeuProcessExec = process_constructor_config.create_single_process_exec(
         scheduler_flags=scheduler_flags,
