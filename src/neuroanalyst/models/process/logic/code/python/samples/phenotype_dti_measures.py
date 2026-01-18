@@ -27,7 +27,7 @@ def phenotype_dti_measures(input_filepath: str):
     def split_roi_hemi(region_name: str):
         """
         Converts FreeSurfer-style region name to base ROI + hemisphere code.
-        Example: 'Left-Thalamus' → ('Thalamus', 'lh')
+        Example: 'Left-Cerebral-White-Matter' → ('Thalamus', 'lh')
                 'Right-Putamen' → ('Putamen', 'rh')
         """
         region_name = region_name.strip()
@@ -37,6 +37,24 @@ def phenotype_dti_measures(input_filepath: str):
             return region_name.replace("Right-", ""), "rh"
         else:
             return region_name, None
+    
+    def convert_roi(roi_name: str) -> tuple[str, str]:
+        """
+        Convert FreeSurfer-style ROI names to normative table style.
+        Example: 'Left-Thalamus' → 'thalamus'
+                 'ctx-lh-cuneus' → 'cuneus'
+                 'ctx-lh-parstriangularis ' → 'parstriangularis'
+                 
+        Returns the cleaned ROI name and the ROI type.
+        """
+        if roi_name.startswith("ctx-"):
+            parts = roi_name.split("-")
+            hemi = parts[1]
+            base_name = "-".join(parts[2:])
+            return base_name.replace("-", "").strip(), "cortical"
+        else:
+            base_name = roi_name.replace("Left-", "").replace("Right-", "").replace("-", "").strip()
+            return base_name, "subcortical"
 
     # ============================
     # Step 1: Load inputs
@@ -61,6 +79,7 @@ def phenotype_dti_measures(input_filepath: str):
     df_participants = pd.read_csv(participants_tsv, sep="\t")
     
     df_normative["metric"] = df_normative["metric"].str.upper()
+    df_normative["roi_name"] = df_normative["roi_name"].str.replace("_", "").str.strip()
 
     # ----------------------------
     # Validate required columns
@@ -136,6 +155,7 @@ def phenotype_dti_measures(input_filepath: str):
     for _, row in df_long.iterrows():
         roi_full = row["roi_name"]
         roi, hemi = split_roi_hemi(roi_full)
+        roi, roi_type = convert_roi(roi)
         metric = row["metric"]
         value = row["value"]
         
