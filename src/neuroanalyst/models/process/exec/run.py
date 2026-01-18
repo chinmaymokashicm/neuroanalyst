@@ -80,8 +80,8 @@ def main():
     
     # Ask for scheduler flags
     scheduler_flags: dict[str, str] = {"-q": "medium", "-W": "12:00", "-M": "20GB"}
-    add_scheduler_flags: bool = questionary.confirm("Do you want to add scheduler flags for testing?", default=False).ask()
     console.print(f"[blue]Default scheduler flags: {scheduler_flags}[/blue]")
+    add_scheduler_flags: bool = questionary.confirm("Do you want to add scheduler flags for testing?", default=False).ask()
     while add_scheduler_flags:
         flag_key: str = questionary.text("Enter the scheduler flag key (e.g., --time):").ask()
         flag_value: str = questionary.text(f"Enter the value for scheduler flag '{flag_key}':").ask()
