@@ -9,6 +9,7 @@ import numpy as np
 import pandas as pd
 import nibabel as nib
 from bids.layout import parse_file_entities
+from nilearn.image import resample_to_img
 
 
 def summarize_dti_measures(input_filepath: str):
@@ -67,12 +68,18 @@ def summarize_dti_measures(input_filepath: str):
     if not aparc_path.exists():
         raise FileNotFoundError(f"Missing FreeSurfer segmentation: {aparc_path}")
 
-    aparc_img = nib.load(str(aparc_path))
+    aparc_img: nib.Nifti1Image = nib.load(str(aparc_path))
     aparc_data: np.ndarray = aparc_img.get_fdata()
 
     # ============================
     # Step 3: Space validation
     # ============================
+    # Resample DTI maps to aparc space if needed
+    if not np.allclose(dti_img.affine, aparc_img.affine, atol=1e-3) or dti_data.shape[:3] != aparc_data.shape:
+        dti_img = resample_to_img(dti_img, aparc_img, interpolation="continuous")
+        print("Resampled DTI maps to FreeSurfer aparc+aseg space for alignment.")
+        dti_data = dti_img.get_fdata()
+    
     if dti_data.shape[:3] != aparc_data.shape:
         raise ValueError(f"DTI maps and aparc+aseg have different dimensions. DTI shape: {dti_data.shape[:3]}, aparc+aseg shape: {aparc_data.shape}")
 
