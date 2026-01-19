@@ -218,6 +218,7 @@ def compare_dti_measures_to_normative(input_filepath: str):
         "scalars": sorted(output_data["metric"].unique()),
         "reference_population": output_data["reference_population"].unique().tolist(),
         "phenotyping_method": "z-score",
+        "reference_table": REFERENCE_CSV_NAME,
     }
 
     output_entities = {
