@@ -1,4 +1,4 @@
-from src.neuroanalyst.models.process.logic.core import Metric
+from neuroanalyst.models.process.logic.core import Metric
 
 import pandas as pd
 import numpy as np
