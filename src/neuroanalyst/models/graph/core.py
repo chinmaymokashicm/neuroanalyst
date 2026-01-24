@@ -137,7 +137,7 @@ class KGGraph(BaseModel):
     def props_to_pretty(props: dict, trim: Optional[int] = 1000) -> str:
         if not props:
             return "No properties"
-        props_str = ", ".join(f"{k}: {v}" for k, v in props.items())
+        props_str = "\n".join(f"{k}: {v}" for k, v in props.items())
         if trim and len(props_str) > trim:
             props_str = props_str[:trim] + "..."
         return props_str
@@ -380,20 +380,23 @@ class KGGraph(BaseModel):
             g.add_edge(edge.source, edge.target, key=edge.relation, **edge.properties)
         return g
 
-    def to_pyvis(self, output: Optional[str]="bids_graph.html", heading: Optional[str]="") -> Network:
+    def to_pyvis(self, output: Optional[str]="bids_graph.html", heading: Optional[str]="", id_delimiter: str = "::") -> Network:
         g = self.to_networkx()
         net = Network(height="750px", width="100%", directed=True, notebook=True, heading=heading)
         
         # === Add nodes ===
         
         for node_id, data in g.nodes(data=True):
-            node_props = {
+            short_id = node_id.split(id_delimiter)[-1].split("/")[-1]
+            node_props = {"name": short_id, **{
                 k: v for k, v in data.items()
                 if k not in {"color"}
-            }
+            }}
+            # label: str = f"{data.get('label', str(node_id))}\n({short_id})"
+            label: str = f"{data.get('label', str(node_id))}"
             net.add_node(
                 node_id,
-                label=data.get("label", str(node_id)),
+                label=label,
                 color=data.get("color", "#000000"),
                 shape=SHAPE_BY_LABEL.get(data.get("label", ""), "dot"),
                 title=self.props_to_pretty(node_props)

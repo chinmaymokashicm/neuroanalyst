@@ -24,7 +24,7 @@ from .executor import ProcessStatus, BaseExecutor, LSFExecutor, SLURMExecutor, P
 import os
 import json
 import shutil
-import time
+import time, datetime
 import subprocess
 import logging
 import concurrent.futures
@@ -70,6 +70,23 @@ class NeuProcessExecStatus(BaseModel):
     
     # Scheduler job ID (if applicable)
     scheduler_job_id: Optional[str] = Field(default=None, description="Job ID assigned by the HPC scheduler")
+    
+    @property
+    def duration(self) -> Optional[float]:
+        """Calculate the duration of the process execution in seconds."""
+        if self.started_at is None or self.completed_at is None:
+            return None
+        start_time = datetime.fromisoformat(self.started_at)
+        end_time = datetime.fromisoformat(self.completed_at)
+        return (end_time - start_time).total_seconds()
+    
+    @property
+    def duration_str(self) -> Optional[str]:
+        """Get a human-readable string representation of the duration."""
+        duration_seconds = self.duration
+        if duration_seconds is None:
+            return None
+        return str(datetime.timedelta(seconds=int(duration_seconds)))
 
 class NeuPipelineStepStatus(BaseModel):
     """
@@ -102,11 +119,13 @@ class ProcessExecSummary(BaseModel):
     status: ProcessStatus
     error_message: Optional[str] = None
     error_files: Dict[str, str] = Field(default_factory=dict)
+    duration: Optional[float] = None
 
 class StepSummary(BaseModel):
     step_id: int
     status: ProcessStatus
     processes: List[ProcessExecSummary] = Field(default_factory=list)
+    duration: Optional[float] = None
 
 class PipelineSummary(BaseModel):
     pipeline_id: str
@@ -116,6 +135,14 @@ class PipelineSummary(BaseModel):
     scheduler: str
     completion_percentage: float
     steps: List[StepSummary]
+    duration: Optional[float] = None
+    
+    @property
+    def duration_str(self) -> Optional[str]:
+        """Get a human-readable string representation of the pipeline duration."""
+        if self.duration is None:
+            return None
+        return str(datetime.timedelta(seconds=int(self.duration)))
 
 class NeuPipelineStatus(BaseModel):
     """
@@ -132,7 +159,7 @@ class NeuPipelineStatus(BaseModel):
     
     # Steps in the pipeline
     steps: List[NeuPipelineStepStatus] = Field(default_factory=list, description="List of steps in the pipeline with their statuses")
-
+    
     def __iter__(self):
         """Allow iteration over the steps in the pipeline."""
         return iter(self.steps)
@@ -311,23 +338,35 @@ class NeuPipelineStatus(BaseModel):
         erring_logs = self.get_erring_logs()
 
         steps_summary: List[StepSummary] = []
+        
+        pipeline_start_time: Optional[datetime] = None
+        pipeline_end_time: Optional[datetime] = None
 
         for step in self.steps:
-            step_summary = StepSummary(
-                step_id=step.step_id,
-                status=step.status,
-                processes=[]
-            )
+            step_summary_dict = {
+                "step_id": step.step_id,
+                "status": step.status,
+                "processes": []
+            }
+            earliest_exec_start: Optional[datetime] = None
+            latest_exec_end: Optional[datetime] = None
 
             for proc in step.processes:
+                started_at: Optional[datetime] = datetime.fromisoformat(proc.started_at) if proc.started_at else None
+                if earliest_exec_start is None or (started_at and started_at < earliest_exec_start):
+                    earliest_exec_start = started_at
                 proc_summary = ProcessExecSummary(
                     exec_id=proc.exec_id,
                     process_id=proc.process_id,
                     step_id=step.step_id,
                     status=proc.status,
                     error_message=proc.error,
-                    error_files={}
+                    error_files={},
+                    duration=proc.duration
                 )
+                completed_at: Optional[datetime] = datetime.fromisoformat(proc.completed_at) if proc.completed_at else None
+                if latest_exec_end is None or (completed_at and completed_at > latest_exec_end):
+                    latest_exec_end = completed_at
 
                 # Attach parsed error snippets if available
                 if proc.process_id in erring_logs:
@@ -335,7 +374,18 @@ class NeuPipelineStatus(BaseModel):
                         if entry["exec_id"] == proc.exec_id:
                             proc_summary.error_files = entry.get("error_files", {})
 
-                step_summary.processes.append(proc_summary)
+                # step_summary.processes.append(proc_summary)
+                step_summary_dict["processes"].append(proc_summary)
+            step_summary: StepSummary = StepSummary(
+                **step_summary_dict,
+                duration=(latest_exec_end - earliest_exec_start).total_seconds() if earliest_exec_start and latest_exec_end else None
+            )
+            
+            if pipeline_start_time is None or (earliest_exec_start and earliest_exec_start < pipeline_start_time):
+                pipeline_start_time = earliest_exec_start
+                
+            if pipeline_end_time is None or (latest_exec_end and latest_exec_end > pipeline_end_time):
+                pipeline_end_time = latest_exec_end
 
             steps_summary.append(step_summary)
 
@@ -346,7 +396,8 @@ class NeuPipelineStatus(BaseModel):
             last_updated=self.last_updated,
             scheduler=self.scheduler,
             completion_percentage=self.get_completion_percentage(),
-            steps=steps_summary
+            steps=steps_summary,
+            duration=(pipeline_end_time - pipeline_start_time).total_seconds() if pipeline_start_time and pipeline_end_time else None
         )
     
     def print_pipeline_summary(self) -> None:
@@ -355,7 +406,7 @@ class NeuPipelineStatus(BaseModel):
         summary = self.get_pipeline_summary()
 
         status_icon = {
-            ProcessStatus.PENDING: "⏳",
+            ProcessStatus.NOT_STARTED: "○",
             ProcessStatus.RUNNING: "▶",
             ProcessStatus.COMPLETE: "✔",
             ProcessStatus.FAILED: "✖",
@@ -367,6 +418,7 @@ class NeuPipelineStatus(BaseModel):
         print(f"Scheduler: {summary.scheduler}")
         print(f"Progress : {summary.completion_percentage:.1f}%")
         print(f"Updated  : {summary.last_updated}")
+        print(f"Duration : {summary.duration if summary.duration is not None else 'N/A'} seconds")
         print("=" * 80)
 
         for step_idx, step in enumerate(summary.steps):

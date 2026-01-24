@@ -375,6 +375,19 @@ class SlicedBIDSDataset(BaseModel):
                     self.graph.add_node(metric_node)
                     self.graph.add_edge(self.dataset.create_hasMetric_edge(derived_file_node.id, metric))
                     
+                # DerivedFile -derivedFrom-> DerivedFile/RawFile (0 or more edges)
+                for derivedFrom_edge in self.dataset.graph.get_node_edges(derived_file_node.id, position="source"):
+                    if derivedFrom_edge.relation != "derivedFrom":
+                        continue
+                    other_file_node: KGNode = self.dataset.graph.nodes[derivedFrom_edge.target]
+                    other_file_no_extension: str = other_file_node.properties.get("stem")
+                    derivative_name_other: str = other_file_node.properties.get("derivative_name")
+                    if other_file_no_extension is None:
+                        print(f"Skipping DerivedFile/RawFile node with missing stem: {other_file_node.id}: {other_file_node.properties}")
+                        continue
+                    self.graph.add_node(other_file_node)
+                    self.graph.add_edge(self.dataset.create_derivedFrom_edge(derivative_name, file_path_no_extension, other_file_node.id))
+                    
                             
         return self.graph
     
