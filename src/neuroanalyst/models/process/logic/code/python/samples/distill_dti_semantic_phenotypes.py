@@ -5,11 +5,7 @@ import numpy as np
 from pathlib import Path
 
 
-def distill_dti_semantic_phenotypes(
-    input_filepath: str,
-    max_phenotypes: int = 5,
-    z_threshold: float = 2.0,
-):
+def distill_dti_semantic_phenotypes(input_filepath: str):
     """
     Distill ROI-level DTI semantic phenotypes into a limited set of
     file-level phenotypes for KG attachment.
@@ -30,6 +26,8 @@ def distill_dti_semantic_phenotypes(
     # Step 1: Load Input
     # ============================
     df = pd.read_csv(input_filepath, sep="\t")
+    MAX_PHENOTYPES = 5
+    Z_THRESHOLD = 2.0
 
     REQUIRED_COLUMNS = {
         "roi_name",
@@ -48,7 +46,7 @@ def distill_dti_semantic_phenotypes(
     # Step 2: Keep only salient abnormalities
     # ============================
     df_abnormal = df[
-        df["z_value"].abs() >= z_threshold
+        df["z_value"].abs() >= Z_THRESHOLD
     ].copy()
 
     if df_abnormal.empty:
@@ -96,7 +94,7 @@ def distill_dti_semantic_phenotypes(
     phenotype_records = []
     semantic_labels = []
 
-    for _, row in grouped.head(max_phenotypes).iterrows():
+    for _, row in grouped.head(MAX_PHENOTYPES).iterrows():
         metric = row["metric"].lower()
         deviation = row["deviation"]
         n_rois = int(row["n_rois"])
@@ -130,8 +128,8 @@ def distill_dti_semantic_phenotypes(
     metrics = {
         "semantic_phenotypes": [Metric(name="dti_semantic_phenotype", value=label, unit=None, description="DTI semantic phenotype") for label in semantic_labels],
         "phenotype_count": Metric(name="dti_semantic_phenotype_count", value=len(semantic_labels), unit="count", description="Number of distinct DTI semantic phenotypes"),
-        "z_threshold": Metric(name="dti_semantic_phenotype_z_threshold", value=z_threshold, unit="z-score", description="Z-score threshold for defining significant DTI abnormalities"),
-        "max_phenotypes": Metric(name="dti_semantic_phenotype_max_phenotypes", value=max_phenotypes, unit="count", description="Maximum number of DTI semantic phenotypes to retain"),
+        "z_threshold": Metric(name="dti_semantic_phenotype_z_threshold", value=Z_THRESHOLD, unit="z-score", description="Z-score threshold for defining significant DTI abnormalities"),
+        "max_phenotypes": Metric(name="dti_semantic_phenotype_max_phenotypes", value=MAX_PHENOTYPES, unit="count", description="Maximum number of DTI semantic phenotypes to retain"),
     }
 
     output_entities = {
